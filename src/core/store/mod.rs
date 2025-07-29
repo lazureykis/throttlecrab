@@ -71,6 +71,55 @@ impl MemoryStore {
     }
 }
 
+impl Store for MemoryStore {
+    fn compare_and_swap_with_ttl(
+        &mut self,
+        key: &str,
+        old: i64,
+        new: i64,
+        ttl: Duration,
+        now: SystemTime,
+    ) -> Result<bool, String> {
+        self.clean_expired(now);
+
+        match self.data.get(key) {
+            Some((current, _)) if *current == old => {
+                let expiry = now + ttl;
+                self.data.insert(key.to_string(), (new, Some(expiry)));
+                Ok(true)
+            }
+            Some(_) => Ok(false),
+            None => Ok(false),
+        }
+    }
+
+    fn get(&self, key: &str, now: SystemTime) -> Result<Option<i64>, String> {
+        self.get(key, now)
+    }
+
+    fn log_debug(&self, _message: &str) {
+        // No-op in library - binary can implement logging
+    }
+
+    fn set_if_not_exists_with_ttl(
+        &mut self,
+        key: &str,
+        value: i64,
+        ttl: Duration,
+        now: SystemTime,
+    ) -> Result<bool, String> {
+        self.clean_expired(now);
+
+        if self.data.contains_key(key) {
+            Ok(false)
+        } else {
+            let expiry = now + ttl;
+            self.data.insert(key.to_string(), (value, Some(expiry)));
+            Ok(true)
+        }
+    }
+}
+
 impl Store for &mut MemoryStore {
     fn compare_and_swap_with_ttl(
         &mut self,

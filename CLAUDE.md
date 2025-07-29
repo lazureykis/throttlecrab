@@ -66,4 +66,4 @@ The project follows the standard Rust project layout:
 - After finishing work, push the branch and create a PR with a proper description
 - After pushing more commits to an existing PR, update the PR summary accordingly
 
-- Always run 'cargo fmt' and 'cargo clippy' before pushing code to github
+- Always run 'cargo fmt --all' and 'cargo clippy --all-targets --all-features -- -D warnings' before pushing code to github
