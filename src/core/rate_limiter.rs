@@ -13,44 +13,21 @@ pub struct RateLimitResult {
 /// GCRA Rate Limiter implementation (similar to redis-cell)
 pub struct RateLimiter<S: Store> {
     store: S,
-    /// Also known as "burst"
-    delay_variation_tolerance: Duration,
-    /// The rate at which tokens are added
-    emission_interval: Duration,
-    /// Maximum number of tokens (burst size)
-    limit: i64,
 }
 
 impl<S: Store> RateLimiter<S> {
-    /// Create a new rate limiter from burst and rate parameters
-    pub fn new_from_parameters(
-        store: S,
-        max_burst: i64,
-        count_per_period: i64,
-        period_seconds: i64,
-    ) -> Result<Self, CellError> {
-        if max_burst <= 0 || count_per_period <= 0 || period_seconds <= 0 {
-            return Err(CellError::InvalidRateLimit);
-        }
-
-        let rate = Rate::from_count_and_period(count_per_period, period_seconds);
-        let emission_interval = rate.period();
-
-        // delay_variation_tolerance = (burst - 1) * emission_interval
-        let delay_variation_tolerance = emission_interval * (max_burst - 1) as u32;
-
-        Ok(RateLimiter {
-            store,
-            delay_variation_tolerance,
-            emission_interval,
-            limit: max_burst,
-        })
+    /// Create a new rate limiter with a store
+    pub fn new(store: S) -> Self {
+        RateLimiter { store }
     }
 
     /// Check if a request is allowed and update state
     pub fn rate_limit(
         &mut self,
         key: &str,
+        max_burst: i64,
+        count_per_period: i64,
+        period: i64,
         quantity: i64,
         now: SystemTime,
     ) -> Result<(bool, RateLimitResult), CellError> {
@@ -58,13 +35,23 @@ impl<S: Store> RateLimiter<S> {
             return Err(CellError::NegativeQuantity(quantity));
         }
 
+        if max_burst <= 0 || count_per_period <= 0 || period <= 0 {
+            return Err(CellError::InvalidRateLimit);
+        }
+
+        // Calculate rate parameters
+        let rate = Rate::from_count_and_period(count_per_period, period);
+        let emission_interval = rate.period();
+        let delay_variation_tolerance = emission_interval * (max_burst - 1) as u32;
+        let limit = max_burst;
+
         let tat_val = self.store.get(key, now).map_err(CellError::Internal)?;
 
         let now_ns = now.duration_since(UNIX_EPOCH).unwrap().as_nanos() as i64;
 
         // Calculate the theoretical arrival time for this request
-        let emission_interval_ns = self.emission_interval.as_nanos() as i64;
-        let delay_variation_tolerance_ns = self.delay_variation_tolerance.as_nanos() as i64;
+        let emission_interval_ns = emission_interval.as_nanos() as i64;
+        let delay_variation_tolerance_ns = delay_variation_tolerance.as_nanos() as i64;
 
         // Initialize TAT or get from store
         let tat = if let Some(stored_tat) = tat_val {
@@ -99,7 +86,14 @@ impl<S: Store> RateLimiter<S> {
 
                 if !success {
                     // Race condition - retry
-                    return self.rate_limit(key, quantity, now);
+                    return self.rate_limit(
+                        key,
+                        max_burst,
+                        count_per_period,
+                        period,
+                        quantity,
+                        now,
+                    );
                 }
             } else {
                 // First time seeing this key
@@ -110,7 +104,14 @@ impl<S: Store> RateLimiter<S> {
 
                 if !success {
                     // Race condition - retry
-                    return self.rate_limit(key, quantity, now);
+                    return self.rate_limit(
+                        key,
+                        max_burst,
+                        count_per_period,
+                        period,
+                        quantity,
+                        now,
+                    );
                 }
             }
         }
@@ -149,7 +150,7 @@ impl<S: Store> RateLimiter<S> {
         Ok((
             allowed,
             RateLimitResult {
-                limit: self.limit,
+                limit,
                 remaining,
                 reset_after,
                 retry_after,

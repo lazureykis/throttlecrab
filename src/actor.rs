@@ -39,7 +39,7 @@ impl RateLimiterHandle {
 
 /// The rate limiter actor that runs in a single thread
 pub struct RateLimiterActor {
-    store: MemoryStore,
+    limiter: RateLimiter<MemoryStore>,
     rx: mpsc::Receiver<RateLimiterMessage>,
 }
 
@@ -50,7 +50,7 @@ impl RateLimiterActor {
 
         tokio::spawn(async move {
             let mut actor = RateLimiterActor {
-                store: MemoryStore::new(),
+                limiter: RateLimiter::new(MemoryStore::new()),
                 rx,
             };
 
@@ -80,18 +80,17 @@ impl RateLimiterActor {
 
     /// Handle a throttle request
     fn handle_throttle(&mut self, request: ThrottleRequest) -> Result<ThrottleResponse> {
-        // Create a rate limiter for this request
-        let mut limiter = RateLimiter::new_from_parameters(
-            &mut self.store,
-            request.max_burst,
-            request.count_per_period,
-            request.period,
-        )
-        .map_err(|e| anyhow::anyhow!("Invalid rate limit parameters: {}", e))?;
-
         // Check the rate limit
-        let (allowed, result) = limiter
-            .rate_limit(&request.key, request.quantity, request.timestamp)
+        let (allowed, result) = self
+            .limiter
+            .rate_limit(
+                &request.key,
+                request.max_burst,
+                request.count_per_period,
+                request.period,
+                request.quantity,
+                request.timestamp,
+            )
             .map_err(|e| anyhow::anyhow!("Rate limit check failed: {}", e))?;
 
         Ok(ThrottleResponse::from((allowed, result)))
