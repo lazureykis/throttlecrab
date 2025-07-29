@@ -83,16 +83,13 @@ async fn run_demo(limiter: actor::RateLimiterHandle) -> Result<()> {
     println!();
 
     // Test request
-    let request = ThrottleRequest {
+    let mut request = ThrottleRequest {
         key: "user:123".to_string(),
         max_burst: 15,
         count_per_period: 30,
         period: 60,
         quantity: 1,
-        timestamp: std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .unwrap()
-            .as_secs() as i64,
+        timestamp: std::time::SystemTime::now(),
     };
 
     println!("Testing rate limiter with redis-cell compatible API:");
@@ -106,6 +103,8 @@ async fn run_demo(limiter: actor::RateLimiterHandle) -> Result<()> {
 
     // Make a few requests
     for i in 1..=20 {
+        // Update timestamp for each request
+        request.timestamp = std::time::SystemTime::now();
         let response = limiter.throttle(request.clone()).await?;
 
         println!(

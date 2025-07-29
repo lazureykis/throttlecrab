@@ -14,10 +14,7 @@ mod tests {
             count_per_period: 10,
             period: 60,
             quantity: 1,
-            timestamp: std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .unwrap()
-                .as_secs() as i64,
+            timestamp: std::time::SystemTime::now(),
         };
 
         let resp = handle.throttle(req.clone()).await.unwrap();
@@ -36,10 +33,7 @@ mod tests {
             count_per_period: 10,
             period: 60,
             quantity: 1,
-            timestamp: std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .unwrap()
-                .as_secs() as i64,
+            timestamp: std::time::SystemTime::now(),
         };
 
         // Send multiple concurrent requests

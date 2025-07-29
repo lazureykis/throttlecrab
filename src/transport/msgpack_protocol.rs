@@ -37,13 +37,17 @@ pub struct MsgPackResponse {
 
 impl From<MsgPackRequest> for ThrottleRequest {
     fn from(req: MsgPackRequest) -> Self {
+        // Convert timestamp from seconds to SystemTime
+        let duration_since_epoch = std::time::Duration::from_secs(req.timestamp as u64);
+        let timestamp = std::time::UNIX_EPOCH + duration_since_epoch;
+        
         ThrottleRequest {
             key: req.key,
             max_burst: req.burst,
             count_per_period: req.rate,
             period: req.period,
             quantity: req.quantity,
-            timestamp: req.timestamp,
+            timestamp,
         }
     }
 }
