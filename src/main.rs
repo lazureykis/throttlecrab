@@ -9,7 +9,10 @@ use anyhow::Result;
 use clap::Parser;
 
 use crate::actor::RateLimiterActor;
-use crate::transport::{Transport, msgpack::MsgPackTransport};
+use crate::transport::{
+    Transport, compact_protocol::CompactProtocolTransport, msgpack::MsgPackTransport,
+    msgpack_optimized::OptimizedMsgPackTransport,
+};
 use crate::types::ThrottleRequest;
 
 #[derive(Parser, Debug)]
@@ -34,6 +37,14 @@ struct Args {
     /// Run demo mode
     #[arg(long)]
     demo: bool,
+
+    /// Use optimized MessagePack transport
+    #[arg(long)]
+    optimized: bool,
+
+    /// Use compact binary protocol
+    #[arg(long)]
+    compact: bool,
 }
 
 #[tokio::main]
@@ -58,8 +69,18 @@ async fn main() -> Result<()> {
             args.port
         );
 
-        let transport = MsgPackTransport::new(&args.host, args.port);
-        transport.start(limiter).await?;
+        if args.compact {
+            tracing::info!("Using compact binary protocol");
+            let transport = CompactProtocolTransport::new(&args.host, args.port);
+            transport.start(limiter).await?;
+        } else if args.optimized {
+            tracing::info!("Using optimized MessagePack transport");
+            let transport = OptimizedMsgPackTransport::new(&args.host, args.port);
+            transport.start(limiter).await?;
+        } else {
+            let transport = MsgPackTransport::new(&args.host, args.port);
+            transport.start(limiter).await?;
+        }
     } else if args.demo {
         run_demo(limiter).await?;
     } else {

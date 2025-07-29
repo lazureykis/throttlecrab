@@ -52,3 +52,11 @@ harness = false
 [[bench]]
 name = "connection_pool"
 harness = false
+
+[[bench]]
+name = "msgpack_comparison"
+harness = false
+
+[[bench]]
+name = "protocol_comparison"
+harness = false
