@@ -1,5 +1,6 @@
-use super::{ThrottleRequest, ThrottleResponse, rate_limiter::RateLimiter, store::MemoryStore};
+use crate::types::{ThrottleRequest, ThrottleResponse};
 use anyhow::Result;
+use throttlecrab::{MemoryStore, RateLimiter};
 use tokio::sync::{mpsc, oneshot};
 
 /// Message types for the rate limiter actor
@@ -88,9 +89,12 @@ impl RateLimiterActor {
         )
         .map_err(|e| anyhow::anyhow!("Invalid rate limit parameters: {}", e))?;
 
+        // Get current time
+        let now = std::time::SystemTime::now();
+
         // Check the rate limit
         let (allowed, result) = limiter
-            .rate_limit(&request.key, request.quantity)
+            .rate_limit(&request.key, request.quantity, now)
             .map_err(|e| anyhow::anyhow!("Rate limit check failed: {}", e))?;
 
         Ok(ThrottleResponse::from((allowed, result)))

@@ -1,5 +1,5 @@
 use super::{CellError, Rate, store::Store};
-use std::time::{Duration, UNIX_EPOCH};
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 /// Result of a rate limit check
 #[derive(Debug, Clone)]
@@ -52,12 +52,13 @@ impl<S: Store> RateLimiter<S> {
         &mut self,
         key: &str,
         quantity: i64,
+        now: SystemTime,
     ) -> Result<(bool, RateLimitResult), CellError> {
         if quantity < 0 {
             return Err(CellError::NegativeQuantity(quantity));
         }
 
-        let (tat_val, now) = self.store.get_with_time(key).map_err(CellError::Internal)?;
+        let tat_val = self.store.get(key, now).map_err(CellError::Internal)?;
 
         let now_ns = now.duration_since(UNIX_EPOCH).unwrap().as_nanos() as i64;
 
@@ -93,23 +94,23 @@ impl<S: Store> RateLimiter<S> {
             if let Some(old_tat) = tat_val {
                 let success = self
                     .store
-                    .compare_and_swap_with_ttl(key, old_tat, new_tat, ttl)
+                    .compare_and_swap_with_ttl(key, old_tat, new_tat, ttl, now)
                     .map_err(CellError::Internal)?;
 
                 if !success {
                     // Race condition - retry
-                    return self.rate_limit(key, quantity);
+                    return self.rate_limit(key, quantity, now);
                 }
             } else {
                 // First time seeing this key
                 let success = self
                     .store
-                    .set_if_not_exists_with_ttl(key, new_tat, ttl)
+                    .set_if_not_exists_with_ttl(key, new_tat, ttl, now)
                     .map_err(CellError::Internal)?;
 
                 if !success {
                     // Race condition - retry
-                    return self.rate_limit(key, quantity);
+                    return self.rate_limit(key, quantity, now);
                 }
             }
         }

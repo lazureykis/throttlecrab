@@ -13,10 +13,11 @@ pub trait Store {
         old: i64,
         new: i64,
         ttl: Duration,
+        now: SystemTime,
     ) -> Result<bool, String>;
 
-    /// Get value with current time
-    fn get_with_time(&self, key: &str) -> Result<(Option<i64>, SystemTime), String>;
+    /// Get value
+    fn get(&self, key: &str, now: SystemTime) -> Result<Option<i64>, String>;
 
     /// Log debug message
     fn log_debug(&self, message: &str);
@@ -27,6 +28,7 @@ pub trait Store {
         key: &str,
         value: i64,
         ttl: Duration,
+        now: SystemTime,
     ) -> Result<bool, String>;
 }
 
@@ -42,8 +44,7 @@ impl MemoryStore {
         }
     }
 
-    fn clean_expired(&mut self) {
-        let now = SystemTime::now();
+    fn clean_expired(&mut self, now: SystemTime) {
         self.data.retain(|_, (_, expiry)| {
             if let Some(exp) = expiry {
                 *exp > now
@@ -61,13 +62,11 @@ impl Default for MemoryStore {
 }
 
 impl MemoryStore {
-    pub fn get_with_time(&self, key: &str) -> Result<(Option<i64>, SystemTime), String> {
-        let now = SystemTime::now();
-
+    pub fn get(&self, key: &str, now: SystemTime) -> Result<Option<i64>, String> {
         match self.data.get(key) {
-            Some((value, Some(expiry))) if *expiry > now => Ok((Some(*value), now)),
-            Some((value, None)) => Ok((Some(*value), now)),
-            _ => Ok((None, now)),
+            Some((value, Some(expiry))) if *expiry > now => Ok(Some(*value)),
+            Some((value, None)) => Ok(Some(*value)),
+            _ => Ok(None),
         }
     }
 }
@@ -79,12 +78,13 @@ impl Store for &mut MemoryStore {
         old: i64,
         new: i64,
         ttl: Duration,
+        now: SystemTime,
     ) -> Result<bool, String> {
-        self.clean_expired();
+        self.clean_expired(now);
 
         match self.data.get(key) {
             Some((current, _)) if *current == old => {
-                let expiry = SystemTime::now() + ttl;
+                let expiry = now + ttl;
                 self.data.insert(key.to_string(), (new, Some(expiry)));
                 Ok(true)
             }
@@ -93,12 +93,12 @@ impl Store for &mut MemoryStore {
         }
     }
 
-    fn get_with_time(&self, key: &str) -> Result<(Option<i64>, SystemTime), String> {
-        (**self).get_with_time(key)
+    fn get(&self, key: &str, now: SystemTime) -> Result<Option<i64>, String> {
+        (**self).get(key, now)
     }
 
-    fn log_debug(&self, message: &str) {
-        tracing::debug!("{}", message);
+    fn log_debug(&self, _message: &str) {
+        // No-op in library - binary can implement logging
     }
 
     fn set_if_not_exists_with_ttl(
@@ -106,13 +106,14 @@ impl Store for &mut MemoryStore {
         key: &str,
         value: i64,
         ttl: Duration,
+        now: SystemTime,
     ) -> Result<bool, String> {
-        self.clean_expired();
+        self.clean_expired(now);
 
         if self.data.contains_key(key) {
             Ok(false)
         } else {
-            let expiry = SystemTime::now() + ttl;
+            let expiry = now + ttl;
             self.data.insert(key.to_string(), (value, Some(expiry)));
             Ok(true)
         }
