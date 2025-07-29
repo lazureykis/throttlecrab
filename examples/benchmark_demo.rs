@@ -9,9 +9,10 @@ use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 #[derive(Debug, Serialize, Deserialize)]
 struct Request {
+    cmd: u8, // 1 = throttle
     key: String,
-    max_burst: i64,
-    count_per_period: i64,
+    burst: i64,
+    rate: i64,
     period: i64,
     quantity: i64,
     timestamp: i64,
@@ -19,18 +20,20 @@ struct Request {
 
 #[derive(Debug, Serialize, Deserialize)]
 struct Response {
-    allowed: bool,
+    ok: bool,
+    allowed: u8, // 0 or 1
     limit: i64,
     remaining: i64,
-    reset_after: i64,
     retry_after: i64,
+    reset_after: i64,
 }
 
 fn make_request(stream: &mut TcpStream, key: &str) -> std::io::Result<bool> {
     let request = Request {
+        cmd: 1, // throttle command
         key: key.to_string(),
-        max_burst: 100,
-        count_per_period: 1000,
+        burst: 100,
+        rate: 1000,
         period: 60,
         quantity: 1,
         timestamp: SystemTime::now()
@@ -58,7 +61,7 @@ fn make_request(stream: &mut TcpStream, key: &str) -> std::io::Result<bool> {
     stream.read_exact(&mut response_buf)?;
 
     let response: Response = rmp_serde::from_slice(&response_buf).unwrap();
-    Ok(response.allowed)
+    Ok(response.allowed == 1)
 }
 
 fn main() {

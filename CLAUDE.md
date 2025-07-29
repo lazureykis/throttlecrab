@@ -67,3 +67,5 @@ The project follows the standard Rust project layout:
 - After pushing more commits to an existing PR, update the PR summary accordingly
 
 - Always run 'cargo fmt --all' and 'cargo clippy --all-targets --all-features -- -D warnings' before pushing code to github
+
+- Never work in main branch

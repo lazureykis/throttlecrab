@@ -88,7 +88,7 @@ throttlecrab --listen 0.0.0.0:8080
 
 ### Client Example
 
-The server uses MessagePack protocol over TCP. Here's an example client:
+The server uses MessagePack protocol over TCP with a specific wire format. Here's an example client:
 
 ```rust
 use std::net::TcpStream;
@@ -96,13 +96,14 @@ use std::io::{Read, Write};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 fn check_rate_limit(key: &str, max_burst: i64, rate: i64, period: i64) -> bool {
-    let mut stream = TcpStream::connect("127.0.0.1:7777").unwrap();
+    let mut stream = TcpStream::connect("127.0.0.1:9090").unwrap();
     
-    // Create request
+    // Create request with wire protocol format
     let request = Request {
+        cmd: 1, // throttle command
         key: key.to_string(),
-        max_burst,
-        count_per_period: rate,
+        burst: max_burst,
+        rate: rate,
         period,
         quantity: 1,
         timestamp: SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs() as i64,
@@ -148,19 +149,21 @@ The server uses a simple framed protocol:
 2. MessagePack-encoded request/response
 
 Request fields:
+- `cmd`: Command type (1 = throttle)
 - `key`: Unique identifier for rate limiting
-- `max_burst`: Maximum burst capacity
-- `count_per_period`: Number of requests allowed per period
+- `burst`: Maximum burst capacity
+- `rate`: Number of requests allowed per period
 - `period`: Time period in seconds
-- `quantity`: Number of tokens to consume (usually 1)
-- `timestamp`: Unix timestamp in seconds
+- `quantity`: Number of tokens to consume (default: 1)
+- `timestamp`: Unix timestamp in seconds (default: current time)
 
 Response fields:
-- `allowed`: Boolean indicating if request is allowed
+- `ok`: Boolean indicating success
+- `allowed`: 0 or 1 indicating if request is allowed
 - `limit`: The burst limit
 - `remaining`: Tokens remaining in current window
 - `reset_after`: Time until full capacity reset (seconds)
-- `retry_after`: Time until next request allowed (seconds, 0 if allowed)
+- `retry_after`: Time until next request allowed (seconds)
 
 ## What is GCRA?
 
