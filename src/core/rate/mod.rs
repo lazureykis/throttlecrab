@@ -1,5 +1,8 @@
 use std::time::Duration;
 
+#[cfg(test)]
+mod tests;
+
 /// Rate defines the speed of the rate limiter.
 #[derive(Debug, Clone, Copy)]
 pub struct Rate {
