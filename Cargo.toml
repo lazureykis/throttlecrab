@@ -39,3 +39,12 @@ required-features = ["bin"]
 [dev-dependencies]
 criterion = "0.7"
 tokio-test = "0.4"
+# For benchmarks
+rmp-serde = "1"
+serde = { version = "1", features = ["derive"] }
+bytes = "1"
+tokio = { version = "1", features = ["full"] }
+
+[[bench]]
+name = "tcp_throughput"
+harness = false
