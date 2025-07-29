@@ -1,6 +1,6 @@
 use super::{RateLimiterActor, ThrottleRequest};
 use std::time::Duration;
-use tokio::time::{sleep, Instant};
+use tokio::time::{Instant, sleep};
 
 #[tokio::test]
 async fn test_basic_rate_limiting() {
