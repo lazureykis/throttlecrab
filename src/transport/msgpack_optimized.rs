@@ -5,7 +5,7 @@ use super::{
 use crate::actor::RateLimiterHandle;
 use anyhow::Result;
 use async_trait::async_trait;
-use bytes::{BufMut, BytesMut};
+use bytes::BytesMut;
 use std::sync::Arc;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::{TcpListener, TcpStream};
@@ -37,6 +37,8 @@ impl OptimizedMsgPackTransport {
 
         // Set TCP_NODELAY for lower latency
         socket.set_nodelay(true)?;
+        
+        tracing::debug!("Starting optimized connection handler");
 
         loop {
             // Read length prefix (4 bytes)
@@ -52,6 +54,7 @@ impl OptimizedMsgPackTransport {
             }
 
             let len = u32::from_be_bytes(len_bytes) as usize;
+            tracing::debug!("Received message with length: {}", len);
 
             // Validate length
             if len > MAX_MESSAGE_SIZE {
@@ -98,7 +101,8 @@ impl OptimizedMsgPackTransport {
             
             // Clear write buffer and write length-prefixed message
             write_buffer.clear();
-            write_buffer.put_u32((response_bytes.len() as u32).to_be());
+            let len_bytes = (response_bytes.len() as u32).to_be_bytes();
+            write_buffer.extend_from_slice(&len_bytes);
             write_buffer.extend_from_slice(&response_bytes);
 
             // Send the entire buffer in one write
