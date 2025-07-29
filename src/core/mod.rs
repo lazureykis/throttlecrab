@@ -2,6 +2,7 @@ pub mod actor;
 pub mod rate;
 pub mod rate_limiter;
 pub mod store;
+mod tests;
 
 pub use actor::{RateLimiterActor, RateLimiterHandle, RateLimiterMessage};
 pub use rate::Rate;
