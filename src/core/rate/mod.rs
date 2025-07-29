@@ -51,7 +51,7 @@ impl Rate {
                 period: Duration::from_secs(u64::MAX),
             };
         }
-        
+
         let period_ns = (period_seconds as f64 * 1_000_000_000.0 / count as f64) as u64;
         Rate {
             period: Duration::from_nanos(period_ns),

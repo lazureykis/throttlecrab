@@ -2,11 +2,12 @@ pub mod actor;
 pub mod rate;
 pub mod rate_limiter;
 pub mod store;
+#[cfg(test)]
 mod tests;
 
 pub use actor::{RateLimiterActor, RateLimiterHandle, RateLimiterMessage};
 pub use rate::Rate;
-pub use rate_limiter::{RateLimiter, RateLimitResult};
+pub use rate_limiter::{RateLimitResult, RateLimiter};
 
 use serde::{Deserialize, Serialize};
 
@@ -29,8 +30,8 @@ pub struct ThrottleResponse {
     pub allowed: bool,
     pub limit: i64,
     pub remaining: i64,
-    pub reset_after: i64,  // seconds
-    pub retry_after: i64,  // seconds
+    pub reset_after: i64, // seconds
+    pub retry_after: i64, // seconds
 }
 
 impl From<(bool, RateLimitResult)> for ThrottleResponse {
@@ -49,10 +50,10 @@ impl From<(bool, RateLimitResult)> for ThrottleResponse {
 pub enum CellError {
     #[error("negative quantity: {0}")]
     NegativeQuantity(i64),
-    
+
     #[error("invalid rate limit parameters")]
     InvalidRateLimit,
-    
+
     #[error("internal error: {0}")]
     Internal(String),
 }

@@ -54,6 +54,24 @@ impl MemoryStore {
     }
 }
 
+impl Default for MemoryStore {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl MemoryStore {
+    pub fn get_with_time(&self, key: &str) -> Result<(Option<i64>, SystemTime), String> {
+        let now = SystemTime::now();
+
+        match self.data.get(key) {
+            Some((value, Some(expiry))) if *expiry > now => Ok((Some(*value), now)),
+            Some((value, None)) => Ok((Some(*value), now)),
+            _ => Ok((None, now)),
+        }
+    }
+}
+
 impl Store for &mut MemoryStore {
     fn compare_and_swap_with_ttl(
         &mut self,
@@ -63,7 +81,7 @@ impl Store for &mut MemoryStore {
         ttl: Duration,
     ) -> Result<bool, String> {
         self.clean_expired();
-        
+
         match self.data.get(key) {
             Some((current, _)) if *current == old => {
                 let expiry = SystemTime::now() + ttl;
@@ -76,13 +94,7 @@ impl Store for &mut MemoryStore {
     }
 
     fn get_with_time(&self, key: &str) -> Result<(Option<i64>, SystemTime), String> {
-        let now = SystemTime::now();
-        
-        match self.data.get(key) {
-            Some((value, Some(expiry))) if *expiry > now => Ok((Some(*value), now)),
-            Some((value, None)) => Ok((Some(*value), now)),
-            _ => Ok((None, now)),
-        }
+        (**self).get_with_time(key)
     }
 
     fn log_debug(&self, message: &str) {
@@ -96,7 +108,7 @@ impl Store for &mut MemoryStore {
         ttl: Duration,
     ) -> Result<bool, String> {
         self.clean_expired();
-        
+
         if self.data.contains_key(key) {
             Ok(false)
         } else {
