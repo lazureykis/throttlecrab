@@ -68,14 +68,19 @@ fn make_request(stream: &mut TcpStream, key: &str) -> bool {
 
 fn bench_single_thread(c: &mut Criterion) {
     // Note: Server must be running before benchmarks
-    // Run: cargo run --features bin --bin throttlecrab
+    // Run: cargo run --features bin -- --server
     
     let mut group = c.benchmark_group("single_thread");
     group.throughput(Throughput::Elements(1000));
     
+    // Create connection once before benchmarking
+    let mut stream = TcpStream::connect("127.0.0.1:9090")
+        .expect("Failed to connect. Is the server running? Run: cargo run --features bin -- --server");
+    
+    // Set TCP_NODELAY for lower latency
+    stream.set_nodelay(true).expect("Failed to set TCP_NODELAY");
+    
     group.bench_function("sequential_requests", |b| {
-        let mut stream = TcpStream::connect("127.0.0.1:9090")
-            .expect("Failed to connect. Is the server running? Run: cargo run --features bin -- --server");
         let mut counter = 0u64;
         
         b.iter(|| {
@@ -112,6 +117,7 @@ fn bench_multi_thread(c: &mut Criterion) {
                         
                         let handle = thread::spawn(move || {
                             let mut stream = TcpStream::connect("127.0.0.1:9090").unwrap();
+                            stream.set_nodelay(true).unwrap();
                             
                             for _ in 0..requests_per_thread {
                                 if stop.load(Ordering::Relaxed) {
@@ -143,8 +149,11 @@ fn bench_multi_thread(c: &mut Criterion) {
 fn bench_burst_pattern(c: &mut Criterion) {
     let mut group = c.benchmark_group("burst_pattern");
     
+    // Create connection once
+    let mut stream = TcpStream::connect("127.0.0.1:9090").unwrap();
+    stream.set_nodelay(true).unwrap();
+    
     group.bench_function("burst_then_wait", |b| {
-        let mut stream = TcpStream::connect("127.0.0.1:9090").unwrap();
         let mut counter = 0u64;
         
         b.iter(|| {
@@ -166,8 +175,11 @@ fn bench_burst_pattern(c: &mut Criterion) {
 fn bench_mixed_keys(c: &mut Criterion) {
     let mut group = c.benchmark_group("mixed_keys");
     
+    // Create connection once
+    let mut stream = TcpStream::connect("127.0.0.1:9090").unwrap();
+    stream.set_nodelay(true).unwrap();
+    
     group.bench_function("rotating_keys", |b| {
-        let mut stream = TcpStream::connect("127.0.0.1:9090").unwrap();
         let keys = vec!["key_a", "key_b", "key_c", "key_d", "key_e"];
         let mut counter = 0usize;
         

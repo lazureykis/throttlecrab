@@ -48,3 +48,7 @@ tokio = { version = "1", features = ["full"] }
 [[bench]]
 name = "tcp_throughput"
 harness = false
+
+[[bench]]
+name = "connection_pool"
+harness = false
