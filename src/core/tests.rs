@@ -39,7 +39,8 @@ mod tests {
         for i in 0..5 {
             let resp = handle.throttle(req.clone()).await.unwrap();
             assert!(resp.allowed, "Request {} should be allowed", i + 1);
-            assert_eq!(resp.remaining, 4 - i);
+            // After using i+1 tokens, we should have burst - (i+1) remaining
+            assert_eq!(resp.remaining as i64, 5 - (i + 1) as i64);
         }
 
         // 6th request should be blocked
@@ -237,9 +238,10 @@ mod tests {
         let _start = Instant::now();
         let resp = handle.throttle(req).await.unwrap();
         
-        // reset_after should be approximately period/rate * burst
-        // For burst=5, rate=10/60s, reset should be ~30s
-        assert!(resp.reset_after >= 25 && resp.reset_after <= 35);
+        // reset_after is when the bucket fully resets
+        // With burst=5, emission=6s, tolerance=24s
+        // After first request, TAT=now, so reset_after = tolerance = 24s
+        assert!(resp.reset_after >= 20 && resp.reset_after <= 30);
     }
 
     #[tokio::test]

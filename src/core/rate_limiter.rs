@@ -58,8 +58,6 @@ impl<S: Store> RateLimiter<S> {
         
         let now_ns = now.duration_since(UNIX_EPOCH).unwrap().as_nanos() as i64;
         
-        tracing::debug!("rate_limit: key={}, quantity={}, stored_tat={:?}, now_ns={}", 
-            key, quantity, tat_val, now_ns);
         
         // Calculate the theoretical arrival time for this request
         let emission_interval_ns = self.emission_interval.as_nanos() as i64;
@@ -71,8 +69,9 @@ impl<S: Store> RateLimiter<S> {
             let min_tat = now_ns - delay_variation_tolerance_ns;
             stored_tat.max(min_tat)
         } else {
-            // First request - start with TAT that gives full burst capacity
-            now_ns - delay_variation_tolerance_ns
+            // First request - start with TAT = now - emission_interval
+            // This accounts for the token we're about to use
+            now_ns - emission_interval_ns
         };
         
         // Calculate new TAT if this request is allowed
@@ -112,18 +111,21 @@ impl<S: Store> RateLimiter<S> {
         let current_tat = if allowed { new_tat } else { tat };
         
         // Calculate remaining tokens AFTER this request
-        // This shows how many more requests can be made
-        let tat_distance = current_tat.saturating_sub(now_ns);
-        let max_distance = delay_variation_tolerance_ns;
+        // Remaining = how many more tokens we can use before hitting the limit
+        // When TAT = now + tolerance, we've used all burst capacity
+        // When TAT = now - tolerance, we have full burst capacity
+        let tat_from_now = current_tat - now_ns;
         
-        // The closer TAT is to now, the more tokens we have available
-        let remaining = if tat_distance >= max_distance {
+        // Calculate how many tokens we can still use
+        let remaining = if tat_from_now >= delay_variation_tolerance_ns {
+            // TAT is at or beyond the limit
             0
         } else {
-            // Calculate how many tokens are available after this request
-            let available_ns = max_distance - tat_distance;
-            let remaining_exact = available_ns / emission_interval_ns;
-            remaining_exact.min(self.limit - 1) // Can't exceed burst - 1
+            // How much room we have until we hit the limit
+            let room_ns = delay_variation_tolerance_ns - tat_from_now;
+            // This gives us how many more emission intervals we can fit
+            let remaining_exact = room_ns / emission_interval_ns;
+            remaining_exact.max(0)
         };
         
         let reset_after = Duration::from_nanos(
