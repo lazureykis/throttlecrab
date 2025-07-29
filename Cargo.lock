@@ -1129,7 +1129,6 @@ dependencies = [
  "rmp-serde",
  "serde",
  "serde_json",
- "thiserror",
  "tokio",
  "tokio-test",
  "tracing",

@@ -8,14 +8,24 @@ pub use rate::Rate;
 pub use rate_limiter::{RateLimitResult, RateLimiter};
 pub use store::{MemoryStore, Store};
 
-#[derive(Debug, thiserror::Error)]
+use std::error::Error;
+use std::fmt;
+
+#[derive(Debug)]
 pub enum CellError {
-    #[error("negative quantity: {0}")]
     NegativeQuantity(i64),
-
-    #[error("invalid rate limit parameters")]
     InvalidRateLimit,
-
-    #[error("internal error: {0}")]
     Internal(String),
 }
+
+impl fmt::Display for CellError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            CellError::NegativeQuantity(n) => write!(f, "negative quantity: {n}"),
+            CellError::InvalidRateLimit => write!(f, "invalid rate limit parameters"),
+            CellError::Internal(msg) => write!(f, "internal error: {msg}"),
+        }
+    }
+}
+
+impl Error for CellError {}

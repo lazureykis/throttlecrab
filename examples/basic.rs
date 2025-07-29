@@ -12,8 +12,7 @@ fn main() {
     let count_per_period = 10;
     let period = 60; // seconds
 
-    println!("Rate limit: {} requests per {} seconds (burst: {})", 
-             count_per_period, period, max_burst);
+    println!("Rate limit: {count_per_period} requests per {period} seconds (burst: {max_burst})");
     println!();
 
     // Make some requests
@@ -24,13 +23,12 @@ fn main() {
 
         if allowed {
             println!(
-                "Request #{}: ✓ Allowed (remaining: {})",
-                i, result.remaining
+                "Request #{i}: ✓ Allowed (remaining: {})",
+                result.remaining
             );
         } else {
             println!(
-                "Request #{}: ✗ Denied (retry after: {:.1}s)",
-                i,
+                "Request #{i}: ✗ Denied (retry after: {:.1}s)",
                 result.retry_after.as_secs_f64()
             );
         }

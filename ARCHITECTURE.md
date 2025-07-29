@@ -237,7 +237,7 @@ src/
 # Core
 tokio = { version = "1", features = ["full"] }
 async-trait = "0.1"
-thiserror = "1"
+# No dependencies - pure Rust implementation
 anyhow = "1"
 
 # MessagePack

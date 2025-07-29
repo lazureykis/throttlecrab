@@ -10,7 +10,7 @@ A high-performance GCRA (Generic Cell Rate Algorithm) rate limiter library for R
 
 ## Features
 
-- **Pure Rust library**: Zero-dependency GCRA rate limiter implementation (only `thiserror` for error handling)
+- **Pure Rust library**: Zero-dependency GCRA rate limiter implementation
 - **GCRA algorithm**: Implements the Generic Cell Rate Algorithm for smooth and predictable rate limiting
 - **High performance**: Lock-free design with minimal overhead
 - **Flexible parameters**: Different rate limits per key with dynamic configuration
