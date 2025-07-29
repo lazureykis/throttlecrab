@@ -1,5 +1,4 @@
 use super::{MemoryStore, RateLimiter};
-use std::thread;
 use std::time::{Duration, SystemTime};
 
 #[test]
@@ -66,11 +65,8 @@ fn test_rate_replenishment() {
     let (allowed3, _result) = limiter.rate_limit("replenish_test", 1, now).unwrap();
     assert!(!allowed3);
 
-    // Wait for replenishment
-    thread::sleep(Duration::from_secs(2));
-
     // Should allow one more
-    let later = SystemTime::now();
+    let later = now + Duration::from_secs(1);
     let (allowed4, _) = limiter.rate_limit("replenish_test", 1, later).unwrap();
     assert!(allowed4);
 }
