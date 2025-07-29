@@ -40,7 +40,7 @@ impl From<MsgPackRequest> for ThrottleRequest {
         // Convert timestamp from seconds to SystemTime
         let duration_since_epoch = std::time::Duration::from_secs(req.timestamp as u64);
         let timestamp = std::time::UNIX_EPOCH + duration_since_epoch;
-        
+
         ThrottleRequest {
             key: req.key,
             max_burst: req.burst,

@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
-use throttlecrab::RateLimitResult;
 use std::time::SystemTime;
+use throttlecrab::RateLimitResult;
 
 #[derive(Debug, Clone)]
 pub struct ThrottleRequest {
