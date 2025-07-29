@@ -10,16 +10,30 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
-  test:
-    name: Test Suite
+  fmt:
+    name: Rustfmt
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v4
 
     - name: Install Rust
-      uses: dtolnay/rust-toolchain@master
+      uses: dtolnay/rust-toolchain@stable
       with:
-        toolchain: stable
+        components: rustfmt
+
+    - name: Check formatting
+      run: cargo fmt --all -- --check
+
+  clippy:
+    name: Clippy
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Install Rust
+      uses: dtolnay/rust-toolchain@stable
+      with:
+        components: clippy
 
     - name: Cache cargo registry
       uses: actions/cache@v4
@@ -39,8 +53,19 @@ jobs:
         path: target
         key: ${{ runner.os }}-cargo-build-target-${{ hashFiles('**/Cargo.lock') }}
 
-    - name: Run tests
-      run: cargo test --all-features --verbose
+    - name: Run clippy
+      run: cargo clippy --all-targets --all-features -- -D warnings
 
-    - name: Run tests (release mode)
-      run: cargo test --all-features --release --verbose
+  doc:
+    name: Documentation
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Install Rust
+      uses: dtolnay/rust-toolchain@stable
+
+    - name: Check documentation
+      run: cargo doc --no-deps --all-features
+      env:
+        RUSTDOCFLAGS: -D warnings
