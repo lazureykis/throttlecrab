@@ -5,6 +5,9 @@ use throttlecrab::{MemoryStore, RateLimiter};
 use throttlecrab::core::store::optimized::{OptimizedMemoryStore, InternedMemoryStore};
 use throttlecrab::core::store::fast_hasher::{FastHashMemoryStore, SimpleHashMemoryStore};
 
+mod ahash_store;
+use ahash_store::AHashMemoryStore;
+
 fn benchmark_core_rate_limiter(c: &mut Criterion) {
     let mut group = c.benchmark_group("core_rate_limiter");
     group.throughput(Throughput::Elements(1));
@@ -274,6 +277,29 @@ fn benchmark_store_comparison(c: &mut Criterion) {
     
     group.bench_function("simple_hash_memory_store", |b| {
         let mut limiter = RateLimiter::new(SimpleHashMemoryStore::with_capacity(num_keys as usize));
+        let mut counter = 0u64;
+        
+        b.iter(|| {
+            let key = format!("key_{}", counter % num_keys);
+            counter += 1;
+            
+            let (allowed, _result) = limiter
+                .rate_limit(
+                    black_box(&key),
+                    black_box(100),
+                    black_box(1000),
+                    black_box(60),
+                    black_box(1),
+                    black_box(SystemTime::now()),
+                )
+                .unwrap();
+            
+            black_box(allowed)
+        });
+    });
+    
+    group.bench_function("ahash_memory_store", |b| {
+        let mut limiter = RateLimiter::new(AHashMemoryStore::with_capacity(num_keys as usize));
         let mut counter = 0u64;
         
         b.iter(|| {
