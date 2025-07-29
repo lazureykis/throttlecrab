@@ -6,17 +6,20 @@
 [![Documentation](https://docs.rs/throttlecrab/badge.svg)](https://docs.rs/throttlecrab)
 [![License](https://img.shields.io/crates/l/throttlecrab.svg)](LICENSE-MIT)
 
-A high-performance GCRA (Generic Cell Rate Algorithm) rate limiter for Rust.
+A high-performance GCRA (Generic Cell Rate Algorithm) rate limiter library for Rust with a standalone server.
 
 ## Features
 
-- **GCRA-based rate limiting**: Implements the Generic Cell Rate Algorithm for smooth and fair rate limiting
-- **High performance**: Optimized for minimal overhead
-- **Thread-safe**: Safe to use across multiple threads
-- **Async support**: Works seamlessly with async Rust applications
-- **Flexible configuration**: Customizable rate limits and burst capacity
+- **Pure Rust library**: Zero-dependency GCRA rate limiter implementation (only `thiserror` for error handling)
+- **GCRA algorithm**: Implements the Generic Cell Rate Algorithm for smooth and predictable rate limiting
+- **High performance**: Lock-free design with minimal overhead
+- **Flexible parameters**: Different rate limits per key with dynamic configuration
+- **TTL support**: Automatic cleanup of expired entries
+- **Standalone server**: Optional TCP server with MessagePack protocol for distributed rate limiting
 
 ## Installation
+
+### As a Library
 
 Add this to your `Cargo.toml`:
 
@@ -25,34 +28,149 @@ Add this to your `Cargo.toml`:
 throttlecrab = "0.1.0"
 ```
 
+### As a Server
+
+Install the server binary with cargo:
+
+```bash
+cargo install throttlecrab --features bin
+```
+
+Or build from source:
+
+```bash
+git clone https://github.com/lazureykis/throttlecrab
+cd throttlecrab
+cargo build --release --features bin
+./target/release/throttlecrab
+```
+
 ## Usage
 
+### Library Usage
+
 ```rust
-use throttlecrab::RateLimiter;
-use std::time::Duration;
+use throttlecrab::{RateLimiter, MemoryStore};
+use std::time::SystemTime;
 
 fn main() {
-    // Create a rate limiter that allows 10 requests per second
-    let limiter = RateLimiter::new(10, Duration::from_secs(1));
+    // Create a rate limiter with an in-memory store
+    let mut limiter = RateLimiter::new(MemoryStore::new());
     
     // Check if a request is allowed
-    if limiter.check() {
-        println!("Request allowed!");
+    // Parameters: key, max_burst, count_per_period, period (seconds), quantity, timestamp
+    let (allowed, result) = limiter
+        .rate_limit("api_key_123", 10, 100, 60, 1, SystemTime::now())
+        .unwrap();
+    
+    if allowed {
+        println!("Request allowed! Remaining: {}", result.remaining);
     } else {
-        println!("Rate limit exceeded!");
+        println!("Rate limit exceeded! Retry after: {:?}", result.retry_after);
     }
 }
 ```
 
+### Running the Server
+
+Start the throttlecrab server:
+
+```bash
+# Install the server binary
+cargo install throttlecrab --features bin
+
+# Run with default settings (listens on 127.0.0.1:7777)
+throttlecrab
+
+# Or with custom address
+throttlecrab --listen 0.0.0.0:8080
+```
+
+### Client Example
+
+The server uses MessagePack protocol over TCP. Here's an example client:
+
+```rust
+use std::net::TcpStream;
+use std::io::{Read, Write};
+use std::time::{SystemTime, UNIX_EPOCH};
+
+fn check_rate_limit(key: &str, max_burst: i64, rate: i64, period: i64) -> bool {
+    let mut stream = TcpStream::connect("127.0.0.1:7777").unwrap();
+    
+    // Create request
+    let request = Request {
+        key: key.to_string(),
+        max_burst,
+        count_per_period: rate,
+        period,
+        quantity: 1,
+        timestamp: SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs() as i64,
+    };
+    
+    // Serialize with MessagePack and send
+    let data = rmp_serde::to_vec(&request).unwrap();
+    let len = (data.len() as u32).to_be_bytes();
+    stream.write_all(&len).unwrap();
+    stream.write_all(&data).unwrap();
+    
+    // Read response
+    let mut len_buf = [0u8; 4];
+    stream.read_exact(&mut len_buf).unwrap();
+    let len = u32::from_be_bytes(len_buf) as usize;
+    
+    let mut data = vec![0u8; len];
+    stream.read_exact(&mut data).unwrap();
+    
+    let response: Response = rmp_serde::from_slice(&data).unwrap();
+    response.allowed
+}
+```
+
+## Architecture
+
+### Library
+The core library (`throttlecrab`) provides a pure Rust implementation of GCRA with:
+- `RateLimiter`: The main rate limiting engine
+- `Store` trait: Abstract storage interface
+- `MemoryStore`: In-memory storage implementation
+
+### Server
+The optional server binary provides:
+- TCP server with MessagePack protocol
+- Actor-based concurrency model using Tokio
+- Thread-safe rate limiting for distributed systems
+
+## Protocol
+
+The server uses a simple framed protocol:
+1. 4-byte message length (big-endian)
+2. MessagePack-encoded request/response
+
+Request fields:
+- `key`: Unique identifier for rate limiting
+- `max_burst`: Maximum burst capacity
+- `count_per_period`: Number of requests allowed per period
+- `period`: Time period in seconds
+- `quantity`: Number of tokens to consume (usually 1)
+- `timestamp`: Unix timestamp in seconds
+
+Response fields:
+- `allowed`: Boolean indicating if request is allowed
+- `limit`: The burst limit
+- `remaining`: Tokens remaining in current window
+- `reset_after`: Time until full capacity reset (seconds)
+- `retry_after`: Time until next request allowed (seconds, 0 if allowed)
+
 ## What is GCRA?
 
 The Generic Cell Rate Algorithm (GCRA) is a rate limiting algorithm that provides:
-- Smooth traffic shaping
-- Burst tolerance
-- Fair resource allocation
-- Predictable behavior
+- **Smooth traffic shaping**: No sudden bursts followed by long waits
+- **Precise rate limiting**: Exact control over request rates
+- **Fairness**: All clients get predictable access to resources
+- **Memory efficiency**: O(1) space per key
 
-Unlike token bucket or leaky bucket algorithms, GCRA provides more consistent rate limiting without the "burst then wait" patterns.
+GCRA works by tracking the "Theoretical Arrival Time" (TAT) of requests, ensuring consistent spacing between allowed requests while permitting controlled bursts.
 
 ## License
 
