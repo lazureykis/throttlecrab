@@ -234,7 +234,7 @@ mod tests {
             quantity: 1,
         };
 
-        let start = Instant::now();
+        let _start = Instant::now();
         let resp = handle.throttle(req).await.unwrap();
         
         // reset_after should be approximately period/rate * burst

@@ -58,16 +58,22 @@ impl<S: Store> RateLimiter<S> {
         
         let now_ns = now.duration_since(UNIX_EPOCH).unwrap().as_nanos() as i64;
         
+        tracing::debug!("rate_limit: key={}, quantity={}, stored_tat={:?}, now_ns={}", 
+            key, quantity, tat_val, now_ns);
+        
         // Calculate the theoretical arrival time for this request
         let emission_interval_ns = self.emission_interval.as_nanos() as i64;
         let delay_variation_tolerance_ns = self.delay_variation_tolerance.as_nanos() as i64;
         
         // Initialize TAT or get from store
-        let tat = tat_val.unwrap_or_else(|| now_ns);
-        
-        // Calculate the minimum TAT based on current time and tolerance
-        let min_tat = now_ns - delay_variation_tolerance_ns;
-        let tat = tat.max(min_tat);
+        let tat = if let Some(stored_tat) = tat_val {
+            // Use stored TAT but ensure it's not too far in the past
+            let min_tat = now_ns - delay_variation_tolerance_ns;
+            stored_tat.max(min_tat)
+        } else {
+            // First request - start with TAT that gives full burst capacity
+            now_ns - delay_variation_tolerance_ns
+        };
         
         // Calculate new TAT if this request is allowed
         let increment = emission_interval_ns * quantity;
@@ -82,8 +88,8 @@ impl<S: Store> RateLimiter<S> {
             let ttl = Duration::from_nanos((new_tat - now_ns + delay_variation_tolerance_ns) as u64);
             
             // Try to update - if it fails due to race condition, recalculate
-            if tat_val.is_some() {
-                let success = self.store.compare_and_swap_with_ttl(key, tat_val.unwrap(), new_tat, ttl)
+            if let Some(old_tat) = tat_val {
+                let success = self.store.compare_and_swap_with_ttl(key, old_tat, new_tat, ttl)
                     .map_err(|e| CellError::Internal(e))?;
                     
                 if !success {
@@ -105,8 +111,8 @@ impl<S: Store> RateLimiter<S> {
         // Calculate result
         let current_tat = if allowed { new_tat } else { tat };
         
-        // Calculate remaining tokens
-        // Remaining = how many cells we can still use based on current TAT
+        // Calculate remaining tokens AFTER this request
+        // This shows how many more requests can be made
         let tat_distance = current_tat.saturating_sub(now_ns);
         let max_distance = delay_variation_tolerance_ns;
         
@@ -114,7 +120,7 @@ impl<S: Store> RateLimiter<S> {
         let remaining = if tat_distance >= max_distance {
             0
         } else {
-            // Calculate how many tokens are available
+            // Calculate how many tokens are available after this request
             let available_ns = max_distance - tat_distance;
             let remaining_exact = available_ns / emission_interval_ns;
             remaining_exact.min(self.limit - 1) // Can't exceed burst - 1

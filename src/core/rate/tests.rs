@@ -1,6 +1,6 @@
 #[cfg(test)]
 mod tests {
-    use super::super::rate::Rate;
+    use super::super::Rate;
     use std::time::Duration;
 
     #[test]

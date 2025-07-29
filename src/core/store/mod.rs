@@ -1,6 +1,9 @@
 use std::collections::HashMap;
 use std::time::{Duration, SystemTime};
 
+#[cfg(test)]
+mod tests;
+
 /// Store trait for rate limiter state storage (similar to redis-cell)
 pub trait Store {
     /// Compare and swap with TTL
