@@ -5,6 +5,7 @@ use std::time::{Duration, SystemTime};
 mod tests;
 
 pub mod optimized;
+pub mod fast_hasher;
 
 /// Store trait for rate limiter state storage (similar to redis-cell)
 pub trait Store {
