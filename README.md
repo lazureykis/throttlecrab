@@ -1,5 +1,11 @@
 # throttlecrab
 
+[![CI](https://github.com/lazureykis/throttlecrab/actions/workflows/ci.yml/badge.svg)](https://github.com/lazureykis/throttlecrab/actions/workflows/ci.yml)
+[![Coverage Status](https://codecov.io/gh/lazureykis/throttlecrab/branch/master/graph/badge.svg)](https://codecov.io/gh/lazureykis/throttlecrab)
+[![Crates.io](https://img.shields.io/crates/v/throttlecrab.svg)](https://crates.io/crates/throttlecrab)
+[![Documentation](https://docs.rs/throttlecrab/badge.svg)](https://docs.rs/throttlecrab)
+[![License](https://img.shields.io/crates/l/throttlecrab.svg)](LICENSE-MIT)
+
 A high-performance GCRA (Generic Cell Rate Algorithm) rate limiter for Rust.
 
 ## Features

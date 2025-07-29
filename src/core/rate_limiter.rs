@@ -1,4 +1,4 @@
-use super::{store::Store, CellError, Rate};
+use super::{CellError, Rate, store::Store};
 use std::time::{Duration, UNIX_EPOCH};
 
 /// Result of a rate limit check
@@ -35,7 +35,7 @@ impl<S: Store> RateLimiter<S> {
 
         let rate = Rate::from_count_and_period(count_per_period, period_seconds);
         let emission_interval = rate.period();
-        
+
         // delay_variation_tolerance = (burst - 1) * emission_interval
         let delay_variation_tolerance = emission_interval * (max_burst - 1) as u32;
 
@@ -48,21 +48,23 @@ impl<S: Store> RateLimiter<S> {
     }
 
     /// Check if a request is allowed and update state
-    pub fn rate_limit(&mut self, key: &str, quantity: i64) -> Result<(bool, RateLimitResult), CellError> {
+    pub fn rate_limit(
+        &mut self,
+        key: &str,
+        quantity: i64,
+    ) -> Result<(bool, RateLimitResult), CellError> {
         if quantity < 0 {
             return Err(CellError::NegativeQuantity(quantity));
         }
 
-        let (tat_val, now) = self.store.get_with_time(key)
-            .map_err(|e| CellError::Internal(e))?;
-        
+        let (tat_val, now) = self.store.get_with_time(key).map_err(CellError::Internal)?;
+
         let now_ns = now.duration_since(UNIX_EPOCH).unwrap().as_nanos() as i64;
-        
-        
+
         // Calculate the theoretical arrival time for this request
         let emission_interval_ns = self.emission_interval.as_nanos() as i64;
         let delay_variation_tolerance_ns = self.delay_variation_tolerance.as_nanos() as i64;
-        
+
         // Initialize TAT or get from store
         let tat = if let Some(stored_tat) = tat_val {
             // Use stored TAT but ensure it's not too far in the past
@@ -73,49 +75,54 @@ impl<S: Store> RateLimiter<S> {
             // This accounts for the token we're about to use
             now_ns - emission_interval_ns
         };
-        
+
         // Calculate new TAT if this request is allowed
         let increment = emission_interval_ns * quantity;
         let new_tat = tat + increment;
-        
+
         // Check if request is allowed
         let allow_at = new_tat - delay_variation_tolerance_ns;
         let allowed = now_ns >= allow_at;
-        
+
         if allowed {
             // Update the store with new TAT
-            let ttl = Duration::from_nanos((new_tat - now_ns + delay_variation_tolerance_ns) as u64);
-            
+            let ttl =
+                Duration::from_nanos((new_tat - now_ns + delay_variation_tolerance_ns) as u64);
+
             // Try to update - if it fails due to race condition, recalculate
             if let Some(old_tat) = tat_val {
-                let success = self.store.compare_and_swap_with_ttl(key, old_tat, new_tat, ttl)
-                    .map_err(|e| CellError::Internal(e))?;
-                    
+                let success = self
+                    .store
+                    .compare_and_swap_with_ttl(key, old_tat, new_tat, ttl)
+                    .map_err(CellError::Internal)?;
+
                 if !success {
                     // Race condition - retry
                     return self.rate_limit(key, quantity);
                 }
             } else {
                 // First time seeing this key
-                let success = self.store.set_if_not_exists_with_ttl(key, new_tat, ttl)
-                    .map_err(|e| CellError::Internal(e))?;
-                    
+                let success = self
+                    .store
+                    .set_if_not_exists_with_ttl(key, new_tat, ttl)
+                    .map_err(CellError::Internal)?;
+
                 if !success {
                     // Race condition - retry
                     return self.rate_limit(key, quantity);
                 }
             }
         }
-        
+
         // Calculate result
         let current_tat = if allowed { new_tat } else { tat };
-        
+
         // Calculate remaining tokens AFTER this request
         // Remaining = how many more tokens we can use before hitting the limit
         // When TAT = now + tolerance, we've used all burst capacity
         // When TAT = now - tolerance, we have full burst capacity
         let tat_from_now = current_tat - now_ns;
-        
+
         // Calculate how many tokens we can still use
         let remaining = if tat_from_now >= delay_variation_tolerance_ns {
             // TAT is at or beyond the limit
@@ -127,22 +134,25 @@ impl<S: Store> RateLimiter<S> {
             let remaining_exact = room_ns / emission_interval_ns;
             remaining_exact.max(0)
         };
-        
+
         let reset_after = Duration::from_nanos(
-            (current_tat.saturating_sub(now_ns) + delay_variation_tolerance_ns).max(0) as u64
+            (current_tat.saturating_sub(now_ns) + delay_variation_tolerance_ns).max(0) as u64,
         );
-        
+
         let retry_after = if allowed {
             Duration::ZERO
         } else {
             Duration::from_nanos((allow_at - now_ns).max(0) as u64)
         };
-        
-        Ok((allowed, RateLimitResult {
-            limit: self.limit,
-            remaining,
-            reset_after,
-            retry_after,
-        }))
+
+        Ok((
+            allowed,
+            RateLimitResult {
+                limit: self.limit,
+                remaining,
+                reset_after,
+                retry_after,
+            },
+        ))
     }
 }

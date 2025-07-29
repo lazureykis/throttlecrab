@@ -1,0 +1,33 @@
+# cargo-deny configuration
+
+[graph]
+targets = [
+    { triple = "x86_64-unknown-linux-gnu" },
+    { triple = "x86_64-apple-darwin" },
+    { triple = "x86_64-pc-windows-msvc" },
+]
+
+[bans]
+multiple-versions = "warn"
+
+[licenses]
+# List of explicitly allowed licenses
+allow = [
+    "MIT",
+    "Apache-2.0",
+    "BSD-3-Clause",
+    "ISC",
+    "Zlib",
+    "BSL-1.0",
+    "Unicode-3.0",
+]
+
+[sources]
+unknown-registry = "warn"
+unknown-git = "warn"
+
+[advisories]
+ignore = [
+    # paste is unmaintained but used by rmp-serde
+    "RUSTSEC-2024-0436",
+]
