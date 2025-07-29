@@ -1,9 +1,14 @@
 # cargo-deny configuration
 
+[graph]
+targets = [
+    { triple = "x86_64-unknown-linux-gnu" },
+    { triple = "x86_64-apple-darwin" },
+    { triple = "x86_64-pc-windows-msvc" },
+]
+
 [bans]
 multiple-versions = "warn"
-wildcards = "allow"
-highlight = "all"
 
 [licenses]
 # List of explicitly allowed licenses
@@ -18,28 +23,14 @@ allow = [
     "Zlib",
     "BSL-1.0",
     "CC0-1.0",
-]
-
-[[licenses.clarify]]
-name = "ring"
-expression = "MIT AND ISC AND OpenSSL"
-license-files = [
-    { path = "LICENSE", hash = 0xbd0eed23 }
+    "Unicode-3.0",
 ]
 
 [sources]
 unknown-registry = "warn"
 unknown-git = "warn"
-allow-registry = ["https://github.com/rust-lang/crates.io-index"]
-allow-git = []
 
 [advisories]
-db-path = "~/.cargo/advisory-db"
-db-urls = ["https://github.com/rustsec/advisory-db"]
-vulnerability = "deny"
-unmaintained = "warn"
-yanked = "warn"
-notice = "warn"
 ignore = [
     # paste is unmaintained but used by rmp-serde
     "RUSTSEC-2024-0436",
