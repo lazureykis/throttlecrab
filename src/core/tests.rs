@@ -38,7 +38,7 @@ async fn test_burst_capacity() {
         let resp = handle.throttle(req.clone()).await.unwrap();
         assert!(resp.allowed, "Request {} should be allowed", i + 1);
         // After using i+1 tokens, we should have burst - (i+1) remaining
-        assert_eq!(resp.remaining as i64, 5 - (i + 1) as i64);
+        assert_eq!(resp.remaining, 5 - (i + 1) as i64);
     }
 
     // 6th request should be blocked
