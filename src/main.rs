@@ -89,6 +89,10 @@ async fn run_demo(limiter: actor::RateLimiterHandle) -> Result<()> {
         count_per_period: 30,
         period: 60,
         quantity: 1,
+        timestamp: std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_secs() as i64,
     };
 
     println!("Testing rate limiter with redis-cell compatible API:");

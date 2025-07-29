@@ -10,10 +10,19 @@ pub struct MsgPackRequest {
     pub period: i64,
     #[serde(default = "default_quantity")]
     pub quantity: i64,
+    #[serde(default = "default_timestamp")]
+    pub timestamp: i64, // seconds since UNIX epoch
 }
 
 fn default_quantity() -> i64 {
     1
+}
+
+fn default_timestamp() -> i64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap()
+        .as_secs() as i64
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -34,6 +43,7 @@ impl From<MsgPackRequest> for ThrottleRequest {
             count_per_period: req.rate,
             period: req.period,
             quantity: req.quantity,
+            timestamp: req.timestamp,
         }
     }
 }

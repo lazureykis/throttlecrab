@@ -89,8 +89,9 @@ impl RateLimiterActor {
         )
         .map_err(|e| anyhow::anyhow!("Invalid rate limit parameters: {}", e))?;
 
-        // Get current time
-        let now = std::time::SystemTime::now();
+        // Convert timestamp from request
+        let duration_since_epoch = std::time::Duration::from_secs(request.timestamp as u64);
+        let now = std::time::UNIX_EPOCH + duration_since_epoch;
 
         // Check the rate limit
         let (allowed, result) = limiter
@@ -116,6 +117,10 @@ mod tests {
             count_per_period: 10,
             period: 60,
             quantity: 1,
+            timestamp: std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_secs() as i64,
         };
 
         let resp = handle.throttle(req.clone()).await.unwrap();
