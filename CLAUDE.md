@@ -59,3 +59,11 @@ The project follows the standard Rust project layout:
 2. When adding new functionality, place it in appropriate modules under `src/`
 
 3. Use `cargo check` for quick compilation checks during development
+
+## Git Workflow
+
+- Always create a new branch to implement anything
+- After finishing work, push the branch and create a PR with a proper description
+- After pushing more commits to an existing PR, update the PR summary accordingly
+
+- Always run 'cargo fmt' and 'cargo clippy' before pushing code to github

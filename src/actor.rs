@@ -1,5 +1,6 @@
-use super::{ThrottleRequest, ThrottleResponse, rate_limiter::RateLimiter, store::MemoryStore};
+use crate::types::{ThrottleRequest, ThrottleResponse};
 use anyhow::Result;
+use throttlecrab::{MemoryStore, RateLimiter};
 use tokio::sync::{mpsc, oneshot};
 
 /// Message types for the rate limiter actor
@@ -90,7 +91,7 @@ impl RateLimiterActor {
 
         // Check the rate limit
         let (allowed, result) = limiter
-            .rate_limit(&request.key, request.quantity)
+            .rate_limit(&request.key, request.quantity, request.timestamp)
             .map_err(|e| anyhow::anyhow!("Rate limit check failed: {}", e))?;
 
         Ok(ThrottleResponse::from((allowed, result)))
@@ -112,6 +113,7 @@ mod tests {
             count_per_period: 10,
             period: 60,
             quantity: 1,
+            timestamp: std::time::SystemTime::now(),
         };
 
         let resp = handle.throttle(req.clone()).await.unwrap();

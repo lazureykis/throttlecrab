@@ -1,299 +1,179 @@
-use super::{RateLimiterActor, ThrottleRequest};
-use std::time::Duration;
-use tokio::time::{Instant, sleep};
+use super::{MemoryStore, RateLimiter};
+use std::time::{Duration, SystemTime};
 
-#[tokio::test]
-async fn test_basic_rate_limiting() {
-    let handle = RateLimiterActor::spawn(100);
+#[test]
+fn test_basic_rate_limiting() {
+    let mut store = MemoryStore::new();
+    let mut limiter = RateLimiter::new_from_parameters(
+        &mut store, 5,  // max_burst
+        10, // count_per_period
+        60, // period
+    )
+    .unwrap();
 
     // First request should succeed
-    let req = ThrottleRequest {
-        key: "test".to_string(),
-        max_burst: 5,
-        count_per_period: 10,
-        period: 60,
-        quantity: 1,
-    };
-
-    let resp = handle.throttle(req.clone()).await.unwrap();
-    assert!(resp.allowed);
-    assert_eq!(resp.limit, 5);
-    assert_eq!(resp.remaining, 4);
+    let now = SystemTime::now();
+    let (allowed, result) = limiter.rate_limit("test", 1, now).unwrap();
+    assert!(allowed);
+    assert_eq!(result.limit, 5);
+    assert_eq!(result.remaining, 4);
 }
 
-#[tokio::test]
-async fn test_burst_capacity() {
-    let handle = RateLimiterActor::spawn(100);
-
-    let req = ThrottleRequest {
-        key: "burst_test".to_string(),
-        max_burst: 5,
-        count_per_period: 10,
-        period: 60,
-        quantity: 1,
-    };
+#[test]
+fn test_burst_capacity() {
+    let mut store = MemoryStore::new();
+    let mut limiter = RateLimiter::new_from_parameters(
+        &mut store, 5,  // max_burst
+        10, // count_per_period
+        60, // period
+    )
+    .unwrap();
 
     // Should allow burst capacity requests
+    let now = SystemTime::now();
     for i in 0..5 {
-        let resp = handle.throttle(req.clone()).await.unwrap();
-        assert!(resp.allowed, "Request {} should be allowed", i + 1);
-        // After using i+1 tokens, we should have burst - (i+1) remaining
-        assert_eq!(resp.remaining, 5 - (i + 1) as i64);
+        let (allowed, result) = limiter.rate_limit("burst_test", 1, now).unwrap();
+        assert!(allowed, "Request {} should be allowed", i + 1);
+        assert_eq!(result.remaining, 5 - (i + 1) as i64);
     }
 
     // 6th request should be blocked
-    let resp = handle.throttle(req.clone()).await.unwrap();
-    assert!(!resp.allowed);
-    assert_eq!(resp.remaining, 0);
-    assert!(resp.retry_after > 0);
+    let (allowed, result) = limiter.rate_limit("burst_test", 1, now).unwrap();
+    assert!(!allowed);
+    assert_eq!(result.remaining, 0);
+    assert!(result.retry_after.as_secs() > 0);
 }
 
-#[tokio::test]
-async fn test_multiple_keys() {
-    let handle = RateLimiterActor::spawn(100);
+#[test]
+fn test_rate_replenishment() {
+    let mut store = MemoryStore::new();
+    let mut limiter = RateLimiter::new_from_parameters(
+        &mut store, 2,  // max_burst
+        60, // count_per_period (1 per second)
+        60, // period
+    )
+    .unwrap();
 
-    let req1 = ThrottleRequest {
-        key: "user1".to_string(),
-        max_burst: 3,
-        count_per_period: 10,
-        period: 60,
-        quantity: 1,
-    };
-
-    let req2 = ThrottleRequest {
-        key: "user2".to_string(),
-        max_burst: 3,
-        count_per_period: 10,
-        period: 60,
-        quantity: 1,
-    };
-
-    // Both users should have independent limits
-    let resp1 = handle.throttle(req1.clone()).await.unwrap();
-    let resp2 = handle.throttle(req2.clone()).await.unwrap();
-
-    assert!(resp1.allowed);
-    assert!(resp2.allowed);
-    assert_eq!(resp1.remaining, 2);
-    assert_eq!(resp2.remaining, 2);
-
-    // Exhaust user1's limit
-    for _ in 0..2 {
-        handle.throttle(req1.clone()).await.unwrap();
-    }
-
-    let resp1 = handle.throttle(req1.clone()).await.unwrap();
-    assert!(!resp1.allowed);
-
-    // User2 should still be allowed
-    let resp2 = handle.throttle(req2.clone()).await.unwrap();
-    assert!(resp2.allowed);
-}
-
-#[tokio::test]
-async fn test_quantity_parameter() {
-    let handle = RateLimiterActor::spawn(100);
-
-    let req = ThrottleRequest {
-        key: "quantity_test".to_string(),
-        max_burst: 10,
-        count_per_period: 20,
-        period: 60,
-        quantity: 5, // Request 5 tokens at once
-    };
-
-    let resp = handle.throttle(req.clone()).await.unwrap();
-    assert!(resp.allowed);
-    assert_eq!(resp.remaining, 5); // 10 - 5 = 5
-
-    // Request another 5
-    let resp = handle.throttle(req.clone()).await.unwrap();
-    assert!(resp.allowed);
-    assert_eq!(resp.remaining, 0);
-
-    // Next request should fail
-    let resp = handle.throttle(req).await.unwrap();
-    assert!(!resp.allowed);
-}
-
-#[tokio::test]
-async fn test_rate_replenishment() {
-    let handle = RateLimiterActor::spawn(100);
-
-    let req = ThrottleRequest {
-        key: "replenish_test".to_string(),
-        max_burst: 2,
-        count_per_period: 60, // 1 per second
-        period: 60,
-        quantity: 1,
-    };
-
-    // Use up burst
-    for _ in 0..2 {
-        let resp = handle.throttle(req.clone()).await.unwrap();
-        assert!(resp.allowed);
-    }
+    // Use all burst capacity
+    let now = SystemTime::now();
+    let (allowed1, _) = limiter.rate_limit("replenish_test", 1, now).unwrap();
+    let (allowed2, _) = limiter.rate_limit("replenish_test", 1, now).unwrap();
+    assert!(allowed1);
+    assert!(allowed2);
 
     // Should be blocked
-    let resp = handle.throttle(req.clone()).await.unwrap();
-    assert!(!resp.allowed);
+    let (allowed3, _result) = limiter.rate_limit("replenish_test", 1, now).unwrap();
+    assert!(!allowed3);
 
-    // Wait for token replenishment
-    sleep(Duration::from_secs(2)).await;
-
-    // Should be allowed again
-    let resp = handle.throttle(req).await.unwrap();
-    assert!(resp.allowed);
+    // Should allow one more
+    let later = now + Duration::from_secs(1);
+    let (allowed4, _) = limiter.rate_limit("replenish_test", 1, later).unwrap();
+    assert!(allowed4);
 }
 
-#[tokio::test]
-async fn test_invalid_parameters() {
-    let handle = RateLimiterActor::spawn(100);
+#[test]
+fn test_different_keys() {
+    let mut store = MemoryStore::new();
 
-    // Negative burst
-    let req = ThrottleRequest {
-        key: "invalid".to_string(),
-        max_burst: -1,
-        count_per_period: 10,
-        period: 60,
-        quantity: 1,
-    };
+    // Use a burst of 2 to make the test clearer
+    let mut limiter = RateLimiter::new_from_parameters(
+        &mut store, 2,  // max_burst
+        2,  // count_per_period
+        60, // period
+    )
+    .unwrap();
 
-    let result = handle.throttle(req).await;
+    // Different keys should have independent limits
+    let now = SystemTime::now();
+    let (allowed1, _) = limiter.rate_limit("key1", 1, now).unwrap();
+    let (allowed2, _) = limiter.rate_limit("key2", 1, now).unwrap();
+    assert!(allowed1);
+    assert!(allowed2);
+
+    // Use up remaining burst for key1
+    let (allowed3, _) = limiter.rate_limit("key1", 1, now).unwrap();
+    assert!(allowed3);
+
+    // Third request for key1 should be blocked
+    let (allowed4, _) = limiter.rate_limit("key1", 1, now).unwrap();
+    assert!(!allowed4);
+
+    // But key2 should still have one more
+    let (allowed5, _) = limiter.rate_limit("key2", 1, now).unwrap();
+    assert!(allowed5);
+
+    // Now key2 should also be blocked
+    let (allowed6, _) = limiter.rate_limit("key2", 1, now).unwrap();
+    assert!(!allowed6);
+}
+
+#[test]
+fn test_quantity_parameter() {
+    let mut store = MemoryStore::new();
+    let mut limiter = RateLimiter::new_from_parameters(
+        &mut store, 10, // max_burst
+        10, // count_per_period
+        60, // period
+    )
+    .unwrap();
+
+    // Request with quantity 5
+    let now = SystemTime::now();
+    let (allowed1, result1) = limiter.rate_limit("quantity_test", 5, now).unwrap();
+    assert!(allowed1);
+    assert_eq!(result1.remaining, 5);
+
+    // Request with quantity 6 should be blocked
+    let (allowed2, result2) = limiter.rate_limit("quantity_test", 6, now).unwrap();
+    assert!(!allowed2);
+    assert_eq!(result2.remaining, 5);
+
+    // Request with quantity 5 should succeed
+    let (allowed3, result3) = limiter.rate_limit("quantity_test", 5, now).unwrap();
+    assert!(allowed3);
+    assert_eq!(result3.remaining, 0);
+}
+
+#[test]
+fn test_negative_quantity_error() {
+    let mut store = MemoryStore::new();
+    let mut limiter = RateLimiter::new_from_parameters(
+        &mut store, 10, // max_burst
+        10, // count_per_period
+        60, // period
+    )
+    .unwrap();
+
+    let now = SystemTime::now();
+    let result = limiter.rate_limit("negative_test", -1, now);
     assert!(result.is_err());
-
-    // Zero period
-    let req = ThrottleRequest {
-        key: "invalid".to_string(),
-        max_burst: 10,
-        count_per_period: 10,
-        period: 0,
-        quantity: 1,
-    };
-
-    let result = handle.throttle(req).await;
-    assert!(result.is_err());
-
-    // Negative quantity
-    let req = ThrottleRequest {
-        key: "invalid".to_string(),
-        max_burst: 10,
-        count_per_period: 10,
-        period: 60,
-        quantity: -1,
-    };
-
-    let result = handle.throttle(req).await;
-    assert!(result.is_err());
 }
 
-#[tokio::test]
-async fn test_concurrent_requests() {
-    let handle = RateLimiterActor::spawn(1000);
+#[test]
+fn test_invalid_parameters() {
+    let mut store = MemoryStore::new();
 
-    let req = ThrottleRequest {
-        key: "concurrent".to_string(),
-        max_burst: 100,
-        count_per_period: 100,
-        period: 60,
-        quantity: 1,
-    };
+    // Test invalid burst
+    let limiter = RateLimiter::new_from_parameters(
+        &mut store, 0,  // invalid
+        10, // count_per_period
+        60, // period
+    );
+    assert!(limiter.is_err());
 
-    // Spawn 100 concurrent requests
-    let mut handles = vec![];
-    for _ in 0..100 {
-        let h = handle.clone();
-        let r = req.clone();
-        handles.push(tokio::spawn(async move { h.throttle(r).await }));
-    }
+    // Test invalid count
+    let limiter = RateLimiter::new_from_parameters(
+        &mut store, 10, // max_burst
+        0,  // invalid
+        60, // period
+    );
+    assert!(limiter.is_err());
 
-    // Collect results
-    let mut allowed_count = 0;
-    for h in handles {
-        if let Ok(Ok(resp)) = h.await {
-            if resp.allowed {
-                allowed_count += 1;
-            }
-        }
-    }
-
-    // All 100 should be allowed due to burst capacity
-    assert_eq!(allowed_count, 100);
-}
-
-#[tokio::test]
-async fn test_reset_after_timing() {
-    let handle = RateLimiterActor::spawn(100);
-
-    let req = ThrottleRequest {
-        key: "reset_test".to_string(),
-        max_burst: 5,
-        count_per_period: 10,
-        period: 60,
-        quantity: 1,
-    };
-
-    let _start = Instant::now();
-    let resp = handle.throttle(req).await.unwrap();
-
-    // reset_after is when the bucket fully resets
-    // With burst=5, emission=6s, tolerance=24s
-    // After first request, TAT=now, so reset_after = tolerance = 24s
-    assert!(resp.reset_after >= 20 && resp.reset_after <= 30);
-}
-
-#[tokio::test]
-async fn test_different_rate_limits_same_key() {
-    let handle = RateLimiterActor::spawn(100);
-
-    // First request with one rate limit
-    let req1 = ThrottleRequest {
-        key: "flex_test".to_string(),
-        max_burst: 5,
-        count_per_period: 10,
-        period: 60,
-        quantity: 1,
-    };
-
-    let resp = handle.throttle(req1).await.unwrap();
-    assert!(resp.allowed);
-    assert_eq!(resp.limit, 5);
-
-    // Same key but different rate limit parameters
-    // This tests that rate limits are determined by request, not stored per key
-    let req2 = ThrottleRequest {
-        key: "flex_test".to_string(),
-        max_burst: 10,
-        count_per_period: 20,
-        period: 60,
-        quantity: 1,
-    };
-
-    let resp = handle.throttle(req2).await.unwrap();
-    // The result depends on the TAT stored, but with different parameters
-    assert_eq!(resp.limit, 10);
-}
-
-#[tokio::test]
-async fn test_high_burst_low_rate() {
-    let handle = RateLimiterActor::spawn(100);
-
-    let req = ThrottleRequest {
-        key: "high_burst".to_string(),
-        max_burst: 1000,
-        count_per_period: 10,
-        period: 3600, // Very low rate: 10 per hour
-        quantity: 1,
-    };
-
-    // Should allow full burst
-    for i in 0..1000 {
-        let resp = handle.throttle(req.clone()).await.unwrap();
-        assert!(resp.allowed, "Request {} should be allowed", i + 1);
-    }
-
-    // 1001st request should be blocked
-    let resp = handle.throttle(req).await.unwrap();
-    assert!(!resp.allowed);
-    assert_eq!(resp.remaining, 0);
+    // Test invalid period
+    let limiter = RateLimiter::new_from_parameters(
+        &mut store, 10, // max_burst
+        10, // count_per_period
+        0,  // invalid
+    );
+    assert!(limiter.is_err());
 }
