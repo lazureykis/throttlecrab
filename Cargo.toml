@@ -6,7 +6,7 @@ authors = ["Pavel Lazureykis <pavel@lazureykis.dev>"]
 description = "A high-performance GCRA (Generic Cell Rate Algorithm) rate limiter"
 readme = "README.md"
 repository = "https://github.com/lazureykis/throttlecrab"
-license = "MIT OR Apache-2.0"
+license = "MIT"
 keywords = ["rate-limiter", "gcra", "throttle", "rate-limiting", "async"]
 categories = ["algorithms", "asynchronous", "network-programming"]
 
