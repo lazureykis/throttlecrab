@@ -1,5 +1,3 @@
-# Clippy configuration
-msrv = "1.70.0"
 warn-on-all-wildcard-imports = true
 allow-expect-in-tests = true
 allow-unwrap-in-tests = true
