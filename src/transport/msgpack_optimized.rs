@@ -93,20 +93,13 @@ impl OptimizedMsgPackTransport {
                 }
             };
 
-            // Clear write buffer and serialize response directly into it
+            // Serialize response to temporary buffer first
+            let response_bytes = rmp_serde::to_vec(&response)?;
+            
+            // Clear write buffer and write length-prefixed message
             write_buffer.clear();
-
-            // Reserve space for length prefix
-            write_buffer.put_u32(0);
-
-            // Serialize directly into buffer
-            let start_pos = write_buffer.len();
-            rmp_serde::encode::write(&mut write_buffer, &response)?;
-            let response_len = write_buffer.len() - start_pos;
-
-            // Write actual length at the beginning
-            let len_bytes = (response_len as u32).to_be_bytes();
-            write_buffer[0..4].copy_from_slice(&len_bytes);
+            write_buffer.put_u32((response_bytes.len() as u32).to_be());
+            write_buffer.extend_from_slice(&response_bytes);
 
             // Send the entire buffer in one write
             socket.write_all(&write_buffer).await?;

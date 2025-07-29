@@ -1,11 +1,11 @@
 use super::Transport;
 use crate::actor::RateLimiterHandle;
-use crate::types::{ThrottleRequest, ThrottleResponse};
+use crate::types::ThrottleRequest;
 use anyhow::Result;
 use async_trait::async_trait;
 use bytes::{BufMut, BytesMut};
 use std::sync::Arc;
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::time::UNIX_EPOCH;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::{TcpListener, TcpStream};
 
