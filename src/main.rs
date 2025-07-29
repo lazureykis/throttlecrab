@@ -42,7 +42,7 @@ async fn main() -> Result<()> {
     tracing_subscriber::fmt()
         .with_env_filter(
             tracing_subscriber::EnvFilter::from_default_env()
-                .add_directive("throttlecrab=debug".parse()?),
+                .add_directive("throttlecrab=info".parse()?),
         )
         .init();
 

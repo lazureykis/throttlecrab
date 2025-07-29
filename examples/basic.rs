@@ -1,5 +1,5 @@
-use throttlecrab::{MemoryStore, RateLimiter};
 use std::time::SystemTime;
+use throttlecrab::{MemoryStore, RateLimiter};
 
 fn main() {
     // Create a rate limiter with memory store
@@ -18,14 +18,18 @@ fn main() {
     // Make some requests
     for i in 1..=12 {
         let (allowed, result) = limiter
-            .rate_limit(key, max_burst, count_per_period, period, 1, SystemTime::now())
+            .rate_limit(
+                key,
+                max_burst,
+                count_per_period,
+                period,
+                1,
+                SystemTime::now(),
+            )
             .unwrap();
 
         if allowed {
-            println!(
-                "Request #{i}: ✓ Allowed (remaining: {})",
-                result.remaining
-            );
+            println!("Request #{i}: ✓ Allowed (remaining: {})", result.remaining);
         } else {
             println!(
                 "Request #{i}: ✗ Denied (retry after: {:.1}s)",
