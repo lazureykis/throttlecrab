@@ -7,7 +7,7 @@ fn test_memory_store_set_and_get() {
     let now = SystemTime::now();
 
     // Set a value
-    let success = (&mut store)
+    let success = store
         .set_if_not_exists_with_ttl("key1", 42, Duration::from_secs(60), now)
         .unwrap();
     assert!(success);
@@ -17,7 +17,7 @@ fn test_memory_store_set_and_get() {
     assert_eq!(value, Some(42));
 
     // Try to set again - should fail
-    let success = (&mut store)
+    let success = store
         .set_if_not_exists_with_ttl("key1", 100, Duration::from_secs(60), now)
         .unwrap();
     assert!(!success);
@@ -33,12 +33,12 @@ fn test_memory_store_compare_and_swap() {
     let now = SystemTime::now();
 
     // Set initial value
-    (&mut store)
+    store
         .set_if_not_exists_with_ttl("key1", 10, Duration::from_secs(60), now)
         .unwrap();
 
     // Successful CAS
-    let success = (&mut store)
+    let success = store
         .compare_and_swap_with_ttl("key1", 10, 20, Duration::from_secs(60), now)
         .unwrap();
     assert!(success);
@@ -47,7 +47,7 @@ fn test_memory_store_compare_and_swap() {
     assert_eq!(value, Some(20));
 
     // Failed CAS - old value doesn't match
-    let success = (&mut store)
+    let success = store
         .compare_and_swap_with_ttl("key1", 10, 30, Duration::from_secs(60), now)
         .unwrap();
     assert!(!success);
@@ -62,7 +62,7 @@ fn test_memory_store_ttl() {
     let now = SystemTime::now();
 
     // Set with very short TTL
-    (&mut store)
+    store
         .set_if_not_exists_with_ttl("key1", 42, Duration::from_millis(100), now)
         .unwrap();
 
@@ -74,7 +74,7 @@ fn test_memory_store_ttl() {
     let later = now + Duration::from_millis(200);
 
     // Trigger cleanup by trying to set a new value
-    (&mut store)
+    store
         .set_if_not_exists_with_ttl("key2", 100, Duration::from_secs(60), later)
         .unwrap();
 
@@ -100,7 +100,7 @@ fn test_memory_store_multiple_keys() {
     // Set multiple keys
     for i in 0..10 {
         let key = format!("key{i}");
-        (&mut store)
+        store
             .set_if_not_exists_with_ttl(&key, i * 10, Duration::from_secs(60), now)
             .unwrap();
     }
