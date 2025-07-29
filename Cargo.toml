@@ -60,3 +60,7 @@ harness = false
 [[bench]]
 name = "protocol_comparison"
 harness = false
+
+[[bench]]
+name = "core_performance"
+harness = false

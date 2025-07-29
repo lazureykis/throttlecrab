@@ -4,6 +4,8 @@ use std::time::{Duration, SystemTime};
 #[cfg(test)]
 mod tests;
 
+pub mod optimized;
+
 /// Store trait for rate limiter state storage (similar to redis-cell)
 pub trait Store {
     /// Compare and swap with TTL
