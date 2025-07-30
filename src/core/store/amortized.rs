@@ -53,7 +53,6 @@ impl AmortizedMemoryStore {
         }
 
         // Clean a small batch using iterator
-        let mut _removed = 0;
         let mut keys_to_remove = Vec::with_capacity(self.entries_per_cleanup);
 
         // Skip to our position and collect keys to remove
@@ -75,15 +74,10 @@ impl AmortizedMemoryStore {
         // Remove expired entries
         for key in keys_to_remove {
             self.data.remove(&key);
-            _removed += 1;
         }
 
         self.cleanup_position += self.entries_per_cleanup;
 
-        #[cfg(debug_assertions)]
-        if _removed > 0 {
-            eprintln!("Amortized cleanup: removed {_removed} entries");
-        }
     }
 }
 
