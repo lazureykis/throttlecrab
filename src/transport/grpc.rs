@@ -4,7 +4,7 @@ use crate::types::ThrottleRequest as ActorRequest;
 use anyhow::Result;
 use async_trait::async_trait;
 use std::net::SocketAddr;
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use std::time::{Duration, UNIX_EPOCH};
 use tonic::{Request, Response, Status, transport::Server};
 
 // Include the generated protobuf code
@@ -62,10 +62,10 @@ impl RateLimiter for RateLimiterService {
         // Convert to actor request
         let actor_request = ActorRequest {
             key: req.key,
-            max_burst: req.max_burst,
-            count_per_period: req.count_per_period,
-            period: req.period,
-            quantity: req.quantity,
+            max_burst: req.max_burst as i64,
+            count_per_period: req.count_per_period as i64,
+            period: req.period as i64,
+            quantity: req.quantity as i64,
             timestamp,
         };
 
@@ -79,10 +79,10 @@ impl RateLimiter for RateLimiterService {
         // Convert to gRPC response
         let response = ThrottleResponse {
             allowed: result.allowed,
-            limit: result.limit,
-            remaining: result.remaining,
-            retry_after: result.retry_after,
-            reset_after: result.reset_after,
+            limit: result.limit as i32,
+            remaining: result.remaining as i32,
+            retry_after: result.retry_after as i32,
+            reset_after: result.reset_after as i32,
         };
 
         Ok(Response::new(response))

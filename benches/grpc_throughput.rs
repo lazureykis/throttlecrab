@@ -2,7 +2,6 @@ use criterion::{BenchmarkId, Criterion, Throughput, criterion_group, criterion_m
 use std::sync::Arc;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use tokio::runtime::Runtime;
-use tokio::sync::Semaphore;
 
 // Include the generated protobuf code
 pub mod throttlecrab {
@@ -84,27 +83,46 @@ fn grpc_throughput(c: &mut Criterion) {
             BenchmarkId::new("concurrent_clients", num_clients),
             &num_clients,
             |b, &num_clients| {
-                b.to_async(&runtime).iter(|| async move {
-                    let semaphore = Arc::new(Semaphore::new(num_clients));
-                    let mut handles = vec![];
-
-                    for i in 0..num_clients {
-                        let permit = semaphore.clone().acquire_owned().await.unwrap();
-                        let handle = tokio::spawn(async move {
-                            let mut client = RateLimiterClient::connect("http://127.0.0.1:9093")
-                                .await
-                                .unwrap();
-                            let key = format!("bench_key_client_{i}");
-                            let result = make_grpc_request(&mut client, &key).await.unwrap();
-                            drop(permit);
-                            result
-                        });
-                        handles.push(handle);
+                // Pre-create clients to avoid connection exhaustion
+                let clients: Vec<_> = runtime.block_on(async {
+                    let mut clients = Vec::new();
+                    for _ in 0..std::cmp::min(num_clients, 10) {  // Limit to 10 connections
+                        match RateLimiterClient::connect("http://127.0.0.1:9093").await {
+                            Ok(client) => clients.push(Arc::new(tokio::sync::Mutex::new(client))),
+                            Err(e) => {
+                                eprintln!("Failed to create client: {}", e);
+                                break;
+                            }
+                        }
                     }
+                    clients
+                });
 
-                    for handle in handles {
-                        handle.await.unwrap();
-                    }
+                if clients.is_empty() {
+                    eprintln!("Failed to create any clients");
+                    return;
+                }
+
+                b.iter(|| {
+                    runtime.block_on(async {
+                        let mut handles = vec![];
+
+                        for i in 0..num_clients {
+                            let client_idx = i % clients.len();
+                            let client = clients[client_idx].clone();
+                            
+                            let handle = tokio::spawn(async move {
+                                let key = format!("bench_key_client_{i}");
+                                let mut client_guard = client.lock().await;
+                                make_grpc_request(&mut *client_guard, &key).await.unwrap()
+                            });
+                            handles.push(handle);
+                        }
+
+                        for handle in handles {
+                            handle.await.unwrap();
+                        }
+                    })
                 });
             },
         );
