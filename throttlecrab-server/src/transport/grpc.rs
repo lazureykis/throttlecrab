@@ -109,10 +109,11 @@ mod tests {
         sleep(Duration::from_millis(100)).await;
 
         // Connect client
-        let mut client =
-            throttlecrab_proto::rate_limiter_client::RateLimiterClient::connect("http://127.0.0.1:9091")
-                .await
-                .unwrap();
+        let mut client = throttlecrab_proto::rate_limiter_client::RateLimiterClient::connect(
+            "http://127.0.0.1:9091",
+        )
+        .await
+        .unwrap();
 
         let now = SystemTime::now();
         let duration = now.duration_since(UNIX_EPOCH).unwrap();
@@ -150,10 +151,11 @@ mod tests {
         sleep(Duration::from_millis(100)).await;
 
         // Connect client
-        let mut client =
-            throttlecrab_proto::rate_limiter_client::RateLimiterClient::connect("http://127.0.0.1:9092")
-                .await
-                .unwrap();
+        let mut client = throttlecrab_proto::rate_limiter_client::RateLimiterClient::connect(
+            "http://127.0.0.1:9092",
+        )
+        .await
+        .unwrap();
 
         // Send requests until we hit the limit
         let mut allowed_count = 0;
