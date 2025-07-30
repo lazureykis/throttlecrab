@@ -86,11 +86,12 @@ fn grpc_throughput(c: &mut Criterion) {
                 // Pre-create clients to avoid connection exhaustion
                 let clients: Vec<_> = runtime.block_on(async {
                     let mut clients = Vec::new();
-                    for _ in 0..std::cmp::min(num_clients, 10) {  // Limit to 10 connections
+                    for _ in 0..std::cmp::min(num_clients, 10) {
+                        // Limit to 10 connections
                         match RateLimiterClient::connect("http://127.0.0.1:9093").await {
                             Ok(client) => clients.push(Arc::new(tokio::sync::Mutex::new(client))),
                             Err(e) => {
-                                eprintln!("Failed to create client: {}", e);
+                                eprintln!("Failed to create client: {e}");
                                 break;
                             }
                         }
@@ -110,11 +111,11 @@ fn grpc_throughput(c: &mut Criterion) {
                         for i in 0..num_clients {
                             let client_idx = i % clients.len();
                             let client = clients[client_idx].clone();
-                            
+
                             let handle = tokio::spawn(async move {
                                 let key = format!("bench_key_client_{i}");
                                 let mut client_guard = client.lock().await;
-                                make_grpc_request(&mut *client_guard, &key).await.unwrap()
+                                make_grpc_request(&mut client_guard, &key).await.unwrap()
                             });
                             handles.push(handle);
                         }

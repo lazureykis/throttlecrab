@@ -1,5 +1,4 @@
 use std::time::{SystemTime, UNIX_EPOCH};
-use tonic::transport::Channel;
 
 // Include the generated protobuf code
 pub mod throttlecrab {

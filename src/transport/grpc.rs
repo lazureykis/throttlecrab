@@ -21,9 +21,7 @@ pub struct GrpcTransport {
 
 impl GrpcTransport {
     pub fn new(host: &str, port: u16) -> Self {
-        let addr = format!("{}:{}", host, port)
-            .parse()
-            .expect("Invalid address");
+        let addr = format!("{host}:{port}").parse().expect("Invalid address");
         Self { addr }
     }
 }
@@ -74,7 +72,7 @@ impl RateLimiter for RateLimiterService {
             .limiter
             .throttle(actor_request)
             .await
-            .map_err(|e| Status::internal(format!("Rate limiter error: {}", e)))?;
+            .map_err(|e| Status::internal(format!("Rate limiter error: {e}")))?;
 
         // Convert to gRPC response
         let response = ThrottleResponse {
@@ -95,7 +93,6 @@ mod tests {
     use crate::actor::RateLimiterActor;
     use std::time::{SystemTime, UNIX_EPOCH};
     use tokio::time::{Duration, sleep};
-    use tonic::transport::Channel;
 
     #[tokio::test]
     async fn test_grpc_server_basic() {
