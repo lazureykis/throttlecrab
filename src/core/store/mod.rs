@@ -23,6 +23,9 @@ pub mod timing_wheel;
 #[cfg(test)]
 mod cleanup_test;
 
+#[cfg(test)]
+mod store_test_suite;
+
 /// Store trait for rate limiter state storage (similar to redis-cell)
 pub trait Store {
     /// Compare and swap with TTL

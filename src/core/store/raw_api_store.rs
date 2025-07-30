@@ -100,9 +100,16 @@ impl Store for RawApiStore {
         self.maybe_cleanup(now);
         
         match self.data.entry(key.to_string()) {
-            Entry::Occupied(entry) => {
+            Entry::Occupied(mut entry) => {
                 let (_, expiry) = entry.get();
-                Ok(*expiry <= now)
+                if *expiry <= now {
+                    // Entry is expired, replace it
+                    entry.insert((value, now + ttl));
+                    Ok(true)
+                } else {
+                    // Entry exists and is not expired
+                    Ok(false)
+                }
             }
             Entry::Vacant(entry) => {
                 entry.insert((value, now + ttl));
@@ -200,9 +207,16 @@ impl Store for RawApiStoreV2 {
         let hash = Self::hash_key(key);
         
         match self.data.entry(key.to_string()) {
-            Entry::Occupied(entry) => {
+            Entry::Occupied(mut entry) => {
                 let (_, expiry, _) = entry.get();
-                Ok(*expiry <= now)
+                if *expiry <= now {
+                    // Entry is expired, replace it
+                    entry.insert((value, now + ttl, hash));
+                    Ok(true)
+                } else {
+                    // Entry exists and is not expired
+                    Ok(false)
+                }
             }
             Entry::Vacant(entry) => {
                 entry.insert((value, now + ttl, hash));
