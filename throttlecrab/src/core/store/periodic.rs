@@ -13,8 +13,9 @@ const DEFAULT_CLEANUP_INTERVAL_SECS: u64 = 60;
 const KEY_MAPPING_CLEANUP_THRESHOLD: usize = 100;
 const KEY_MAPPING_GROWTH_FACTOR: usize = 2;
 
-/// Optimized in-memory store implementation
-pub struct OptimizedMemoryStore {
+/// Periodic cleanup store implementation
+/// Cleans up expired entries at regular time intervals
+pub struct PeriodicStore {
     data: HashMap<String, (i64, Option<SystemTime>)>,
     // Track when next cleanup is needed
     next_cleanup: SystemTime,
@@ -24,13 +25,13 @@ pub struct OptimizedMemoryStore {
     expired_count: usize,
 }
 
-impl OptimizedMemoryStore {
+impl PeriodicStore {
     pub fn new() -> Self {
         Self::with_capacity(DEFAULT_CAPACITY)
     }
 
     pub fn with_capacity(capacity: usize) -> Self {
-        OptimizedMemoryStore {
+        PeriodicStore {
             // Pre-allocate with overhead to avoid rehashing
             data: HashMap::with_capacity((capacity as f64 * CAPACITY_OVERHEAD_FACTOR) as usize),
             next_cleanup: SystemTime::now() + Duration::from_secs(DEFAULT_CLEANUP_INTERVAL_SECS),
@@ -71,13 +72,13 @@ impl OptimizedMemoryStore {
     }
 }
 
-impl Default for OptimizedMemoryStore {
+impl Default for PeriodicStore {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl Store for OptimizedMemoryStore {
+impl Store for PeriodicStore {
     fn compare_and_swap_with_ttl(
         &mut self,
         key: &str,
@@ -143,7 +144,7 @@ impl Store for OptimizedMemoryStore {
 }
 
 /// String interning store to reduce allocations
-pub struct InternedMemoryStore {
+pub struct InternedStore {
     data: HashMap<usize, (i64, Option<SystemTime>)>,
     // Intern string keys to numeric IDs
     key_to_id: HashMap<String, usize>,
@@ -154,14 +155,14 @@ pub struct InternedMemoryStore {
     last_key_cleanup_size: usize,
 }
 
-impl InternedMemoryStore {
+impl InternedStore {
     pub fn new() -> Self {
         Self::with_capacity(DEFAULT_CAPACITY)
     }
 
     pub fn with_capacity(capacity: usize) -> Self {
         let adjusted_capacity = (capacity as f64 * CAPACITY_OVERHEAD_FACTOR) as usize;
-        InternedMemoryStore {
+        InternedStore {
             data: HashMap::with_capacity(adjusted_capacity),
             key_to_id: HashMap::with_capacity(adjusted_capacity),
             next_id: 0,
@@ -207,13 +208,13 @@ impl InternedMemoryStore {
     }
 }
 
-impl Default for InternedMemoryStore {
+impl Default for InternedStore {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl Store for InternedMemoryStore {
+impl Store for InternedStore {
     fn compare_and_swap_with_ttl(
         &mut self,
         key: &str,

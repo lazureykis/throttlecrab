@@ -3,20 +3,20 @@ use std::time::{Duration, SystemTime};
 use throttlecrab::Store;
 
 /// Memory store using ahash for benchmarking only
-pub struct AHashMemoryStore {
+pub struct AHashStore {
     data: AHashMap<String, (i64, Option<SystemTime>)>,
     next_cleanup: SystemTime,
     cleanup_interval: Duration,
     expired_count: usize,
 }
 
-impl Default for AHashMemoryStore {
+impl Default for AHashStore {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl AHashMemoryStore {
+impl AHashStore {
     pub fn new() -> Self {
         Self::with_capacity(1000)
     }
@@ -24,7 +24,7 @@ impl AHashMemoryStore {
     pub fn with_capacity(capacity: usize) -> Self {
         let data = AHashMap::with_capacity((capacity as f64 * 1.3) as usize);
 
-        AHashMemoryStore {
+        AHashStore {
             data,
             next_cleanup: SystemTime::now() + Duration::from_secs(60),
             cleanup_interval: Duration::from_secs(60),
@@ -50,7 +50,7 @@ impl AHashMemoryStore {
     }
 }
 
-impl Store for AHashMemoryStore {
+impl Store for AHashStore {
     fn compare_and_swap_with_ttl(
         &mut self,
         key: &str,

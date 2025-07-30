@@ -1,11 +1,10 @@
 use criterion::{BenchmarkId, Criterion, Throughput, criterion_group, criterion_main};
 use std::hint::black_box;
 use std::time::{Duration, SystemTime};
-use throttlecrab::store::optimized::{InternedMemoryStore, OptimizedMemoryStore};
-use throttlecrab::{MemoryStore, RateLimiter};
+use throttlecrab::{PeriodicStore, RateLimiter};
 
 mod ahash_store;
-use ahash_store::AHashMemoryStore;
+use ahash_store::AHashStore;
 
 /// Benchmark all store implementations across different key counts
 fn benchmark_store_shootout(c: &mut Criterion) {
@@ -16,12 +15,12 @@ fn benchmark_store_shootout(c: &mut Criterion) {
         group.throughput(Throughput::Elements(1));
         group.measurement_time(Duration::from_secs(10));
 
-        // Standard MemoryStore
+        // PeriodicStore
         group.bench_with_input(
-            BenchmarkId::new("standard", num_keys),
+            BenchmarkId::new("periodic", num_keys),
             &num_keys,
             |b, &num_keys| {
-                let mut limiter = RateLimiter::new(MemoryStore::new());
+                let mut limiter = RateLimiter::new(PeriodicStore::with_capacity(num_keys as usize));
                 let mut counter = 0u64;
 
                 b.iter(|| {
@@ -44,73 +43,13 @@ fn benchmark_store_shootout(c: &mut Criterion) {
             },
         );
 
-        // OptimizedMemoryStore
-        group.bench_with_input(
-            BenchmarkId::new("optimized", num_keys),
-            &num_keys,
-            |b, &num_keys| {
-                let mut limiter =
-                    RateLimiter::new(OptimizedMemoryStore::with_capacity(num_keys as usize));
-                let mut counter = 0u64;
-
-                b.iter(|| {
-                    let key = format!("key_{}", counter % num_keys);
-                    counter += 1;
-
-                    let (allowed, _result) = limiter
-                        .rate_limit(
-                            black_box(&key),
-                            black_box(100),
-                            black_box(1000),
-                            black_box(60),
-                            black_box(1),
-                            black_box(SystemTime::now()),
-                        )
-                        .unwrap();
-
-                    black_box(allowed)
-                });
-            },
-        );
-
-        // InternedMemoryStore
-        group.bench_with_input(
-            BenchmarkId::new("interned", num_keys),
-            &num_keys,
-            |b, &num_keys| {
-                let mut limiter =
-                    RateLimiter::new(InternedMemoryStore::with_capacity(num_keys as usize));
-                let mut counter = 0u64;
-
-                b.iter(|| {
-                    let key = format!("key_{}", counter % num_keys);
-                    counter += 1;
-
-                    let (allowed, _result) = limiter
-                        .rate_limit(
-                            black_box(&key),
-                            black_box(100),
-                            black_box(1000),
-                            black_box(60),
-                            black_box(1),
-                            black_box(SystemTime::now()),
-                        )
-                        .unwrap();
-
-                    black_box(allowed)
-                });
-            },
-        );
-
-        // FastHashMemoryStore and SimpleHashMemoryStore removed
-
-        // AHashMemoryStore
+        // AHashStore
         group.bench_with_input(
             BenchmarkId::new("ahash", num_keys),
             &num_keys,
             |b, &num_keys| {
                 let mut limiter =
-                    RateLimiter::new(AHashMemoryStore::with_capacity(num_keys as usize));
+                    RateLimiter::new(AHashStore::with_capacity(num_keys as usize));
                 let mut counter = 0u64;
 
                 b.iter(|| {
@@ -146,7 +85,7 @@ fn benchmark_access_patterns(c: &mut Criterion) {
 
     // Sequential access pattern
     group.bench_function("sequential_standard", |b| {
-        let mut limiter = RateLimiter::new(MemoryStore::new());
+        let mut limiter = RateLimiter::new(PeriodicStore::new());
         let mut counter = 0u64;
 
         b.iter(|| {
@@ -169,7 +108,7 @@ fn benchmark_access_patterns(c: &mut Criterion) {
     });
 
     group.bench_function("sequential_ahash", |b| {
-        let mut limiter = RateLimiter::new(AHashMemoryStore::with_capacity(100_000));
+        let mut limiter = RateLimiter::new(AHashStore::with_capacity(100_000));
         let mut counter = 0u64;
 
         b.iter(|| {
@@ -193,7 +132,7 @@ fn benchmark_access_patterns(c: &mut Criterion) {
 
     // Random access pattern
     group.bench_function("random_standard", |b| {
-        let mut limiter = RateLimiter::new(MemoryStore::new());
+        let mut limiter = RateLimiter::new(PeriodicStore::new());
         let mut counter = 0u64;
 
         b.iter(|| {
@@ -218,7 +157,7 @@ fn benchmark_access_patterns(c: &mut Criterion) {
     });
 
     group.bench_function("random_ahash", |b| {
-        let mut limiter = RateLimiter::new(AHashMemoryStore::with_capacity(10_000));
+        let mut limiter = RateLimiter::new(AHashStore::with_capacity(10_000));
         let mut counter = 0u64;
 
         b.iter(|| {
@@ -244,7 +183,7 @@ fn benchmark_access_patterns(c: &mut Criterion) {
 
     // Hot key pattern (80% of requests go to 20% of keys)
     group.bench_function("hotkey_standard", |b| {
-        let mut limiter = RateLimiter::new(MemoryStore::new());
+        let mut limiter = RateLimiter::new(PeriodicStore::new());
         let mut counter = 0u64;
 
         b.iter(|| {
@@ -274,7 +213,7 @@ fn benchmark_access_patterns(c: &mut Criterion) {
     });
 
     group.bench_function("hotkey_ahash", |b| {
-        let mut limiter = RateLimiter::new(AHashMemoryStore::with_capacity(10_000));
+        let mut limiter = RateLimiter::new(AHashStore::with_capacity(10_000));
         let mut counter = 0u64;
 
         b.iter(|| {
@@ -313,7 +252,7 @@ fn benchmark_memory_patterns(c: &mut Criterion) {
 
     // Benchmark with short TTL (causes more cleanup)
     group.bench_function("short_ttl_standard", |b| {
-        let mut limiter = RateLimiter::new(MemoryStore::new());
+        let mut limiter = RateLimiter::new(PeriodicStore::new());
         let mut counter = 0u64;
 
         b.iter(|| {
@@ -336,7 +275,7 @@ fn benchmark_memory_patterns(c: &mut Criterion) {
     });
 
     group.bench_function("short_ttl_optimized", |b| {
-        let mut limiter = RateLimiter::new(OptimizedMemoryStore::with_capacity(1000));
+        let mut limiter = RateLimiter::new(PeriodicStore::with_capacity(1000));
         let mut counter = 0u64;
 
         b.iter(|| {
@@ -360,7 +299,7 @@ fn benchmark_memory_patterns(c: &mut Criterion) {
 
     // Benchmark with varying key lengths
     group.bench_function("long_keys_standard", |b| {
-        let mut limiter = RateLimiter::new(MemoryStore::new());
+        let mut limiter = RateLimiter::new(PeriodicStore::new());
         let mut counter = 0u64;
 
         b.iter(|| {
@@ -386,7 +325,7 @@ fn benchmark_memory_patterns(c: &mut Criterion) {
     });
 
     group.bench_function("long_keys_ahash", |b| {
-        let mut limiter = RateLimiter::new(AHashMemoryStore::with_capacity(1000));
+        let mut limiter = RateLimiter::new(AHashStore::with_capacity(1000));
         let mut counter = 0u64;
 
         b.iter(|| {

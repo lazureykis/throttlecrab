@@ -29,11 +29,11 @@ throttlecrab = "0.1.0"
 
 ```rust
 use std::time::SystemTime;
-use throttlecrab::{RateLimiter, MemoryStore};
+use throttlecrab::{RateLimiter, PeriodicStore};
 
 fn main() {
     // Create a rate limiter with an in-memory store
-    let mut limiter = RateLimiter::new(MemoryStore::new());
+    let mut limiter = RateLimiter::new(PeriodicStore::new());
     
     // Check if a request is allowed
     // Parameters: key, max_burst, count_per_period, period (seconds), quantity, timestamp
@@ -53,11 +53,9 @@ fn main() {
 
 The library provides several store implementations optimized for different use cases:
 
-- **MemoryStore**: Basic in-memory store with TTL support
-- **OptimizedMemoryStore**: Optimized for performance with pre-allocated capacity
-- **AdaptiveMemoryStore**: Adapts cleanup strategy based on load
-- **ProbabilisticMemoryStore**: Uses probabilistic cleanup for better performance
-- **FastHashMemoryStore**: Uses ahash for faster hashing
+- **PeriodicStore**: Cleans up expired entries at regular intervals (default)
+- **AdaptiveStore**: Dynamically adapts cleanup frequency based on usage patterns
+- **ProbabilisticStore**: Each operation has a probability of triggering cleanup
 
 ## What is GCRA?
 

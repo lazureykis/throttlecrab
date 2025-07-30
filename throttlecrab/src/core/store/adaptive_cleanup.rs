@@ -15,8 +15,9 @@ const DEFAULT_CLEANUP_INTERVAL_SECS: u64 = 5;
 const MAX_OPERATIONS_BEFORE_CLEANUP: usize = 100_000;
 const EXPIRED_RATIO_THRESHOLD: f64 = 0.2; // 20%
 
-/// Memory store with adaptive cleanup strategy
-pub struct AdaptiveMemoryStore {
+/// Adaptive cleanup store implementation
+/// Dynamically adjusts cleanup frequency based on usage patterns
+pub struct AdaptiveStore {
     data: HashMap<String, (i64, Option<SystemTime>)>,
     // Cleanup timing
     next_cleanup: SystemTime,
@@ -32,13 +33,13 @@ pub struct AdaptiveMemoryStore {
     last_cleanup_total: usize,
 }
 
-impl AdaptiveMemoryStore {
+impl AdaptiveStore {
     pub fn new() -> Self {
         Self::with_capacity(DEFAULT_CAPACITY)
     }
 
     pub fn with_capacity(capacity: usize) -> Self {
-        AdaptiveMemoryStore {
+        AdaptiveStore {
             data: HashMap::with_capacity((capacity as f64 * CAPACITY_OVERHEAD_FACTOR) as usize),
             next_cleanup: SystemTime::now() + Duration::from_secs(DEFAULT_CLEANUP_INTERVAL_SECS),
             min_cleanup_interval: Duration::from_secs(MIN_CLEANUP_INTERVAL_SECS),
@@ -128,13 +129,13 @@ impl AdaptiveMemoryStore {
     }
 }
 
-impl Default for AdaptiveMemoryStore {
+impl Default for AdaptiveStore {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl Store for AdaptiveMemoryStore {
+impl Store for AdaptiveStore {
     fn compare_and_swap_with_ttl(
         &mut self,
         key: &str,

@@ -1,17 +1,16 @@
 use std::time::{Duration, SystemTime};
 
-#[cfg(feature = "ahash")]
-use ahash::AHashMap as HashMap;
-#[cfg(not(feature = "ahash"))]
-use std::collections::HashMap;
-
 #[cfg(test)]
 mod tests;
 
-pub mod adaptive_cleanup;
-pub mod fast_hasher;
-pub mod optimized;
-pub mod probabilistic;
+mod adaptive_cleanup;
+mod fast_hasher;
+mod periodic;
+mod probabilistic;
+
+pub use adaptive_cleanup::AdaptiveStore;
+pub use periodic::PeriodicStore;
+pub use probabilistic::ProbabilisticStore;
 
 #[cfg(test)]
 mod cleanup_test;
@@ -45,161 +44,4 @@ pub trait Store {
         ttl: Duration,
         now: SystemTime,
     ) -> Result<bool, String>;
-}
-
-// Keeping MemoryStore for backward compatibility but it's deprecated
-// Use OptimizedMemoryStore instead
-/// In-memory store implementation
-pub struct MemoryStore {
-    data: HashMap<String, (i64, Option<SystemTime>)>,
-}
-
-impl MemoryStore {
-    pub fn new() -> Self {
-        MemoryStore {
-            data: HashMap::new(),
-        }
-    }
-
-    fn clean_expired(&mut self, now: SystemTime) {
-        self.data.retain(|_, (_, expiry)| {
-            if let Some(exp) = expiry {
-                *exp > now
-            } else {
-                true
-            }
-        });
-    }
-}
-
-impl Default for MemoryStore {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-impl MemoryStore {
-    pub fn get(&self, key: &str, now: SystemTime) -> Result<Option<i64>, String> {
-        match self.data.get(key) {
-            Some((value, Some(expiry))) if *expiry > now => Ok(Some(*value)),
-            Some((value, None)) => Ok(Some(*value)),
-            _ => Ok(None),
-        }
-    }
-}
-
-impl Store for MemoryStore {
-    fn compare_and_swap_with_ttl(
-        &mut self,
-        key: &str,
-        old: i64,
-        new: i64,
-        ttl: Duration,
-        now: SystemTime,
-    ) -> Result<bool, String> {
-        self.clean_expired(now);
-
-        match self.data.get(key) {
-            Some((current, _)) if *current == old => {
-                let expiry = now + ttl;
-                self.data.insert(key.to_string(), (new, Some(expiry)));
-                Ok(true)
-            }
-            Some(_) => Ok(false),
-            None => Ok(false),
-        }
-    }
-
-    fn get(&self, key: &str, now: SystemTime) -> Result<Option<i64>, String> {
-        self.get(key, now)
-    }
-
-    fn log_debug(&self, _message: &str) {
-        // No-op in library - binary can implement logging
-    }
-
-    fn set_if_not_exists_with_ttl(
-        &mut self,
-        key: &str,
-        value: i64,
-        ttl: Duration,
-        now: SystemTime,
-    ) -> Result<bool, String> {
-        // Check if key exists and is not expired BEFORE cleaning
-        let exists_and_valid = match self.data.get(key) {
-            Some((_, Some(expiry))) if *expiry > now => true,
-            Some((_, None)) => true,
-            _ => false,
-        };
-
-        if exists_and_valid {
-            return Ok(false);
-        }
-
-        // Now clean expired entries
-        self.clean_expired(now);
-
-        // Insert the new entry
-        let expiry = now + ttl;
-        self.data.insert(key.to_string(), (value, Some(expiry)));
-        Ok(true)
-    }
-}
-
-impl Store for &mut MemoryStore {
-    fn compare_and_swap_with_ttl(
-        &mut self,
-        key: &str,
-        old: i64,
-        new: i64,
-        ttl: Duration,
-        now: SystemTime,
-    ) -> Result<bool, String> {
-        self.clean_expired(now);
-
-        match self.data.get(key) {
-            Some((current, _)) if *current == old => {
-                let expiry = now + ttl;
-                self.data.insert(key.to_string(), (new, Some(expiry)));
-                Ok(true)
-            }
-            Some(_) => Ok(false),
-            None => Ok(false),
-        }
-    }
-
-    fn get(&self, key: &str, now: SystemTime) -> Result<Option<i64>, String> {
-        (**self).get(key, now)
-    }
-
-    fn log_debug(&self, _message: &str) {
-        // No-op in library - binary can implement logging
-    }
-
-    fn set_if_not_exists_with_ttl(
-        &mut self,
-        key: &str,
-        value: i64,
-        ttl: Duration,
-        now: SystemTime,
-    ) -> Result<bool, String> {
-        // Check if key exists and is not expired BEFORE cleaning
-        let exists_and_valid = match self.data.get(key) {
-            Some((_, Some(expiry))) if *expiry > now => true,
-            Some((_, None)) => true,
-            _ => false,
-        };
-
-        if exists_and_valid {
-            return Ok(false);
-        }
-
-        // Now clean expired entries
-        self.clean_expired(now);
-
-        // Insert the new entry
-        let expiry = now + ttl;
-        self.data.insert(key.to_string(), (value, Some(expiry)));
-        Ok(true)
-    }
 }

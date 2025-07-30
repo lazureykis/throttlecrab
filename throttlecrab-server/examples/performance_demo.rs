@@ -1,6 +1,5 @@
 use std::time::{Instant, SystemTime};
-use throttlecrab::RateLimiter;
-use throttlecrab::store::optimized::OptimizedMemoryStore;
+use throttlecrab::{PeriodicStore, RateLimiter};
 
 fn benchmark_store(name: &str, mut limiter: RateLimiter<impl throttlecrab::Store>) {
     println!("\n{name} Benchmark");
@@ -47,8 +46,8 @@ fn main() {
     // Note: The throttlecrab library uses AHash by default for fast hashing
 
     // Benchmark optimized store
-    let optimized_limiter = RateLimiter::new(OptimizedMemoryStore::with_capacity(10_000));
-    benchmark_store("Optimized MemoryStore", optimized_limiter);
+    let periodic_limiter = RateLimiter::new(PeriodicStore::with_capacity(10_000));
+    benchmark_store("Periodic Store", periodic_limiter);
 
     // Show improvement
     println!("\n📊 Performance Summary");

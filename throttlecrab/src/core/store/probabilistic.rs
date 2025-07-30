@@ -11,19 +11,20 @@ const DEFAULT_CAPACITY: usize = 1000;
 const CAPACITY_OVERHEAD_FACTOR: f64 = 1.3;
 const PROBABILISTIC_CLEANUP_MODULO: u64 = 1000; // 0.1% chance
 
-/// Probabilistic cleanup - each operation has a small chance to trigger cleanup
-pub struct ProbabilisticMemoryStore {
+/// Probabilistic cleanup store implementation
+/// Each operation has a small chance to trigger cleanup
+pub struct ProbabilisticStore {
     data: HashMap<String, (i64, Option<SystemTime>)>,
     operations_count: u64,
 }
 
-impl ProbabilisticMemoryStore {
+impl ProbabilisticStore {
     pub fn new() -> Self {
         Self::with_capacity(DEFAULT_CAPACITY)
     }
 
     pub fn with_capacity(capacity: usize) -> Self {
-        ProbabilisticMemoryStore {
+        ProbabilisticStore {
             data: HashMap::with_capacity((capacity as f64 * CAPACITY_OVERHEAD_FACTOR) as usize),
             operations_count: 0,
         }
@@ -47,13 +48,13 @@ impl ProbabilisticMemoryStore {
     }
 }
 
-impl Default for ProbabilisticMemoryStore {
+impl Default for ProbabilisticStore {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl Store for ProbabilisticMemoryStore {
+impl Store for ProbabilisticStore {
     fn compare_and_swap_with_ttl(
         &mut self,
         key: &str,

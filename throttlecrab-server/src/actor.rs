@@ -1,6 +1,6 @@
 use crate::types::{ThrottleRequest, ThrottleResponse};
 use anyhow::Result;
-use throttlecrab::{MemoryStore, RateLimiter};
+use throttlecrab::{PeriodicStore, RateLimiter};
 use tokio::sync::{mpsc, oneshot};
 
 /// Message types for the rate limiter actor
@@ -39,7 +39,7 @@ impl RateLimiterHandle {
 
 /// The rate limiter actor that runs in a single thread
 pub struct RateLimiterActor {
-    limiter: RateLimiter<MemoryStore>,
+    limiter: RateLimiter<PeriodicStore>,
     rx: mpsc::Receiver<RateLimiterMessage>,
 }
 
@@ -50,7 +50,7 @@ impl RateLimiterActor {
 
         tokio::spawn(async move {
             let mut actor = RateLimiterActor {
-                limiter: RateLimiter::new(MemoryStore::new()),
+                limiter: RateLimiter::new(PeriodicStore::new()),
                 rx,
             };
 

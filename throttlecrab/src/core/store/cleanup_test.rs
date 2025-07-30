@@ -1,12 +1,12 @@
 #[cfg(test)]
 mod tests {
+    use super::super::PeriodicStore;
     use super::super::Store;
-    use super::super::optimized::OptimizedMemoryStore;
     use std::time::{Duration, SystemTime};
 
     #[test]
     fn test_cleanup_actually_happens() {
-        let mut store = OptimizedMemoryStore::with_capacity(100);
+        let mut store = PeriodicStore::with_capacity(100);
         let now = SystemTime::now();
 
         // Add 1000 entries with 1 second TTL
@@ -42,7 +42,7 @@ mod tests {
 
     #[test]
     fn test_cleanup_with_memory_pressure() {
-        let mut store = OptimizedMemoryStore::with_capacity(100);
+        let mut store = PeriodicStore::with_capacity(100);
         let now = SystemTime::now();
 
         // Fill store with mixed TTL entries
@@ -84,7 +84,7 @@ mod tests {
 
     #[test]
     fn test_no_cleanup_without_triggers() {
-        let mut store = OptimizedMemoryStore::with_capacity(100);
+        let mut store = PeriodicStore::with_capacity(100);
         let now = SystemTime::now();
 
         // Add entries with long TTL

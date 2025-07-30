@@ -1,9 +1,9 @@
-use super::{MemoryStore, RateLimiter};
+use super::{PeriodicStore, RateLimiter};
 use std::time::{Duration, SystemTime};
 
 #[test]
 fn test_basic_rate_limiting() {
-    let mut limiter = RateLimiter::new(MemoryStore::new());
+    let mut limiter = RateLimiter::new(PeriodicStore::new());
 
     // First request should succeed
     let now = SystemTime::now();
@@ -15,7 +15,7 @@ fn test_basic_rate_limiting() {
 
 #[test]
 fn test_burst_capacity() {
-    let mut limiter = RateLimiter::new(MemoryStore::new());
+    let mut limiter = RateLimiter::new(PeriodicStore::new());
 
     // Should allow burst capacity requests
     let now = SystemTime::now();
@@ -34,7 +34,7 @@ fn test_burst_capacity() {
 
 #[test]
 fn test_rate_replenishment() {
-    let mut limiter = RateLimiter::new(MemoryStore::new());
+    let mut limiter = RateLimiter::new(PeriodicStore::new());
 
     // Use all burst capacity
     let now = SystemTime::now();
@@ -63,7 +63,7 @@ fn test_rate_replenishment() {
 
 #[test]
 fn test_different_keys() {
-    let mut limiter = RateLimiter::new(MemoryStore::new());
+    let mut limiter = RateLimiter::new(PeriodicStore::new());
 
     // Use a burst of 2 to make the test clearer
     // Different keys should have independent limits
@@ -92,7 +92,7 @@ fn test_different_keys() {
 
 #[test]
 fn test_quantity_parameter() {
-    let mut limiter = RateLimiter::new(MemoryStore::new());
+    let mut limiter = RateLimiter::new(PeriodicStore::new());
 
     // Request with quantity 5
     let now = SystemTime::now();
@@ -119,7 +119,7 @@ fn test_quantity_parameter() {
 
 #[test]
 fn test_negative_quantity_error() {
-    let mut limiter = RateLimiter::new(MemoryStore::new());
+    let mut limiter = RateLimiter::new(PeriodicStore::new());
 
     let now = SystemTime::now();
     let result = limiter.rate_limit("negative_test", 10, 10, 60, -1, now);
@@ -128,7 +128,7 @@ fn test_negative_quantity_error() {
 
 #[test]
 fn test_invalid_parameters() {
-    let mut limiter = RateLimiter::new(MemoryStore::new());
+    let mut limiter = RateLimiter::new(PeriodicStore::new());
     let now = SystemTime::now();
 
     // Test invalid burst

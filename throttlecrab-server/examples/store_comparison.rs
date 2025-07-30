@@ -1,10 +1,5 @@
 use std::time::{Instant, SystemTime};
-use throttlecrab::RateLimiter;
-use throttlecrab::store::{
-    adaptive_cleanup::AdaptiveMemoryStore,
-    optimized::{InternedMemoryStore, OptimizedMemoryStore},
-    probabilistic::ProbabilisticMemoryStore,
-};
+use throttlecrab::{AdaptiveStore, PeriodicStore, ProbabilisticStore, RateLimiter};
 
 fn benchmark_store<S: throttlecrab::Store>(
     name: &str,
@@ -61,7 +56,7 @@ fn main() {
     // OptimizedMemoryStore
     benchmark_store(
         "Optimized MemoryStore",
-        RateLimiter::new(OptimizedMemoryStore::with_capacity(num_keys)),
+        RateLimiter::new(PeriodicStore::with_capacity(num_keys)),
         num_keys,
         iterations,
     );
@@ -69,7 +64,7 @@ fn main() {
     // InternedMemoryStore
     benchmark_store(
         "Interned MemoryStore",
-        RateLimiter::new(InternedMemoryStore::with_capacity(num_keys)),
+        RateLimiter::new(PeriodicStore::with_capacity(num_keys)),
         num_keys,
         iterations,
     );
@@ -77,7 +72,7 @@ fn main() {
     // ProbabilisticMemoryStore
     benchmark_store(
         "Probabilistic MemoryStore",
-        RateLimiter::new(ProbabilisticMemoryStore::with_capacity(num_keys)),
+        RateLimiter::new(ProbabilisticStore::with_capacity(num_keys)),
         num_keys,
         iterations,
     );
@@ -85,7 +80,7 @@ fn main() {
     // AdaptiveMemoryStore
     benchmark_store(
         "Adaptive MemoryStore",
-        RateLimiter::new(AdaptiveMemoryStore::with_capacity(num_keys)),
+        RateLimiter::new(AdaptiveStore::with_capacity(num_keys)),
         num_keys,
         iterations,
     );
