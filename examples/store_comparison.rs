@@ -20,7 +20,7 @@ fn benchmark_store<S: throttlecrab::core::store::Store>(
     for i in 0..iterations {
         let key = format!("key_{}", i % num_keys);
         let (allowed, _result) = limiter
-            .rate_limit(&key, 100, 1000, 60, 1, SystemTime::now())
+            .rate_limit(&key, 100, 1000, 3600, 1, SystemTime::now())
             .unwrap();
 
         if allowed {
@@ -50,7 +50,7 @@ fn main() {
     println!("Configuration:");
     println!("  Unique keys: {}", num_keys);
     println!("  Total operations: {}", iterations);
-    println!("  Rate limit: 1000 requests per 60 seconds");
+    println!("  Rate limit: 1000 requests per 3600 seconds (1 hour)");
     println!("  Burst: 100");
     println!();
 
