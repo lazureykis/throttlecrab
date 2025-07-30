@@ -6,11 +6,16 @@ use ahash::AHashMap as HashMap;
 #[cfg(not(feature = "ahash"))]
 use std::collections::HashMap;
 
+// Configuration constants
+const DEFAULT_CLEANUP_INTERVAL_MS: u32 = 60_000; // 60 seconds
+const COMPACT_KEY_SHORT_THRESHOLD: usize = 15; // Keys <= 15 bytes stored inline
+const COMPACT_KEY_BUFFER_SIZE: usize = 16; // 15 bytes + 1 length byte
+
 /// Compact memory store with reduced memory footprint
 ///
 /// This implementation uses:
 /// - Separate storage for TAT (i64) and expiry (u32)
-/// - u32 timestamps for expiry (seconds since custom epoch)
+/// - u32 timestamps for expiry (milliseconds since custom epoch)
 /// - Short string optimization for keys < 16 bytes
 pub struct CompactMemoryStore {
     // Separate maps for TAT values and expiry times
@@ -18,7 +23,7 @@ pub struct CompactMemoryStore {
     expiry_data: HashMap<CompactKey, u32>,
     // Custom epoch to allow u32 timestamps (Jan 1, 2020)
     epoch: SystemTime,
-    // Next cleanup time as u32 seconds since epoch
+    // Next cleanup time as u32 milliseconds since epoch
     next_cleanup: u32,
     cleanup_interval: u32,
 }
@@ -26,8 +31,8 @@ pub struct CompactMemoryStore {
 /// Compact key representation with short string optimization
 #[derive(Clone, PartialEq, Eq, Hash)]
 enum CompactKey {
-    // For keys <= 15 bytes, store inline
-    Short([u8; 16]), // 15 bytes + 1 length byte
+    // For keys <= COMPACT_KEY_SHORT_THRESHOLD bytes, store inline
+    Short([u8; COMPACT_KEY_BUFFER_SIZE]),
     // For longer keys, heap allocate
     Long(String),
 }
@@ -35,8 +40,8 @@ enum CompactKey {
 impl CompactKey {
     fn new(key: &str) -> Self {
         let bytes = key.as_bytes();
-        if bytes.len() <= 15 {
-            let mut short = [0u8; 16];
+        if bytes.len() <= COMPACT_KEY_SHORT_THRESHOLD {
+            let mut short = [0u8; COMPACT_KEY_BUFFER_SIZE];
             short[0] = bytes.len() as u8;
             short[1..=bytes.len()].copy_from_slice(bytes);
             CompactKey::Short(short)
@@ -64,8 +69,8 @@ impl CompactMemoryStore {
             tat_data: HashMap::new(),
             expiry_data: HashMap::new(),
             epoch,
-            next_cleanup: 60, // 60 seconds from epoch
-            cleanup_interval: 60,
+            next_cleanup: DEFAULT_CLEANUP_INTERVAL_MS,
+            cleanup_interval: DEFAULT_CLEANUP_INTERVAL_MS,
         }
     }
 
@@ -80,17 +85,17 @@ impl CompactMemoryStore {
         }
     }
 
-    /// Convert SystemTime to u32 seconds since our epoch
+    /// Convert SystemTime to u32 milliseconds since our epoch
     fn time_to_u32(&self, time: SystemTime) -> Result<u32, String> {
         time.duration_since(self.epoch)
-            .map(|d| d.as_secs() as u32)
+            .map(|d| d.as_millis() as u32)
             .map_err(|_| "Time before epoch".to_string())
     }
 
-    /// Convert u32 seconds since epoch back to SystemTime
+    /// Convert u32 milliseconds since epoch back to SystemTime
     #[allow(dead_code)]
-    fn u32_to_time(&self, secs: u32) -> SystemTime {
-        self.epoch + Duration::from_secs(secs as u64)
+    fn u32_to_time(&self, millis: u32) -> SystemTime {
+        self.epoch + Duration::from_millis(millis as u64)
     }
 
     fn clean_expired(&mut self, now_u32: u32) {
@@ -147,7 +152,7 @@ impl Store for CompactMemoryStore {
 
                 if tat == old {
                     // Update with new value
-                    let new_expiry = now_u32 + ttl.as_secs() as u32;
+                    let new_expiry = now_u32 + ttl.as_millis() as u32;
                     self.tat_data.insert(compact_key.clone(), new);
                     self.expiry_data.insert(compact_key, new_expiry);
                     Ok(true)
@@ -206,7 +211,7 @@ impl Store for CompactMemoryStore {
         self.maybe_clean_expired(now_u32);
 
         // Insert new entry
-        let expiry = now_u32 + ttl.as_secs() as u32;
+        let expiry = now_u32 + ttl.as_millis() as u32;
         self.tat_data.insert(compact_key.clone(), value);
         self.expiry_data.insert(compact_key, expiry);
         Ok(true)

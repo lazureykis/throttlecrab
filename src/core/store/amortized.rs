@@ -6,12 +6,18 @@ use ahash::AHashMap as HashMap;
 #[cfg(not(feature = "ahash"))]
 use std::collections::HashMap;
 
+// Configuration constants
+const DEFAULT_CAPACITY: usize = 1000;
+const CAPACITY_OVERHEAD_FACTOR: f64 = 1.3;
+const DEFAULT_OPERATIONS_PER_CLEANUP: usize = 100;
+const DEFAULT_ENTRIES_PER_CLEANUP: usize = 10;
+const PROBABILISTIC_CLEANUP_MODULO: u64 = 1000; // 0.1% chance
+
 /// Memory store with amortized cleanup - spreads cleanup cost across operations
 pub struct AmortizedMemoryStore {
     data: HashMap<String, (i64, Option<SystemTime>)>,
-    // Cleanup state
-    cleanup_cursor: Vec<String>, // Keys to check for cleanup
-    cleanup_index: usize,
+    // Cleanup state - using iterator position instead of vector
+    cleanup_position: usize, // Position in logical iteration order
     operations_count: usize,
     // Configuration
     operations_per_cleanup: usize,
@@ -20,17 +26,16 @@ pub struct AmortizedMemoryStore {
 
 impl AmortizedMemoryStore {
     pub fn new() -> Self {
-        Self::with_capacity(1000)
+        Self::with_capacity(DEFAULT_CAPACITY)
     }
 
     pub fn with_capacity(capacity: usize) -> Self {
         AmortizedMemoryStore {
-            data: HashMap::with_capacity((capacity as f64 * 1.3) as usize),
-            cleanup_cursor: Vec::with_capacity(capacity),
-            cleanup_index: 0,
+            data: HashMap::with_capacity((capacity as f64 * CAPACITY_OVERHEAD_FACTOR) as usize),
+            cleanup_position: 0,
             operations_count: 0,
-            operations_per_cleanup: 100, // Check every 100 operations
-            entries_per_cleanup: 10,     // Clean up to 10 entries each time
+            operations_per_cleanup: DEFAULT_OPERATIONS_PER_CLEANUP,
+            entries_per_cleanup: DEFAULT_ENTRIES_PER_CLEANUP,
         }
     }
 
@@ -42,31 +47,38 @@ impl AmortizedMemoryStore {
             return;
         }
 
-        // Rebuild cursor if needed
-        if self.cleanup_index >= self.cleanup_cursor.len() {
-            self.cleanup_cursor.clear();
-            self.cleanup_cursor.extend(self.data.keys().cloned());
-            self.cleanup_index = 0;
+        // Reset position if we've gone through all entries
+        if self.cleanup_position >= self.data.len() {
+            self.cleanup_position = 0;
         }
 
-        // Clean a small batch
+        // Clean a small batch using iterator
         let mut _removed = 0;
-        let end = (self.cleanup_index + self.entries_per_cleanup).min(self.cleanup_cursor.len());
+        let mut keys_to_remove = Vec::with_capacity(self.entries_per_cleanup);
 
-        for i in self.cleanup_index..end {
-            let key = &self.cleanup_cursor[i];
-            let should_remove = match self.data.get(key) {
-                Some((_, Some(expiry))) => *expiry <= now,
-                _ => false,
-            };
+        // Skip to our position and collect keys to remove
+        for (i, (key, (_, expiry))) in self.data.iter().enumerate() {
+            if i < self.cleanup_position {
+                continue;
+            }
+            if i >= self.cleanup_position + self.entries_per_cleanup {
+                break;
+            }
 
-            if should_remove {
-                self.data.remove(key);
-                _removed += 1;
+            if let Some(exp) = expiry {
+                if *exp <= now {
+                    keys_to_remove.push(key.clone());
+                }
             }
         }
 
-        self.cleanup_index = end;
+        // Remove expired entries
+        for key in keys_to_remove {
+            self.data.remove(&key);
+            _removed += 1;
+        }
+
+        self.cleanup_position += self.entries_per_cleanup;
 
         #[cfg(debug_assertions)]
         if _removed > 0 {
@@ -147,14 +159,14 @@ pub struct ProbabilisticMemoryStore {
 
 impl ProbabilisticMemoryStore {
     pub fn new() -> Self {
-        Self::with_capacity(1000)
+        Self::with_capacity(DEFAULT_CAPACITY)
     }
 
     pub fn with_capacity(capacity: usize) -> Self {
         ProbabilisticMemoryStore {
-            data: HashMap::with_capacity((capacity as f64 * 1.3) as usize),
+            data: HashMap::with_capacity((capacity as f64 * CAPACITY_OVERHEAD_FACTOR) as usize),
             operations_count: 0,
-            cleanup_probability: 0.001, // 0.1% chance = ~1 cleanup per 1000 ops
+            cleanup_probability: 1.0 / PROBABILISTIC_CLEANUP_MODULO as f64,
         }
     }
 
@@ -163,7 +175,8 @@ impl ProbabilisticMemoryStore {
 
         // Simple pseudo-random using operations count
         // This is deterministic but spreads cleanups evenly
-        let should_clean = (self.operations_count.wrapping_mul(2654435761) % 1000) < 1;
+        let should_clean =
+            (self.operations_count.wrapping_mul(2654435761) % PROBABILISTIC_CLEANUP_MODULO) < 1;
 
         if should_clean {
             let _before = self.data.len();
