@@ -1,0 +1,34 @@
+[package]
+name = "throttlecrab"
+version = "0.1.0"
+authors.workspace = true
+edition.workspace = true
+description = "A high-performance GCRA (Generic Cell Rate Algorithm) rate limiter library"
+readme = "../README.md"
+repository.workspace = true
+license.workspace = true
+keywords = ["rate-limiter", "gcra", "throttle", "rate-limiting", "algorithm"]
+categories = ["algorithms", "data-structures", "no-std"]
+
+[dependencies]
+ahash = { workspace = true, optional = true }
+
+[features]
+default = ["ahash"]
+# Enable fast hashing
+ahash = ["dep:ahash"]
+
+[dev-dependencies]
+criterion = { workspace = true }
+
+[[bench]]
+name = "core_performance"
+harness = false
+
+[[bench]]
+name = "store_shootout"
+harness = false
+
+[[bench]]
+name = "cleanup_strategies"
+harness = false

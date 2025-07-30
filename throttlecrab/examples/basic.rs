@@ -1,6 +1,6 @@
 use std::time::SystemTime;
 use throttlecrab::RateLimiter;
-use throttlecrab::core::store::optimized::OptimizedMemoryStore;
+use throttlecrab::store::optimized::OptimizedMemoryStore;
 
 fn main() {
     // Create a rate limiter with optimized memory store

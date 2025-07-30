@@ -2102,6 +2102,13 @@ name = "throttlecrab"
 version = "0.1.0"
 dependencies = [
  "ahash",
+ "criterion",
+]
+
+[[package]]
+name = "throttlecrab-server"
+version = "0.1.0"
+dependencies = [
  "anyhow",
  "async-trait",
  "axum",
@@ -2114,6 +2121,7 @@ dependencies = [
  "rmp-serde",
  "serde",
  "serde_json",
+ "throttlecrab",
  "tokio",
  "tokio-test",
  "tonic",

@@ -1,8 +1,8 @@
 use criterion::{Criterion, Throughput, criterion_group, criterion_main};
 use std::hint::black_box;
 use std::time::{Duration, SystemTime};
-use throttlecrab::core::store::fast_hasher::{FastHashMemoryStore, SimpleHashMemoryStore};
-use throttlecrab::core::store::optimized::{InternedMemoryStore, OptimizedMemoryStore};
+use throttlecrab::store::fast_hasher::{FastHashMemoryStore, SimpleHashMemoryStore};
+use throttlecrab::store::optimized::{InternedMemoryStore, OptimizedMemoryStore};
 use throttlecrab::{MemoryStore, RateLimiter};
 
 mod ahash_store;
