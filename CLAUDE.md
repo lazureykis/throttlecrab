@@ -73,3 +73,9 @@ The project follows the standard Rust project layout:
 ## Development Guidelines
 
 - Always run formatting linter the last
+- Always 'rust fmt --all' after updating files
+
+## Additional Git Workflow Guidance
+
+- Always create a new branch from fresh main when working on a new feature
+- After work, push the code and create a PR
