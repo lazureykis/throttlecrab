@@ -1,0 +1,29 @@
+syntax = "proto3";
+
+package throttlecrab;
+
+// Request for rate limiting check
+message ThrottleRequest {
+    string key = 1;
+    int32 max_burst = 2;
+    int32 count_per_period = 3;
+    int32 period = 4;
+    int32 quantity = 5;
+    int64 timestamp_secs = 6;
+    int32 timestamp_nanos = 7;
+}
+
+// Response from rate limiting check
+message ThrottleResponse {
+    bool allowed = 1;
+    int32 limit = 2;
+    int32 remaining = 3;
+    int32 retry_after = 4;
+    int32 reset_after = 5;
+}
+
+// gRPC service for rate limiting
+service RateLimiter {
+    // Check if a request should be rate limited
+    rpc Throttle(ThrottleRequest) returns (ThrottleResponse);
+}

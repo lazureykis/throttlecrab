@@ -10,8 +10,8 @@ use clap::Parser;
 
 use crate::actor::RateLimiterActor;
 use crate::transport::{
-    Transport, compact_protocol::CompactProtocolTransport, msgpack::MsgPackTransport,
-    msgpack_optimized::OptimizedMsgPackTransport,
+    Transport, compact_protocol::CompactProtocolTransport, grpc::GrpcTransport,
+    msgpack::MsgPackTransport, msgpack_optimized::OptimizedMsgPackTransport,
 };
 use crate::types::ThrottleRequest;
 
@@ -45,6 +45,10 @@ struct Args {
     /// Use compact binary protocol
     #[arg(long)]
     compact: bool,
+
+    /// Use gRPC transport
+    #[arg(long)]
+    grpc: bool,
 }
 
 #[tokio::main]
@@ -69,7 +73,11 @@ async fn main() -> Result<()> {
             args.port
         );
 
-        if args.compact {
+        if args.grpc {
+            tracing::info!("Using gRPC transport");
+            let transport = GrpcTransport::new(&args.host, args.port);
+            transport.start(limiter).await?;
+        } else if args.compact {
             tracing::info!("Using compact binary protocol");
             let transport = CompactProtocolTransport::new(&args.host, args.port);
             transport.start(limiter).await?;

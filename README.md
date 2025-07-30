@@ -15,7 +15,7 @@ A high-performance GCRA (Generic Cell Rate Algorithm) rate limiter library for R
 - **High performance**: Lock-free design with minimal overhead
 - **Flexible parameters**: Different rate limits per key with dynamic configuration
 - **TTL support**: Automatic cleanup of expired entries
-- **Standalone server**: Optional TCP server with MessagePack protocol for distributed rate limiting
+- **Standalone server**: Optional TCP server with MessagePack or gRPC protocol for distributed rate limiting
 
 ## Installation
 
@@ -79,11 +79,14 @@ Start the throttlecrab server:
 # Install the server binary
 cargo install throttlecrab --features bin
 
-# Run with default settings (listens on 127.0.0.1:7777)
-throttlecrab
+# Run with default settings (listens on 127.0.0.1:9090)
+throttlecrab --server
 
 # Or with custom address
-throttlecrab --listen 0.0.0.0:8080
+throttlecrab --server --host 0.0.0.0 --port 8080
+
+# Use gRPC transport (requires protoc installed)
+throttlecrab --server --grpc
 ```
 
 ### Client Example
@@ -138,13 +141,15 @@ The core library (`throttlecrab`) provides a pure Rust implementation of GCRA wi
 
 ### Server
 The optional server binary provides:
-- TCP server with MessagePack protocol
+- TCP server with MessagePack or gRPC protocol
 - Actor-based concurrency model using Tokio
 - Thread-safe rate limiting for distributed systems
 
 ## Protocol
 
-The server uses a simple framed protocol:
+### MessagePack Protocol
+
+The default server uses a simple framed protocol:
 1. 4-byte message length (big-endian)
 2. MessagePack-encoded request/response
 
@@ -164,6 +169,21 @@ Response fields:
 - `remaining`: Tokens remaining in current window
 - `reset_after`: Time until full capacity reset (seconds)
 - `retry_after`: Time until next request allowed (seconds)
+
+### gRPC Protocol
+
+When running with `--grpc`, the server exposes a gRPC service defined in `proto/throttlecrab.proto`:
+
+```protobuf
+service RateLimiter {
+    rpc Throttle(ThrottleRequest) returns (ThrottleResponse);
+}
+```
+
+To use the gRPC server:
+1. Install protoc: `brew install protobuf` (macOS) or `apt-get install protobuf-compiler` (Ubuntu)
+2. Run server: `throttlecrab --server --grpc`
+3. Use any gRPC client library to connect
 
 ## What is GCRA?
 
