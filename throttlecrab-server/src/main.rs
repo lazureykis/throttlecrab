@@ -11,7 +11,7 @@ use clap::Parser;
 use crate::actor::RateLimiterActor;
 use crate::transport::{
     Transport, compact_protocol::CompactProtocolTransport, grpc::GrpcTransport,
-    http::HttpTransport, msgpack::MsgPackTransport, msgpack_optimized::OptimizedMsgPackTransport,
+    http::HttpTransport, msgpack::MsgPackTransport,
 };
 use crate::types::ThrottleRequest;
 
@@ -38,9 +38,9 @@ struct Args {
     #[arg(long)]
     demo: bool,
 
-    /// Use optimized MessagePack transport
+    /// Use MessagePack transport
     #[arg(long)]
-    optimized: bool,
+    msgpack: bool,
 
     /// Use compact binary protocol
     #[arg(long)]
@@ -89,9 +89,9 @@ async fn main() -> Result<()> {
             tracing::info!("Using compact binary protocol");
             let transport = CompactProtocolTransport::new(&args.host, args.port);
             transport.start(limiter).await?;
-        } else if args.optimized {
-            tracing::info!("Using optimized MessagePack transport");
-            let transport = OptimizedMsgPackTransport::new(&args.host, args.port);
+        } else if args.msgpack {
+            tracing::info!("Using MessagePack transport");
+            let transport = MsgPackTransport::new(&args.host, args.port);
             transport.start(limiter).await?;
         } else {
             tracing::info!("Using MessagePack transport (default)");
