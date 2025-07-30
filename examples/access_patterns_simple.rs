@@ -46,8 +46,8 @@ fn main() {
     println!("ThrottleCrab Access Pattern Performance");
     println!("=======================================\n");
     
-    let num_keys = 1000;
-    let iterations = 100_000;
+    let num_keys = 5000;
+    let iterations = 500_000;
     
     // Test patterns
     let patterns = vec![

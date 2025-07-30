@@ -180,8 +180,8 @@ fn main() {
     println!("ThrottleCrab Access Pattern Benchmarks");
     println!("======================================");
     
-    let num_keys = 1000;
-    let iterations = 10_000;
+    let num_keys = 10_000;
+    let iterations = 100_000;
     
     println!("\nConfiguration:");
     println!("  Unique keys: {}", num_keys);
@@ -243,8 +243,8 @@ fn main() {
         );
         results.push(("Adaptive", ops_per_sec, allowed, blocked));
         
-        // Arena Store
-        let limiter = RateLimiter::new(ArenaMemoryStore::with_capacity(num_keys * 2));
+        // Arena Store - needs larger capacity for larger datasets
+        let limiter = RateLimiter::new(ArenaMemoryStore::with_capacity(num_keys * 3));
         let (ops_per_sec, allowed, blocked) = benchmark_pattern(
             "Arena", limiter, pattern, num_keys, iterations
         );
