@@ -38,7 +38,7 @@ fn make_msgpack_request(stream: &mut TcpStream, key: &str) -> std::io::Result<bo
         timestamp: SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .unwrap()
-            .as_secs() as i64,
+            .as_nanos() as i64,
     };
 
     // Serialize request
@@ -67,7 +67,7 @@ fn make_compact_request(stream: &mut TcpStream, key: &str) -> std::io::Result<bo
     let timestamp = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .unwrap()
-        .as_secs() as i64;
+        .as_nanos() as i64;
 
     // Write fixed header
     stream.write_all(&[1u8])?; // cmd

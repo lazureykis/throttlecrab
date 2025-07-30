@@ -39,7 +39,7 @@ fn make_request(stream: &mut TcpStream, key: &str) -> std::io::Result<bool> {
         timestamp: SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .unwrap()
-            .as_secs() as i64,
+            .as_nanos() as i64,
     };
 
     // Serialize request

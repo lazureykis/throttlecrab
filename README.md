@@ -116,7 +116,7 @@ fn check_rate_limit(key: &str, max_burst: i64, rate: i64, period: i64) -> bool {
         rate: rate,
         period,
         quantity: 1,
-        timestamp: SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs() as i64,
+        timestamp: SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_nanos() as i64,
     };
     
     // Serialize with MessagePack and send
@@ -167,7 +167,7 @@ Request fields:
 - `rate`: Number of requests allowed per period
 - `period`: Time period in seconds
 - `quantity`: Number of tokens to consume (default: 1)
-- `timestamp`: Unix timestamp in seconds (default: current time)
+- `timestamp`: Unix timestamp in nanoseconds (default: current time)
 
 Response fields:
 - `ok`: Boolean indicating success

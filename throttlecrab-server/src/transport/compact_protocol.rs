@@ -18,7 +18,7 @@ use tokio::net::{TcpListener, TcpStream};
 /// - rate: i64 (8 bytes)
 /// - period: i64 (8 bytes)
 /// - quantity: i64 (8 bytes)
-/// - timestamp: i64 (8 bytes)
+/// - timestamp: i64 (8 bytes, nanoseconds since UNIX epoch)
 /// - key: [u8; key_len] (variable)
 ///
 /// Response format (fixed size: 33 bytes):
@@ -89,7 +89,7 @@ impl CompactProtocolTransport {
             let rate = i64::from_le_bytes(header[10..18].try_into().unwrap());
             let period = i64::from_le_bytes(header[18..26].try_into().unwrap());
             let quantity = i64::from_le_bytes(header[26..34].try_into().unwrap());
-            let timestamp_secs = i64::from_le_bytes(header[34..42].try_into().unwrap());
+            let timestamp_nanos = i64::from_le_bytes(header[34..42].try_into().unwrap());
 
             // Read key
             read_buffer.clear();
@@ -104,8 +104,8 @@ impl CompactProtocolTransport {
                 }
             };
 
-            // Convert timestamp
-            let timestamp = UNIX_EPOCH + std::time::Duration::from_secs(timestamp_secs as u64);
+            // Convert timestamp from nanoseconds
+            let timestamp = UNIX_EPOCH + std::time::Duration::from_nanos(timestamp_nanos as u64);
 
             // Create request
             let request = ThrottleRequest {

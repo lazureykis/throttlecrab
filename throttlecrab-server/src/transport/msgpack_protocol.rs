@@ -11,7 +11,7 @@ pub struct MsgPackRequest {
     #[serde(default = "default_quantity")]
     pub quantity: i64,
     #[serde(default = "default_timestamp")]
-    pub timestamp: i64, // seconds since UNIX epoch
+    pub timestamp: i64, // nanoseconds since UNIX epoch
 }
 
 fn default_quantity() -> i64 {
@@ -22,7 +22,7 @@ fn default_timestamp() -> i64 {
     std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .unwrap()
-        .as_secs() as i64
+        .as_nanos() as i64
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -37,8 +37,8 @@ pub struct MsgPackResponse {
 
 impl From<MsgPackRequest> for ThrottleRequest {
     fn from(req: MsgPackRequest) -> Self {
-        // Convert timestamp from seconds to SystemTime
-        let duration_since_epoch = std::time::Duration::from_secs(req.timestamp as u64);
+        // Convert timestamp from nanoseconds to SystemTime
+        let duration_since_epoch = std::time::Duration::from_nanos(req.timestamp as u64);
         let timestamp = std::time::UNIX_EPOCH + duration_since_epoch;
 
         ThrottleRequest {
