@@ -10,8 +10,8 @@ use clap::Parser;
 
 use crate::actor::RateLimiterActor;
 use crate::transport::{
-    Transport, compact_protocol::CompactProtocolTransport, grpc::GrpcTransport,
-    http::HttpTransport, msgpack::MsgPackTransport,
+    Transport, grpc::GrpcTransport, http::HttpTransport, msgpack::MsgPackTransport,
+    native::NativeTransport,
 };
 use crate::types::ThrottleRequest;
 
@@ -42,9 +42,9 @@ struct Args {
     #[arg(long)]
     msgpack: bool,
 
-    /// Use compact binary protocol
+    /// Use native binary protocol
     #[arg(long)]
-    compact: bool,
+    native: bool,
 
     /// Use gRPC transport
     #[arg(long)]
@@ -85,9 +85,9 @@ async fn main() -> Result<()> {
             tracing::info!("Using HTTP transport with JSON");
             let transport = HttpTransport::new(&args.host, args.port);
             transport.start(limiter).await?;
-        } else if args.compact {
-            tracing::info!("Using compact binary protocol");
-            let transport = CompactProtocolTransport::new(&args.host, args.port);
+        } else if args.native {
+            tracing::info!("Using native binary protocol");
+            let transport = NativeTransport::new(&args.host, args.port);
             transport.start(limiter).await?;
         } else if args.msgpack {
             tracing::info!("Using MessagePack transport");

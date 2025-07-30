@@ -111,8 +111,8 @@ fn test_msgpack(port: u16, protocol_name: &str) -> std::io::Result<()> {
     Ok(())
 }
 
-fn test_compact(port: u16) -> std::io::Result<()> {
-    println!("\nCompact Binary Protocol Test (port {port})");
+fn test_native(port: u16) -> std::io::Result<()> {
+    println!("\nNative Binary Protocol Test (port {port})");
     println!("{}", "-".repeat(40));
 
     let mut stream = TcpStream::connect(format!("127.0.0.1:{port}"))?;
@@ -180,7 +180,7 @@ fn main() -> std::io::Result<()> {
     println!();
     println!("Start the servers with:");
     println!("  1. cargo run --features bin -- --server --port 9090 --msgpack");
-    println!("  2. cargo run --features bin -- --server --port 9092 --compact");
+    println!("  2. cargo run --features bin -- --server --port 9092 --native");
     println!();
 
     // Test MessagePack
@@ -188,14 +188,14 @@ fn main() -> std::io::Result<()> {
         eprintln!("MessagePack protocol test failed: {e}");
     }
 
-    // Test compact binary protocol
-    if let Err(e) = test_compact(9092) {
-        eprintln!("Compact protocol test failed: {e}");
+    // Test native binary protocol
+    if let Err(e) = test_native(9092) {
+        eprintln!("Native protocol test failed: {e}");
     }
 
     println!("\nProtocol comparison summary:");
     println!("- MessagePack: Good balance of compatibility and performance");
-    println!("- Compact Binary: Best performance, custom protocol");
+    println!("- Native Binary: Best performance, custom protocol");
 
     Ok(())
 }
