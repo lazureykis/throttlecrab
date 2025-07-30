@@ -147,8 +147,6 @@ impl Store for AmortizedMemoryStore {
 pub struct ProbabilisticMemoryStore {
     data: HashMap<String, (i64, Option<SystemTime>)>,
     operations_count: u64,
-    #[allow(dead_code)]
-    cleanup_probability: f64, // e.g., 0.001 = 0.1% chance per operation
 }
 
 impl ProbabilisticMemoryStore {
@@ -160,7 +158,6 @@ impl ProbabilisticMemoryStore {
         ProbabilisticMemoryStore {
             data: HashMap::with_capacity((capacity as f64 * CAPACITY_OVERHEAD_FACTOR) as usize),
             operations_count: 0,
-            cleanup_probability: 1.0 / PROBABILISTIC_CLEANUP_MODULO as f64,
         }
     }
 
