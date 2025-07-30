@@ -71,7 +71,7 @@ Request fields:
 - `rate`: Number of requests allowed per period
 - `period`: Time period in seconds
 - `quantity`: Number of tokens to consume (default: 1)
-- `timestamp`: Unix timestamp in seconds (default: current time)
+- `timestamp`: Unix timestamp in nanoseconds (default: current time)
 
 ### HTTP REST API
 
@@ -84,9 +84,12 @@ Request fields:
   "max_burst": 10,
   "count_per_period": 100,
   "period": 60,
-  "quantity": 1
+  "quantity": 1,
+  "timestamp": 1234567890123456789
 }
 ```
+
+Note: `timestamp` is optional (Unix nanoseconds). If not provided, the server uses the current time.
 
 **Response** (JSON):
 ```json

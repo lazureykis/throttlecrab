@@ -44,7 +44,7 @@ fn test_msgpack(port: u16, protocol_name: &str) -> std::io::Result<()> {
         timestamp: SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .unwrap()
-            .as_secs() as i64,
+            .as_nanos() as i64,
     };
 
     let mut buf = Vec::new();
@@ -84,7 +84,7 @@ fn test_msgpack(port: u16, protocol_name: &str) -> std::io::Result<()> {
             timestamp: SystemTime::now()
                 .duration_since(UNIX_EPOCH)
                 .unwrap()
-                .as_secs() as i64,
+                .as_nanos() as i64,
         };
 
         buf.clear();
@@ -124,7 +124,7 @@ fn test_compact(port: u16) -> std::io::Result<()> {
     let timestamp = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .unwrap()
-        .as_secs() as i64;
+        .as_nanos() as i64;
 
     stream.write_all(&[1u8])?; // cmd
     stream.write_all(&[key.len() as u8])?; // key_len
@@ -151,7 +151,7 @@ fn test_compact(port: u16) -> std::io::Result<()> {
         let timestamp = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .unwrap()
-            .as_secs() as i64;
+            .as_nanos() as i64;
 
         stream.write_all(&[1u8])?; // cmd
         stream.write_all(&[key.len() as u8])?; // key_len

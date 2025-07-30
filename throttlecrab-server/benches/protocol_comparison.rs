@@ -38,7 +38,7 @@ fn make_msgpack_request(stream: &mut TcpStream, key: &str) -> std::io::Result<bo
         timestamp: SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .unwrap()
-            .as_secs() as i64,
+            .as_nanos() as i64,
     };
 
     // Serialize request
@@ -67,7 +67,7 @@ fn make_compact_request(stream: &mut TcpStream, key: &str) -> std::io::Result<bo
     let timestamp = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .unwrap()
-        .as_secs() as i64;
+        .as_nanos() as i64;
 
     // Write fixed header
     stream.write_all(&[1u8])?; // cmd
@@ -107,8 +107,7 @@ async fn make_grpc_request(
         count_per_period: 1000,
         period: 60,
         quantity: 1,
-        timestamp_secs: duration.as_secs() as i64,
-        timestamp_nanos: duration.subsec_nanos() as i32,
+        timestamp: duration.as_nanos() as i64,
     });
 
     let response = client.throttle(request).await?;

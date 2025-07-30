@@ -41,7 +41,7 @@ fn main() -> std::io::Result<()> {
         timestamp: SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .unwrap()
-            .as_secs() as i64,
+            .as_nanos() as i64,
     };
 
     // Serialize request

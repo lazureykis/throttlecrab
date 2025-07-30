@@ -16,6 +16,7 @@ pub struct HttpThrottleRequest {
     pub count_per_period: i64,
     pub period: i64,
     pub quantity: Option<i64>,
+    pub timestamp: Option<i64>, // Optional timestamp in nanoseconds
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -61,13 +62,19 @@ async fn handle_throttle(
     State(state): State<Arc<AppState>>,
     Json(req): Json<HttpThrottleRequest>,
 ) -> Result<Json<ThrottleResponse>, (StatusCode, Json<HttpErrorResponse>)> {
+    let timestamp = if let Some(nanos) = req.timestamp {
+        std::time::UNIX_EPOCH + std::time::Duration::from_nanos(nanos as u64)
+    } else {
+        SystemTime::now()
+    };
+
     let internal_req = InternalRequest {
         key: req.key,
         max_burst: req.max_burst,
         count_per_period: req.count_per_period,
         period: req.period,
         quantity: req.quantity.unwrap_or(1),
-        timestamp: SystemTime::now(),
+        timestamp,
     };
 
     match state.limiter.throttle(internal_req).await {
