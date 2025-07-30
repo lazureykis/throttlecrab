@@ -176,7 +176,8 @@ impl InternedMemoryStore {
             id
         } else {
             let id = self.next_id;
-            self.next_id += 1;
+            // Use saturating_add to prevent overflow panic
+            self.next_id = self.next_id.saturating_add(1);
             self.key_to_id.insert(key.to_string(), id);
             id
         }
