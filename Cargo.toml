@@ -65,3 +65,7 @@ harness = false
 [[bench]]
 name = "core_performance"
 harness = false
+
+[[bench]]
+name = "store_shootout"
+harness = false
