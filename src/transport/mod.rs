@@ -1,4 +1,5 @@
 pub mod compact_protocol;
+pub mod grpc;
 pub mod msgpack;
 pub mod msgpack_optimized;
 pub mod msgpack_protocol;

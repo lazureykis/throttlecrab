@@ -27,17 +27,22 @@ tracing-subscriber = { version = "0.3", features = ["env-filter"], optional = tr
 clap = { version = "4", features = ["derive"], optional = true }
 config = { version = "0", optional = true }
 serde_json = { version = "1", optional = true }
+tonic = { version = "0.13", optional = true }
+prost = { version = "0.13", optional = true }
 
 [features]
 default = ["ahash"]
 # Enable fast hashing
 ahash = ["dep:ahash"]
 # Enable all binary dependencies
-bin = ["tokio", "async-trait", "anyhow", "rmp-serde", "serde", "bytes", "tracing", "tracing-subscriber", "clap", "config", "serde_json"]
+bin = ["tokio", "async-trait", "anyhow", "rmp-serde", "serde", "bytes", "tracing", "tracing-subscriber", "clap", "config", "serde_json", "tonic", "prost"]
 
 [[bin]]
 name = "throttlecrab"
 required-features = ["bin"]
+
+[build-dependencies]
+tonic-build = "0.13"
 
 [dev-dependencies]
 criterion = "0.7"
@@ -48,6 +53,9 @@ serde = { version = "1", features = ["derive"] }
 bytes = "1"
 tokio = { version = "1", features = ["full"] }
 ahash = "0.8"
+# For gRPC examples
+tonic = "0.13"
+prost = "0.13"
 
 [[bench]]
 name = "tcp_throughput"
@@ -75,4 +83,8 @@ harness = false
 
 [[bench]]
 name = "cleanup_strategies"
+harness = false
+
+[[bench]]
+name = "grpc_throughput"
 harness = false
