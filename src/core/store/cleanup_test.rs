@@ -26,16 +26,17 @@ mod tests {
         // Move time forward by 2 seconds (past TTL)
         let future = now + Duration::from_secs(2);
         
-        // Access some keys to trigger cleanup check
-        for i in 0..10 {
+        // Access expired keys to increment expired_count
+        for i in 0..250 {
             let key = format!("key_{}", i);
-            let _ = store.get(&key, future);
+            // This will mark them as expired internally
+            store.compare_and_swap_with_ttl(&key, i, i + 1, Duration::from_secs(60), future).unwrap();
         }
         
-        // The first get won't trigger cleanup (no operations yet)
-        // But after some operations...
+        // Now expired_count should be > 200 (20% of 1000)
+        // The next operation should trigger cleanup
         
-        // Do many operations to ensure we hit a cleanup trigger
+        // Add new entries to keep some data
         for i in 0..200 {
             let key = format!("new_key_{}", i);
             store.set_if_not_exists_with_ttl(
@@ -46,19 +47,14 @@ mod tests {
             ).unwrap();
         }
         
-        // Move time forward past cleanup interval
-        let much_later = future + Duration::from_secs(61);
-        
-        // This should trigger cleanup
-        store.get("trigger_cleanup", much_later).unwrap();
-        
         // Verify expired entries were removed
-        assert!(store.len() < 1000, "Cleanup didn't remove expired entries. Size: {}", store.len());
+        // Should have ~200 new entries plus any old ones that weren't cleaned yet
+        assert!(store.len() < 500, "Cleanup didn't remove expired entries. Size: {}", store.len());
         
         // Verify new entries still exist
         for i in 0..200 {
             let key = format!("new_key_{}", i);
-            assert!(store.get(&key, much_later).unwrap().is_some());
+            assert!(store.get(&key, future).unwrap().is_some());
         }
     }
     
@@ -82,20 +78,22 @@ mod tests {
         // Move time forward
         let later = now + Duration::from_secs(2);
         
-        // Mark many as expired by checking them
+        // Mark many as expired by accessing them
+        let mut expired_count = 0;
         for i in (0..500).step_by(2) {
             let key = format!("key_{}", i);
-            let _ = store.get(&key, later);
+            // Try to update - this will mark them as expired internally
+            let result = store.compare_and_swap_with_ttl(&key, i, i + 1, Duration::from_secs(60), later).unwrap();
+            if !result {
+                expired_count += 1;
+            }
         }
         
-        // Store should have tracked ~250 expired entries
-        assert!(store.expired_count() > 200);
+        // We should have tried to update ~250 expired entries
+        assert!(expired_count > 200, "Expected >200 expired entries, got {}", expired_count);
         
-        // Trigger cleanup by doing more operations
-        let much_later = later + Duration::from_secs(58);
-        
-        // This should trigger cleanup due to expired count
-        store.set_if_not_exists_with_ttl("trigger", 999, Duration::from_secs(60), much_later).unwrap();
+        // The next operation should trigger cleanup due to expired count > 20%
+        store.set_if_not_exists_with_ttl("trigger", 999, Duration::from_secs(60), later).unwrap();
         
         // Verify cleanup happened
         assert!(store.len() < 300, "Expected ~250 entries after cleanup, got {}", store.len());

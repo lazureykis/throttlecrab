@@ -1,4 +1,4 @@
-use std::time::{Duration, Instant, SystemTime};
+use std::time::{Instant, SystemTime};
 use throttlecrab::{MemoryStore, RateLimiter};
 use throttlecrab::core::store::optimized::OptimizedMemoryStore;
 
