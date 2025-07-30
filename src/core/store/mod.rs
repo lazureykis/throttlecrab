@@ -12,9 +12,12 @@ pub mod adaptive_cleanup;
 pub mod amortized;
 pub mod arena;
 pub mod bloom_filter;
+pub mod btree_store;
 pub mod compact;
 pub mod fast_hasher;
+pub mod heap_store;
 pub mod optimized;
+pub mod raw_api_store;
 pub mod timing_wheel;
 
 #[cfg(test)]

@@ -4,8 +4,11 @@ use throttlecrab::core::store::{
     amortized::{AmortizedMemoryStore, ProbabilisticMemoryStore},
     arena::ArenaMemoryStore,
     bloom_filter::BloomFilterStore,
+    btree_store::BTreeStore,
     compact::CompactMemoryStore,
+    heap_store::HeapStore,
     optimized::{InternedMemoryStore, OptimizedMemoryStore},
+    raw_api_store::{RawApiStore, RawApiStoreV2},
     timing_wheel::TimingWheelStore,
 };
 use throttlecrab::{MemoryStore, RateLimiter};
@@ -142,6 +145,38 @@ fn main() {
             num_keys,
             0.01
         )),
+        num_keys,
+        iterations,
+    );
+
+    // BTreeStore
+    benchmark_store(
+        "BTree Store",
+        RateLimiter::new(BTreeStore::with_capacity(num_keys)),
+        num_keys,
+        iterations,
+    );
+
+    // HeapStore
+    benchmark_store(
+        "Heap Store",
+        RateLimiter::new(HeapStore::with_capacity(num_keys)),
+        num_keys,
+        iterations,
+    );
+
+    // RawApiStore
+    benchmark_store(
+        "RawApi Store",
+        RateLimiter::new(RawApiStore::with_capacity(num_keys)),
+        num_keys,
+        iterations,
+    );
+
+    // RawApiStoreV2
+    benchmark_store(
+        "RawApiV2 Store",
+        RateLimiter::new(RawApiStoreV2::with_capacity(num_keys)),
         num_keys,
         iterations,
     );
