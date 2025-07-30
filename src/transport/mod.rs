@@ -1,4 +1,6 @@
+pub mod compact_protocol;
 pub mod msgpack;
+pub mod msgpack_optimized;
 pub mod msgpack_protocol;
 
 use crate::actor::RateLimiterHandle;
