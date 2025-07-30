@@ -4,12 +4,12 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use tokio::runtime::Runtime;
 
 // Include the generated protobuf code
-pub mod throttlecrab {
+pub mod throttlecrab_proto {
     tonic::include_proto!("throttlecrab");
 }
 
-use throttlecrab::ThrottleRequest;
-use throttlecrab::rate_limiter_client::RateLimiterClient;
+use throttlecrab_proto::ThrottleRequest;
+use throttlecrab_proto::rate_limiter_client::RateLimiterClient;
 
 async fn make_grpc_request(
     client: &mut RateLimiterClient<tonic::transport::Channel>,

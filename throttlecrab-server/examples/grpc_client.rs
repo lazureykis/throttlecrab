@@ -1,12 +1,12 @@
 use std::time::{SystemTime, UNIX_EPOCH};
 
 // Include the generated protobuf code
-pub mod throttlecrab {
+pub mod throttlecrab_proto {
     tonic::include_proto!("throttlecrab");
 }
 
-use throttlecrab::ThrottleRequest;
-use throttlecrab::rate_limiter_client::RateLimiterClient;
+use throttlecrab_proto::ThrottleRequest;
+use throttlecrab_proto::rate_limiter_client::RateLimiterClient;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {

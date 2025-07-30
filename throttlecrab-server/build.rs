@@ -1,28 +1,9 @@
 fn main() {
-    // Always try to compile protos if tonic is available (for bin feature or benchmarks)
+    // Compile protobuf files for gRPC support
     compile_protos();
 }
 
 fn compile_protos() {
-    // Set PROTOC to common homebrew path if not set
-    if std::env::var("PROTOC").is_err() {
-        // Try common protoc locations
-        let possible_paths = [
-            "/opt/homebrew/bin/protoc", // Apple Silicon homebrew
-            "/usr/local/bin/protoc",    // Intel Mac homebrew
-            "/usr/bin/protoc",          // System install
-        ];
-
-        for path in &possible_paths {
-            if std::path::Path::new(path).exists() {
-                unsafe {
-                    std::env::set_var("PROTOC", path);
-                }
-                break;
-            }
-        }
-    }
-
     match tonic_prost_build::compile_protos("proto/throttlecrab.proto") {
         Ok(_) => println!("cargo:info=Successfully compiled protobuf"),
         Err(e) => {

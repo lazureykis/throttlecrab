@@ -8,12 +8,12 @@ use std::time::{Duration, UNIX_EPOCH};
 use tonic::{Request, Response, Status, transport::Server};
 
 // Include the generated protobuf code
-pub mod throttlecrab {
+pub mod throttlecrab_proto {
     tonic::include_proto!("throttlecrab");
 }
 
-use throttlecrab::rate_limiter_server::{RateLimiter, RateLimiterServer};
-use throttlecrab::{ThrottleRequest, ThrottleResponse};
+use throttlecrab_proto::rate_limiter_server::{RateLimiter, RateLimiterServer};
+use throttlecrab_proto::{ThrottleRequest, ThrottleResponse};
 
 pub struct GrpcTransport {
     addr: SocketAddr,
@@ -110,7 +110,7 @@ mod tests {
 
         // Connect client
         let mut client =
-            throttlecrab::rate_limiter_client::RateLimiterClient::connect("http://127.0.0.1:9091")
+            throttlecrab_proto::rate_limiter_client::RateLimiterClient::connect("http://127.0.0.1:9091")
                 .await
                 .unwrap();
 
@@ -151,7 +151,7 @@ mod tests {
 
         // Connect client
         let mut client =
-            throttlecrab::rate_limiter_client::RateLimiterClient::connect("http://127.0.0.1:9092")
+            throttlecrab_proto::rate_limiter_client::RateLimiterClient::connect("http://127.0.0.1:9092")
                 .await
                 .unwrap();
 
