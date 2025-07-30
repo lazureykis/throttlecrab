@@ -63,7 +63,7 @@ fn make_msgpack_request(stream: &mut TcpStream, key: &str) -> std::io::Result<bo
     Ok(response.allowed == 1)
 }
 
-fn make_compact_request(stream: &mut TcpStream, key: &str) -> std::io::Result<bool> {
+fn make_native_request(stream: &mut TcpStream, key: &str) -> std::io::Result<bool> {
     let timestamp = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .unwrap()
@@ -114,7 +114,7 @@ async fn make_grpc_request(
     Ok(response.into_inner().allowed)
 }
 
-fn benchmark_protocol(c: &mut Criterion, port: u16, name: &str, is_compact: bool) {
+fn benchmark_protocol(c: &mut Criterion, port: u16, name: &str, is_native: bool) {
     let mut group = c.benchmark_group(name);
     group.throughput(Throughput::Elements(1));
     group.measurement_time(Duration::from_secs(10));
@@ -128,8 +128,8 @@ fn benchmark_protocol(c: &mut Criterion, port: u16, name: &str, is_compact: bool
         b.iter(|| {
             let key = format!("bench_key_{counter}");
             counter += 1;
-            if is_compact {
-                make_compact_request(&mut stream, &key).unwrap()
+            if is_native {
+                make_native_request(&mut stream, &key).unwrap()
             } else {
                 make_msgpack_request(&mut stream, &key).unwrap()
             }
@@ -145,8 +145,8 @@ fn benchmark_protocol(c: &mut Criterion, port: u16, name: &str, is_compact: bool
             for _ in 0..100 {
                 let key = format!("bench_key_{counter}");
                 counter += 1;
-                if is_compact {
-                    make_compact_request(&mut stream, &key).unwrap();
+                if is_native {
+                    make_native_request(&mut stream, &key).unwrap();
                 } else {
                     make_msgpack_request(&mut stream, &key).unwrap();
                 }
@@ -210,7 +210,7 @@ fn protocol_comparison(c: &mut Criterion) {
     println!("Make sure to run four server instances:");
     println!("  1. cargo run --features bin -- --server --port 9090");
     println!("  2. cargo run --features bin -- --server --port 9091 --optimized");
-    println!("  3. cargo run --features bin -- --server --port 9092 --compact");
+    println!("  3. cargo run --features bin -- --server --port 9092 --native");
     println!("  4. cargo run --features bin -- --server --port 9093 --grpc");
     println!("Waiting for servers to start...");
     std::thread::sleep(Duration::from_secs(2));
@@ -219,7 +219,7 @@ fn protocol_comparison(c: &mut Criterion) {
     let servers = [
         (9090, "standard", false),
         (9091, "optimized", false),
-        (9092, "compact", true),
+        (9092, "native", true),
     ];
 
     for (port, name, _) in &servers {
@@ -243,8 +243,8 @@ fn protocol_comparison(c: &mut Criterion) {
     }
 
     // Run benchmarks
-    for (port, name, is_compact) in servers {
-        benchmark_protocol(c, port, &format!("protocol_{name}"), is_compact);
+    for (port, name, is_native) in servers {
+        benchmark_protocol(c, port, &format!("protocol_{name}"), is_native);
     }
 
     // Run gRPC benchmark

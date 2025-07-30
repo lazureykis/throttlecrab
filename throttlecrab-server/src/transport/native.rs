@@ -9,7 +9,7 @@ use std::time::UNIX_EPOCH;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::{TcpListener, TcpStream};
 
-/// Compact binary protocol for minimal overhead
+/// Native binary protocol for minimal overhead
 ///
 /// Request format (fixed size: 32 bytes + variable key length):
 /// - cmd: u8 (1 byte)
@@ -32,14 +32,14 @@ const READ_BUFFER_SIZE: usize = 256;
 const WRITE_BUFFER_SIZE: usize = 64;
 const MAX_KEY_LENGTH: usize = 255;
 
-pub struct CompactProtocolTransport {
+pub struct NativeTransport {
     host: String,
     port: u16,
 }
 
-impl CompactProtocolTransport {
+impl NativeTransport {
     pub fn new(host: &str, port: u16) -> Self {
-        CompactProtocolTransport {
+        NativeTransport {
             host: host.to_string(),
             port,
         }
@@ -153,12 +153,12 @@ impl CompactProtocolTransport {
 }
 
 #[async_trait]
-impl Transport for CompactProtocolTransport {
+impl Transport for NativeTransport {
     async fn start(self, limiter: RateLimiterHandle) -> Result<()> {
         let addr = format!("{}:{}", self.host, self.port);
         let listener = TcpListener::bind(&addr).await?;
 
-        tracing::info!("Compact protocol transport listening on {}", addr);
+        tracing::info!("Native protocol transport listening on {}", addr);
 
         let limiter = Arc::new(limiter);
 
