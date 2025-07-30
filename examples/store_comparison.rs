@@ -3,6 +3,7 @@ use throttlecrab::core::store::{
     adaptive_cleanup::AdaptiveMemoryStore,
     amortized::{AmortizedMemoryStore, ProbabilisticMemoryStore},
     arena::ArenaMemoryStore,
+    compact::CompactMemoryStore,
     optimized::{InternedMemoryStore, OptimizedMemoryStore},
 };
 use throttlecrab::{MemoryStore, RateLimiter};
@@ -111,6 +112,14 @@ fn main() {
     benchmark_store(
         "Arena MemoryStore",
         RateLimiter::new(ArenaMemoryStore::with_capacity(num_keys)),
+        num_keys,
+        iterations,
+    );
+
+    // CompactMemoryStore
+    benchmark_store(
+        "Compact MemoryStore",
+        RateLimiter::new(CompactMemoryStore::with_capacity(num_keys)),
         num_keys,
         iterations,
     );
