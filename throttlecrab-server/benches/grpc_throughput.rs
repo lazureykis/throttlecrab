@@ -24,7 +24,7 @@ async fn make_grpc_request(
         count_per_period: 10000,
         period: 60,
         quantity: 1,
-        timestamp: duration.as_secs() as i64,
+        timestamp: duration.as_nanos() as i64,
     });
 
     let response = client.throttle(request).await?;

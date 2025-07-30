@@ -27,7 +27,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             count_per_period: 30,
             period: 60,
             quantity: 1,
-            timestamp: duration.as_secs() as i64,
+            timestamp: duration.as_nanos() as i64,
         });
 
         let response = client.throttle(request).await?;

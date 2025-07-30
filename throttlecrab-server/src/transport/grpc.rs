@@ -52,8 +52,8 @@ impl RateLimiter for RateLimiterService {
     ) -> Result<Response<ThrottleResponse>, Status> {
         let req = request.into_inner();
 
-        // Convert timestamp from seconds to SystemTime
-        let timestamp = UNIX_EPOCH + Duration::from_secs(req.timestamp as u64);
+        // Convert timestamp from nanoseconds to SystemTime
+        let timestamp = UNIX_EPOCH + Duration::from_nanos(req.timestamp as u64);
 
         // Convert to actor request
         let actor_request = ActorRequest {
@@ -122,7 +122,7 @@ mod tests {
             count_per_period: 20,
             period: 60,
             quantity: 1,
-            timestamp: duration.as_secs() as i64,
+            timestamp: duration.as_nanos() as i64,
         });
 
         let response = client.throttle(request).await.unwrap();
@@ -166,7 +166,7 @@ mod tests {
                 count_per_period: 10,
                 period: 60,
                 quantity: 1,
-                timestamp: duration.as_secs() as i64,
+                timestamp: duration.as_nanos() as i64,
             });
 
             let response = client.throttle(request).await.unwrap();

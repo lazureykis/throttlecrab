@@ -9,7 +9,7 @@ message ThrottleRequest {
     int32 count_per_period = 3;
     int32 period = 4;
     int32 quantity = 5;
-    int64 timestamp = 6;  // Unix timestamp in seconds
+    int64 timestamp = 6;  // Unix timestamp in nanoseconds
 }
 
 // Response from rate limiting check
