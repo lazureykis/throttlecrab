@@ -229,7 +229,6 @@ fn main() {
             benchmark_pattern("Adaptive", limiter, pattern, num_keys, iterations);
         results.push(("Adaptive", ops_per_sec, allowed, blocked));
 
-
         print_pattern_results(pattern, results);
     }
 

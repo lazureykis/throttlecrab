@@ -1,8 +1,6 @@
 use std::time::SystemTime;
 use throttlecrab::RateLimiter;
-use throttlecrab::core::store::{
-    amortized::AmortizedMemoryStore, optimized::OptimizedMemoryStore,
-};
+use throttlecrab::core::store::{amortized::AmortizedMemoryStore, optimized::OptimizedMemoryStore};
 
 fn test_store_capacity<S: throttlecrab::core::store::Store>(
     name: &str,
@@ -57,7 +55,6 @@ fn main() {
             RateLimiter::new(AmortizedMemoryStore::with_capacity(size / 2)), // Under-provision
             size,
         );
-
     }
 
     println!("\n\nKey Findings:");

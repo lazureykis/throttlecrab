@@ -117,7 +117,6 @@ impl AdaptiveMemoryStore {
         self.next_cleanup = now + self.current_cleanup_interval;
         self.expired_count = 0;
         self.operations_since_cleanup = 0;
-
     }
 
     fn maybe_clean_expired(&mut self, now: SystemTime) {

@@ -16,8 +16,6 @@ const PROBABILISTIC_CLEANUP_MODULO: u64 = 1000; // 0.1% chance
 /// Memory store with amortized cleanup - spreads cleanup cost across operations
 pub struct AmortizedMemoryStore {
     data: HashMap<String, (i64, Option<SystemTime>)>,
-    // Cleanup state - using iterator position instead of vector
-    cleanup_position: usize, // Position in logical iteration order
     operations_count: usize,
     // Configuration
     operations_per_cleanup: usize,
@@ -32,7 +30,6 @@ impl AmortizedMemoryStore {
     pub fn with_capacity(capacity: usize) -> Self {
         AmortizedMemoryStore {
             data: HashMap::with_capacity((capacity as f64 * CAPACITY_OVERHEAD_FACTOR) as usize),
-            cleanup_position: 0,
             operations_count: 0,
             operations_per_cleanup: DEFAULT_OPERATIONS_PER_CLEANUP,
             entries_per_cleanup: DEFAULT_ENTRIES_PER_CLEANUP,
@@ -47,23 +44,11 @@ impl AmortizedMemoryStore {
             return;
         }
 
-        // Reset position if we've gone through all entries
-        if self.cleanup_position >= self.data.len() {
-            self.cleanup_position = 0;
-        }
-
-        // Clean a small batch using iterator
+        // Clean a small batch - just check first N entries we encounter
         let mut keys_to_remove = Vec::with_capacity(self.entries_per_cleanup);
 
-        // Skip to our position and collect keys to remove
-        for (i, (key, (_, expiry))) in self.data.iter().enumerate() {
-            if i < self.cleanup_position {
-                continue;
-            }
-            if i >= self.cleanup_position + self.entries_per_cleanup {
-                break;
-            }
-
+        // Check up to entries_per_cleanup entries for expiration
+        for (key, (_, expiry)) in self.data.iter().take(self.entries_per_cleanup) {
             if let Some(exp) = expiry {
                 if *exp <= now {
                     keys_to_remove.push(key.clone());
@@ -75,9 +60,6 @@ impl AmortizedMemoryStore {
         for key in keys_to_remove {
             self.data.remove(&key);
         }
-
-        self.cleanup_position += self.entries_per_cleanup;
-
     }
 }
 

@@ -98,7 +98,6 @@ fn main() {
         iterations,
     );
 
-
     println!();
     println!("Note: Results may vary based on system load and CPU characteristics.");
 }

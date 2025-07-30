@@ -104,7 +104,6 @@ fn main() {
             iterations,
         );
 
-
         benchmark_store(
             "Adaptive",
             RateLimiter::new(AdaptiveMemoryStore::with_capacity(num_keys)),
