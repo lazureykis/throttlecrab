@@ -23,7 +23,7 @@ fn compile_protos() {
         }
     }
 
-    match tonic_build::compile_protos("proto/throttlecrab.proto") {
+    match tonic_prost_build::compile_protos("proto/throttlecrab.proto") {
         Ok(_) => println!("cargo:info=Successfully compiled protobuf"),
         Err(e) => {
             println!("cargo:warning=Failed to compile protobuf: {e}");

@@ -9,12 +9,15 @@ use std::collections::HashMap;
 mod tests;
 
 pub mod adaptive_cleanup;
-pub mod amortized;
 pub mod fast_hasher;
 pub mod optimized;
+pub mod probabilistic;
 
 #[cfg(test)]
 mod cleanup_test;
+
+#[cfg(test)]
+mod store_test_suite;
 
 /// Store trait for rate limiter state storage (similar to redis-cell)
 pub trait Store {
@@ -44,6 +47,8 @@ pub trait Store {
     ) -> Result<bool, String>;
 }
 
+// Keeping MemoryStore for backward compatibility but it's deprecated
+// Use OptimizedMemoryStore instead
 /// In-memory store implementation
 pub struct MemoryStore {
     data: HashMap<String, (i64, Option<SystemTime>)>,
@@ -120,15 +125,24 @@ impl Store for MemoryStore {
         ttl: Duration,
         now: SystemTime,
     ) -> Result<bool, String> {
+        // Check if key exists and is not expired BEFORE cleaning
+        let exists_and_valid = match self.data.get(key) {
+            Some((_, Some(expiry))) if *expiry > now => true,
+            Some((_, None)) => true,
+            _ => false,
+        };
+
+        if exists_and_valid {
+            return Ok(false);
+        }
+
+        // Now clean expired entries
         self.clean_expired(now);
 
-        if self.data.contains_key(key) {
-            Ok(false)
-        } else {
-            let expiry = now + ttl;
-            self.data.insert(key.to_string(), (value, Some(expiry)));
-            Ok(true)
-        }
+        // Insert the new entry
+        let expiry = now + ttl;
+        self.data.insert(key.to_string(), (value, Some(expiry)));
+        Ok(true)
     }
 }
 
@@ -169,14 +183,23 @@ impl Store for &mut MemoryStore {
         ttl: Duration,
         now: SystemTime,
     ) -> Result<bool, String> {
+        // Check if key exists and is not expired BEFORE cleaning
+        let exists_and_valid = match self.data.get(key) {
+            Some((_, Some(expiry))) if *expiry > now => true,
+            Some((_, None)) => true,
+            _ => false,
+        };
+
+        if exists_and_valid {
+            return Ok(false);
+        }
+
+        // Now clean expired entries
         self.clean_expired(now);
 
-        if self.data.contains_key(key) {
-            Ok(false)
-        } else {
-            let expiry = now + ttl;
-            self.data.insert(key.to_string(), (value, Some(expiry)));
-            Ok(true)
-        }
+        // Insert the new entry
+        let expiry = now + ttl;
+        self.data.insert(key.to_string(), (value, Some(expiry)));
+        Ok(true)
     }
 }

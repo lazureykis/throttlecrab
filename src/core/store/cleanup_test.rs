@@ -20,42 +20,24 @@ mod tests {
         // Verify all entries exist
         assert_eq!(store.len(), 1000);
 
-        // Move time forward by 2 seconds (past TTL)
-        let future = now + Duration::from_secs(2);
+        // Move time forward by 61 seconds (past TTL and cleanup interval)
+        let future = now + Duration::from_secs(61);
 
-        // Access expired keys to increment expired_count
-        for i in 0..250 {
-            let key = format!("key_{i}");
-            // This will mark them as expired internally
-            store
-                .compare_and_swap_with_ttl(&key, i, i + 1, Duration::from_secs(60), future)
-                .unwrap();
-        }
-
-        // Now expired_count should be > 200 (20% of 1000)
-        // The next operation should trigger cleanup
-
-        // Add new entries to keep some data
-        for i in 0..200 {
-            let key = format!("new_key_{i}");
-            store
-                .set_if_not_exists_with_ttl(&key, i, Duration::from_secs(60), future)
-                .unwrap();
-        }
+        // Trigger cleanup by performing an operation after the cleanup interval
+        store
+            .set_if_not_exists_with_ttl("trigger", 999, Duration::from_secs(60), future)
+            .unwrap();
 
         // Verify expired entries were removed
-        // Should have ~200 new entries plus any old ones that weren't cleaned yet
+        // Should only have the trigger entry
         assert!(
-            store.len() < 500,
+            store.len() < 50,
             "Cleanup didn't remove expired entries. Size: {}",
             store.len()
         );
 
-        // Verify new entries still exist
-        for i in 0..200 {
-            let key = format!("new_key_{i}");
-            assert!(store.get(&key, future).unwrap().is_some());
-        }
+        // Verify the trigger entry exists
+        assert!(store.get("trigger", future).unwrap().is_some());
     }
 
     #[test]
@@ -75,39 +57,29 @@ mod tests {
             store.set_if_not_exists_with_ttl(&key, i, ttl, now).unwrap();
         }
 
-        // Move time forward
-        let later = now + Duration::from_secs(2);
+        // Move time forward past cleanup interval
+        let later = now + Duration::from_secs(61);
 
-        // Mark many as expired by accessing them
-        let mut expired_count = 0;
-        for i in (0..500).step_by(2) {
-            let key = format!("key_{i}");
-            // Try to update - this will mark them as expired internally
-            let result = store
-                .compare_and_swap_with_ttl(&key, i, i + 1, Duration::from_secs(60), later)
-                .unwrap();
-            if !result {
-                expired_count += 1;
-            }
-        }
-
-        // We should have tried to update ~250 expired entries
-        assert!(
-            expired_count > 200,
-            "Expected >200 expired entries, got {expired_count}"
-        );
-
-        // The next operation should trigger cleanup due to expired count > 20%
+        // Trigger cleanup by performing an operation after the cleanup interval
         store
             .set_if_not_exists_with_ttl("trigger", 999, Duration::from_secs(60), later)
             .unwrap();
 
-        // Verify cleanup happened
+        // Verify cleanup happened - should have ~250 long-TTL entries + trigger
         assert!(
-            store.len() < 300,
-            "Expected ~250 entries after cleanup, got {}",
+            store.len() < 300 && store.len() > 200,
+            "Expected ~251 entries after cleanup, got {}",
             store.len()
         );
+
+        // Verify that long-TTL entries still exist
+        for i in (1..100).step_by(2) {
+            let key = format!("key_{i}");
+            assert!(
+                store.get(&key, later).unwrap().is_some(),
+                "Long-TTL entry {i} should still exist"
+            );
+        }
     }
 
     #[test]

@@ -6,6 +6,15 @@ use ahash::AHashMap as HashMap;
 #[cfg(not(feature = "ahash"))]
 use std::collections::HashMap;
 
+// Configuration constants
+const DEFAULT_CAPACITY: usize = 1000;
+const CAPACITY_OVERHEAD_FACTOR: f64 = 1.3;
+const MIN_CLEANUP_INTERVAL_SECS: u64 = 1;
+const MAX_CLEANUP_INTERVAL_SECS: u64 = 300; // 5 minutes
+const DEFAULT_CLEANUP_INTERVAL_SECS: u64 = 5;
+const MAX_OPERATIONS_BEFORE_CLEANUP: usize = 100_000;
+const EXPIRED_RATIO_THRESHOLD: f64 = 0.2; // 20%
+
 /// Memory store with adaptive cleanup strategy
 pub struct AdaptiveMemoryStore {
     data: HashMap<String, (i64, Option<SystemTime>)>,
@@ -25,19 +34,19 @@ pub struct AdaptiveMemoryStore {
 
 impl AdaptiveMemoryStore {
     pub fn new() -> Self {
-        Self::with_capacity(1000)
+        Self::with_capacity(DEFAULT_CAPACITY)
     }
 
     pub fn with_capacity(capacity: usize) -> Self {
         AdaptiveMemoryStore {
-            data: HashMap::with_capacity((capacity as f64 * 1.3) as usize),
-            next_cleanup: SystemTime::now() + Duration::from_secs(5),
-            min_cleanup_interval: Duration::from_secs(1),
-            max_cleanup_interval: Duration::from_secs(300), // 5 minutes
-            current_cleanup_interval: Duration::from_secs(5),
+            data: HashMap::with_capacity((capacity as f64 * CAPACITY_OVERHEAD_FACTOR) as usize),
+            next_cleanup: SystemTime::now() + Duration::from_secs(DEFAULT_CLEANUP_INTERVAL_SECS),
+            min_cleanup_interval: Duration::from_secs(MIN_CLEANUP_INTERVAL_SECS),
+            max_cleanup_interval: Duration::from_secs(MAX_CLEANUP_INTERVAL_SECS),
+            current_cleanup_interval: Duration::from_secs(DEFAULT_CLEANUP_INTERVAL_SECS),
             expired_count: 0,
             operations_since_cleanup: 0,
-            max_operations_before_cleanup: 100_000,
+            max_operations_before_cleanup: MAX_OPERATIONS_BEFORE_CLEANUP,
             last_cleanup_removed: 0,
             last_cleanup_total: 0,
         }
@@ -60,9 +69,9 @@ impl AdaptiveMemoryStore {
 
             // More aggressive cleanup if we removed a lot last time
             let threshold = if self.last_cleanup_removed > self.last_cleanup_total / 4 {
-                0.1 // Clean at 10% if last cleanup was productive
+                EXPIRED_RATIO_THRESHOLD / 2.0 // Clean at half threshold if last cleanup was productive
             } else {
-                0.25 // Otherwise wait until 25%
+                EXPIRED_RATIO_THRESHOLD * 1.25 // Otherwise wait until 125% of threshold
             };
 
             if expired_ratio > threshold {
@@ -96,7 +105,7 @@ impl AdaptiveMemoryStore {
             // No expired entries, increase interval
             self.current_cleanup_interval =
                 (self.current_cleanup_interval * 2).min(self.max_cleanup_interval);
-        } else if removed > initial_len / 2 {
+        } else if removed as f64 > initial_len as f64 * 0.5 {
             // Removed many entries, decrease interval
             self.current_cleanup_interval =
                 (self.current_cleanup_interval / 2).max(self.min_cleanup_interval);
@@ -108,15 +117,6 @@ impl AdaptiveMemoryStore {
         self.next_cleanup = now + self.current_cleanup_interval;
         self.expired_count = 0;
         self.operations_since_cleanup = 0;
-
-        // Log cleanup stats in debug mode
-        #[cfg(debug_assertions)]
-        {
-            eprintln!(
-                "Cleanup: removed {}/{} entries, next in {:?}",
-                removed, initial_len, self.current_cleanup_interval
-            );
-        }
     }
 
     fn maybe_clean_expired(&mut self, now: SystemTime) {

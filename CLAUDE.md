@@ -69,3 +69,7 @@ The project follows the standard Rust project layout:
 - Always run 'cargo fmt --all' and 'cargo clippy --all-targets --all-features -- -D warnings' before pushing code to github
 
 - Never work in main branch
+
+## Development Guidelines
+
+- Always run formatting linter the last

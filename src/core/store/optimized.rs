@@ -6,6 +6,13 @@ use ahash::AHashMap as HashMap;
 #[cfg(not(feature = "ahash"))]
 use std::collections::HashMap;
 
+// Configuration constants
+const DEFAULT_CAPACITY: usize = 1000;
+const CAPACITY_OVERHEAD_FACTOR: f64 = 1.3;
+const DEFAULT_CLEANUP_INTERVAL_SECS: u64 = 60;
+const KEY_MAPPING_CLEANUP_THRESHOLD: usize = 100;
+const KEY_MAPPING_GROWTH_FACTOR: usize = 2;
+
 /// Optimized in-memory store implementation
 pub struct OptimizedMemoryStore {
     data: HashMap<String, (i64, Option<SystemTime>)>,
@@ -19,15 +26,15 @@ pub struct OptimizedMemoryStore {
 
 impl OptimizedMemoryStore {
     pub fn new() -> Self {
-        Self::with_capacity(1000)
+        Self::with_capacity(DEFAULT_CAPACITY)
     }
 
     pub fn with_capacity(capacity: usize) -> Self {
         OptimizedMemoryStore {
-            // Pre-allocate with 30% overhead to avoid rehashing
-            data: HashMap::with_capacity((capacity as f64 * 1.3) as usize),
-            next_cleanup: SystemTime::now() + Duration::from_secs(60),
-            cleanup_interval: Duration::from_secs(60),
+            // Pre-allocate with overhead to avoid rehashing
+            data: HashMap::with_capacity((capacity as f64 * CAPACITY_OVERHEAD_FACTOR) as usize),
+            next_cleanup: SystemTime::now() + Duration::from_secs(DEFAULT_CLEANUP_INTERVAL_SECS),
+            cleanup_interval: Duration::from_secs(DEFAULT_CLEANUP_INTERVAL_SECS),
             expired_count: 0,
         }
     }
@@ -48,11 +55,9 @@ impl OptimizedMemoryStore {
     }
 
     fn maybe_clean_expired(&mut self, now: SystemTime) {
-        // Clean if we've passed the cleanup time OR if expired entries exceed 20% of total
-        let should_clean = now >= self.next_cleanup
-            || (self.expired_count > 100 && self.expired_count > self.data.len() / 5);
-
-        if should_clean {
+        // Clean periodically based on time
+        if now >= self.next_cleanup {
+            let before_count = self.data.len();
             self.data.retain(|_, (_, expiry)| {
                 if let Some(exp) = expiry {
                     *exp > now
@@ -60,8 +65,8 @@ impl OptimizedMemoryStore {
                     true
                 }
             });
+            self.expired_count = before_count.saturating_sub(self.data.len());
             self.next_cleanup = now + self.cleanup_interval;
-            self.expired_count = 0;
         }
     }
 }
@@ -85,11 +90,7 @@ impl Store for OptimizedMemoryStore {
         self.maybe_clean_expired(now);
 
         match self.data.get(key) {
-            Some((_current, Some(expiry))) if *expiry <= now => {
-                // Key expired, track it
-                self.expired_count += 1;
-                Ok(false)
-            }
+            Some((_current, Some(expiry))) if *expiry <= now => Ok(false),
             Some((current, _)) if *current == old => {
                 let expiry = now + ttl;
                 self.data.insert(key.to_string(), (new, Some(expiry)));
@@ -126,8 +127,7 @@ impl Store for OptimizedMemoryStore {
             Some((_, Some(expiry))) if *expiry > now => Ok(false),
             Some((_, None)) => Ok(false),
             Some((_, Some(_expiry))) => {
-                // Key is expired
-                self.expired_count += 1;
+                // Key is expired - insert the new value
                 let expiry = now + ttl;
                 self.data.insert(key.to_string(), (value, Some(expiry)));
                 Ok(true)
@@ -150,21 +150,24 @@ pub struct InternedMemoryStore {
     next_id: usize,
     next_cleanup: SystemTime,
     cleanup_interval: Duration,
+    // Track for cleanup threshold
+    last_key_cleanup_size: usize,
 }
 
 impl InternedMemoryStore {
     pub fn new() -> Self {
-        Self::with_capacity(1000)
+        Self::with_capacity(DEFAULT_CAPACITY)
     }
 
     pub fn with_capacity(capacity: usize) -> Self {
-        let adjusted_capacity = (capacity as f64 * 1.3) as usize;
+        let adjusted_capacity = (capacity as f64 * CAPACITY_OVERHEAD_FACTOR) as usize;
         InternedMemoryStore {
             data: HashMap::with_capacity(adjusted_capacity),
             key_to_id: HashMap::with_capacity(adjusted_capacity),
             next_id: 0,
-            next_cleanup: SystemTime::now() + Duration::from_secs(60),
-            cleanup_interval: Duration::from_secs(60),
+            next_cleanup: SystemTime::now() + Duration::from_secs(DEFAULT_CLEANUP_INTERVAL_SECS),
+            cleanup_interval: Duration::from_secs(DEFAULT_CLEANUP_INTERVAL_SECS),
+            last_key_cleanup_size: 0,
         }
     }
 
@@ -173,14 +176,20 @@ impl InternedMemoryStore {
             id
         } else {
             let id = self.next_id;
-            self.next_id += 1;
+            // Use saturating_add to prevent overflow panic
+            self.next_id = self.next_id.saturating_add(1);
             self.key_to_id.insert(key.to_string(), id);
             id
         }
     }
 
     fn maybe_clean_expired(&mut self, now: SystemTime) {
-        if now >= self.next_cleanup {
+        // Clean expired entries on schedule or if key mappings have grown significantly
+        let should_clean_keys = self.key_to_id.len()
+            > self.last_key_cleanup_size * KEY_MAPPING_GROWTH_FACTOR
+            && self.key_to_id.len() > self.data.len() + KEY_MAPPING_CLEANUP_THRESHOLD;
+
+        if now >= self.next_cleanup || should_clean_keys {
             self.data.retain(|_, (_, expiry)| {
                 if let Some(exp) = expiry {
                     *exp > now
@@ -191,6 +200,7 @@ impl InternedMemoryStore {
             // Also clean up unused key mappings
             let used_ids: std::collections::HashSet<_> = self.data.keys().copied().collect();
             self.key_to_id.retain(|_, id| used_ids.contains(id));
+            self.last_key_cleanup_size = self.key_to_id.len();
 
             self.next_cleanup = now + self.cleanup_interval;
         }
