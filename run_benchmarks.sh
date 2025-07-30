@@ -1,27 +1,35 @@
 #!/bin/bash
 
-echo "Starting ThrottleCrab server..."
-cargo run --features bin -- --server &
-SERVER_PID=$!
+echo "ThrottleCrab Performance Benchmarks"
+echo "==================================="
+echo
 
-# Give the server time to start
-sleep 2
+# Build in release mode first
+echo "Building in release mode..."
+cargo build --release --examples
+echo
 
-# Check if server is running
-if ! kill -0 $SERVER_PID 2>/dev/null; then
-    echo "Failed to start server"
-    exit 1
-fi
+# Run store comparison benchmark
+echo "1. Running Overall Store Performance Comparison..."
+echo "================================================="
+cargo run --release --example store_comparison
+echo
+echo
 
-echo "Server started with PID: $SERVER_PID"
-echo "Running benchmarks..."
+# Run simple access patterns benchmark
+echo "2. Running Access Pattern Benchmarks (Simple)..."
+echo "==============================================="
+cargo run --release --example access_patterns_simple
+echo
+echo
 
-# Run the benchmarks
-cargo bench
+# Run full access patterns benchmark (without BloomFilter to avoid crash)
+echo "3. Running Access Pattern Benchmarks (Full)..."
+echo "============================================="
+cargo run --release --example access_patterns
+echo
+echo
 
-# Kill the server
-echo "Stopping server..."
-kill $SERVER_PID
-wait $SERVER_PID 2>/dev/null
-
-echo "Benchmarks complete!"
+echo "All benchmarks completed!"
+echo
+echo "For detailed results, see: docs/benchmark-results.md"
