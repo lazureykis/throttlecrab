@@ -1,7 +1,7 @@
 use criterion::{BenchmarkId, Criterion, Throughput, criterion_group, criterion_main};
 use std::hint::black_box;
 use std::time::{Duration, SystemTime};
-use throttlecrab::core::store::optimized::{InternedMemoryStore, OptimizedMemoryStore};
+use throttlecrab::store::optimized::{InternedMemoryStore, OptimizedMemoryStore};
 use throttlecrab::{MemoryStore, RateLimiter};
 
 mod ahash_store;

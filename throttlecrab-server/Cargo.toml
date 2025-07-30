@@ -1,0 +1,78 @@
+[package]
+name = "throttlecrab-server"
+version = "0.1.0"
+authors.workspace = true
+edition.workspace = true
+description = "A high-performance rate limiting server with multiple protocol support"
+readme = "../README.md"
+repository.workspace = true
+license.workspace = true
+keywords = ["rate-limiter", "server", "grpc", "http", "messagepack"]
+categories = ["network-programming", "web-programming::http-server"]
+
+[[bin]]
+name = "throttlecrab"
+path = "src/main.rs"
+
+[dependencies]
+# Core library
+throttlecrab = { path = "../throttlecrab", features = ["ahash"] }
+
+# Async runtime
+tokio = { workspace = true }
+async-trait = { workspace = true }
+
+# Error handling and utilities
+anyhow = { workspace = true }
+
+# Serialization
+rmp-serde = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+bytes = { workspace = true }
+
+# Logging
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+
+# CLI
+clap = { workspace = true }
+config = { workspace = true }
+
+# gRPC support
+tonic = { workspace = true }
+tonic-prost = { workspace = true }
+prost = { workspace = true }
+
+# HTTP support
+axum = { workspace = true }
+tower = { workspace = true }
+
+[build-dependencies]
+tonic-build = "0.14.0"
+tonic-prost-build = "0.14.0"
+
+[dev-dependencies]
+tokio-test = { workspace = true }
+reqwest = { workspace = true }
+criterion = { workspace = true }
+
+[[bench]]
+name = "tcp_throughput"
+harness = false
+
+[[bench]]
+name = "connection_pool"
+harness = false
+
+[[bench]]
+name = "msgpack_comparison"
+harness = false
+
+[[bench]]
+name = "protocol_comparison"
+harness = false
+
+[[bench]]
+name = "grpc_throughput"
+harness = false

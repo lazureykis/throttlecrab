@@ -1,8 +1,8 @@
 use std::time::SystemTime;
 use throttlecrab::RateLimiter;
-use throttlecrab::core::store::optimized::OptimizedMemoryStore;
+use throttlecrab::store::optimized::OptimizedMemoryStore;
 
-fn test_store_capacity<S: throttlecrab::core::store::Store>(
+fn test_store_capacity<S: throttlecrab::Store>(
     name: &str,
     mut limiter: RateLimiter<S>,
     num_keys: usize,

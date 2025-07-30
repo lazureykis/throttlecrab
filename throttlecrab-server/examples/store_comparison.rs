@@ -1,12 +1,12 @@
 use std::time::{Instant, SystemTime};
 use throttlecrab::RateLimiter;
-use throttlecrab::core::store::{
+use throttlecrab::store::{
     adaptive_cleanup::AdaptiveMemoryStore,
     optimized::{InternedMemoryStore, OptimizedMemoryStore},
     probabilistic::ProbabilisticMemoryStore,
 };
 
-fn benchmark_store<S: throttlecrab::core::store::Store>(
+fn benchmark_store<S: throttlecrab::Store>(
     name: &str,
     mut limiter: RateLimiter<S>,
     num_keys: usize,

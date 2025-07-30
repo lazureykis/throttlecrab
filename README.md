@@ -6,7 +6,9 @@
 [![Documentation](https://docs.rs/throttlecrab/badge.svg)](https://docs.rs/throttlecrab)
 [![License](https://img.shields.io/crates/l/throttlecrab.svg)](LICENSE-MIT)
 
-A high-performance GCRA (Generic Cell Rate Algorithm) rate limiter library for Rust with a standalone server.
+A high-performance GCRA (Generic Cell Rate Algorithm) rate limiter for Rust. This workspace contains two crates:
+- `throttlecrab` - Pure Rust rate limiting library
+- `throttlecrab-server` - Standalone server with multiple protocol support
 
 ## Features
 
@@ -36,7 +38,7 @@ throttlecrab = "0.1.0"
 Install the server binary with cargo:
 
 ```bash
-cargo install throttlecrab --features bin
+cargo install throttlecrab-server
 ```
 
 Or build from source:
@@ -44,7 +46,7 @@ Or build from source:
 ```bash
 git clone https://github.com/lazureykis/throttlecrab
 cd throttlecrab
-cargo build --release --features bin
+cargo build --release -p throttlecrab-server
 ./target/release/throttlecrab
 ```
 

@@ -1,9 +1,9 @@
 use criterion::{Criterion, Throughput, criterion_group, criterion_main};
 use std::hint::black_box;
 use std::time::{Duration, SystemTime};
-use throttlecrab::core::store::adaptive_cleanup::AdaptiveMemoryStore;
-use throttlecrab::core::store::optimized::OptimizedMemoryStore;
-use throttlecrab::core::store::probabilistic::ProbabilisticMemoryStore;
+use throttlecrab::store::adaptive_cleanup::AdaptiveMemoryStore;
+use throttlecrab::store::optimized::OptimizedMemoryStore;
+use throttlecrab::store::probabilistic::ProbabilisticMemoryStore;
 use throttlecrab::{MemoryStore, RateLimiter};
 
 /// Benchmark cleanup strategies with expired entries

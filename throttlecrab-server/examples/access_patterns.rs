@@ -1,6 +1,6 @@
 use std::time::{Instant, SystemTime};
 use throttlecrab::RateLimiter;
-use throttlecrab::core::store::{
+use throttlecrab::store::{
     adaptive_cleanup::AdaptiveMemoryStore,
     optimized::{InternedMemoryStore, OptimizedMemoryStore},
     probabilistic::ProbabilisticMemoryStore,

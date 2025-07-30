@@ -1,6 +1,6 @@
 use std::time::{Instant, SystemTime};
 use throttlecrab::RateLimiter;
-use throttlecrab::core::store::optimized::OptimizedMemoryStore;
+use throttlecrab::store::optimized::OptimizedMemoryStore;
 
 fn benchmark_store(name: &str, mut limiter: RateLimiter<impl throttlecrab::Store>) {
     println!("\n{name} Benchmark");
@@ -44,11 +44,7 @@ fn main() {
     println!("ThrottleCrab Performance Demo");
     println!("=============================");
 
-    // Check if ahash feature is enabled
-    #[cfg(feature = "ahash")]
-    println!("✓ Using AHash for fast hashing");
-    #[cfg(not(feature = "ahash"))]
-    println!("✗ Using standard HashMap (slower)");
+    // Note: The throttlecrab library uses AHash by default for fast hashing
 
     // Benchmark optimized store
     let optimized_limiter = RateLimiter::new(OptimizedMemoryStore::with_capacity(10_000));
