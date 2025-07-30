@@ -3,7 +3,6 @@ use throttlecrab::RateLimiter;
 use throttlecrab::core::store::{
     adaptive_cleanup::AdaptiveMemoryStore,
     amortized::{AmortizedMemoryStore, ProbabilisticMemoryStore},
-    compact::CompactMemoryStore,
     optimized::{InternedMemoryStore, OptimizedMemoryStore},
 };
 
@@ -230,11 +229,6 @@ fn main() {
             benchmark_pattern("Adaptive", limiter, pattern, num_keys, iterations);
         results.push(("Adaptive", ops_per_sec, allowed, blocked));
 
-        // Compact Store
-        let limiter = RateLimiter::new(CompactMemoryStore::with_capacity(num_keys));
-        let (ops_per_sec, allowed, blocked) =
-            benchmark_pattern("Compact", limiter, pattern, num_keys, iterations);
-        results.push(("Compact", ops_per_sec, allowed, blocked));
 
         print_pattern_results(pattern, results);
     }

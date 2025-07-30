@@ -26,16 +26,7 @@ let store = InternedMemoryStore::with_capacity(10_000);
 - **Performance Impact**: String table growth can be expensive
 - **Use When**: Many duplicate keys expected
 
-### 3. **CompactMemoryStore**
-```rust
-let store = CompactMemoryStore::with_capacity(10_000);
-```
-- **Initial Capacity**: Pre-allocated HashMap
-- **When Full**: Grows dynamically
-- **Performance Impact**: Short string optimization reduces memory pressure
-- **Use When**: Memory efficiency is important
-
-### 4. **Adaptive/Amortized/ProbabilisticMemoryStore**
+### 3. **Adaptive/Amortized/ProbabilisticMemoryStore**
 ```rust
 let store = AdaptiveMemoryStore::with_capacity(10_000);
 ```

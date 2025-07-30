@@ -3,7 +3,6 @@ use throttlecrab::RateLimiter;
 use throttlecrab::core::store::{
     adaptive_cleanup::AdaptiveMemoryStore,
     amortized::{AmortizedMemoryStore, ProbabilisticMemoryStore},
-    compact::CompactMemoryStore,
     optimized::{InternedMemoryStore, OptimizedMemoryStore},
 };
 
@@ -99,13 +98,6 @@ fn main() {
         iterations,
     );
 
-    // CompactMemoryStore
-    benchmark_store(
-        "Compact MemoryStore",
-        RateLimiter::new(CompactMemoryStore::with_capacity(num_keys)),
-        num_keys,
-        iterations,
-    );
 
     println!();
     println!("Note: Results may vary based on system load and CPU characteristics.");

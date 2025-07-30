@@ -5,7 +5,6 @@ mod tests {
     use crate::RateLimiter;
     use crate::core::store::adaptive_cleanup::AdaptiveMemoryStore;
     use crate::core::store::amortized::{AmortizedMemoryStore, ProbabilisticMemoryStore};
-    use crate::core::store::compact::CompactMemoryStore;
     use crate::core::store::optimized::{InternedMemoryStore, OptimizedMemoryStore};
     use crate::core::store::*;
     use std::time::{Duration, SystemTime};
@@ -22,7 +21,6 @@ mod tests {
                 &mut ProbabilisticMemoryStore::with_capacity(100),
             );
             $test_fn("Adaptive", &mut AdaptiveMemoryStore::with_capacity(100));
-            $test_fn("Compact", &mut CompactMemoryStore::with_capacity(100));
         };
     }
 
@@ -611,10 +609,6 @@ mod tests {
         test_rate_limiter(
             "Adaptive",
             RateLimiter::new(AdaptiveMemoryStore::with_capacity(100)),
-        );
-        test_rate_limiter(
-            "Compact",
-            RateLimiter::new(CompactMemoryStore::with_capacity(100)),
         );
     }
 }
