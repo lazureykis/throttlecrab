@@ -87,62 +87,59 @@ fn main() {
         println!("{}", "-".repeat(70));
 
         // Benchmark each store
-        #[allow(clippy::vec_init_then_push)]
-        let mut results = vec![];
-
-        results.push(benchmark_store(
+        benchmark_store(
             "Optimized",
             RateLimiter::new(OptimizedMemoryStore::with_capacity(num_keys)),
             pattern_name,
             &*test_fn,
             num_keys,
             iterations,
-        ));
+        );
 
-        results.push(benchmark_store(
+        benchmark_store(
             "Interned",
             RateLimiter::new(InternedMemoryStore::with_capacity(num_keys)),
             pattern_name,
             &*test_fn,
             num_keys,
             iterations,
-        ));
+        );
 
-        results.push(benchmark_store(
+        benchmark_store(
             "Compact",
             RateLimiter::new(CompactMemoryStore::with_capacity(num_keys)),
             pattern_name,
             &*test_fn,
             num_keys,
             iterations,
-        ));
+        );
 
-        results.push(benchmark_store(
+        benchmark_store(
             "Adaptive",
             RateLimiter::new(AdaptiveMemoryStore::with_capacity(num_keys)),
             pattern_name,
             &*test_fn,
             num_keys,
             iterations,
-        ));
+        );
 
-        results.push(benchmark_store(
+        benchmark_store(
             "Probabilistic",
             RateLimiter::new(ProbabilisticMemoryStore::with_capacity(num_keys)),
             pattern_name,
             &*test_fn,
             num_keys,
             iterations,
-        ));
+        );
 
-        results.push(benchmark_store(
+        benchmark_store(
             "Amortized",
             RateLimiter::new(AmortizedMemoryStore::with_capacity(num_keys)),
             pattern_name,
             &*test_fn,
             num_keys,
             iterations,
-        ));
+        );
     }
 
     println!("\n\nKey Findings:");

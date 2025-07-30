@@ -159,7 +159,7 @@ fn print_pattern_results(pattern: AccessPattern, results: Vec<(&str, u64, usize,
         AccessPattern::SparseKeys => "Sparse Keys (90% miss)",
     };
 
-    println!("\n{}", pattern_name);
+    println!("\n{pattern_name}");
     println!("{}", "=".repeat(90));
     println!(
         "{:<25} | {:>12} | {:>10} | {:>10}",
@@ -172,10 +172,7 @@ fn print_pattern_results(pattern: AccessPattern, results: Vec<(&str, u64, usize,
     sorted.sort_by_key(|&(_, ops, _, _)| std::cmp::Reverse(ops));
 
     for (store, ops_per_sec, allowed, blocked) in sorted {
-        println!(
-            "{:<25} | {:>12} | {:>10} | {:>10}",
-            store, ops_per_sec, allowed, blocked
-        );
+        println!("{store:<25} | {ops_per_sec:>12} | {allowed:>10} | {blocked:>10}");
     }
 }
 

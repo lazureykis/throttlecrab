@@ -38,16 +38,14 @@ mod tests {
                 store
                     .set_if_not_exists_with_ttl("key1", 100, ttl, now)
                     .unwrap(),
-                "{name}: Failed to set new key",
-                name
+                "{name}: Failed to set new key"
             );
 
             // Test get existing key
             assert_eq!(
                 store.get("key1", now).unwrap(),
                 Some(100),
-                "{name}: Failed to get existing key",
-                name
+                "{name}: Failed to get existing key"
             );
 
             // Test set_if_not_exists on existing key
@@ -55,16 +53,14 @@ mod tests {
                 !store
                     .set_if_not_exists_with_ttl("key1", 200, ttl, now)
                     .unwrap(),
-                "{name}: set_if_not_exists should fail on existing key",
-                name
+                "{name}: set_if_not_exists should fail on existing key"
             );
 
             // Value should remain unchanged
             assert_eq!(
                 store.get("key1", now).unwrap(),
                 Some(100),
-                "{name}: Value changed after failed set",
-                name
+                "{name}: Value changed after failed set"
             );
         };
 
@@ -88,14 +84,12 @@ mod tests {
                 store
                     .compare_and_swap_with_ttl("key1", 100, 200, ttl, now)
                     .unwrap(),
-                "{name}: CAS with correct old value should succeed",
-                name
+                "{name}: CAS with correct old value should succeed"
             );
             assert_eq!(
                 store.get("key1", now).unwrap(),
                 Some(200),
-                "{name}: Value not updated after successful CAS",
-                name
+                "{name}: Value not updated after successful CAS"
             );
 
             // Failed CAS - wrong old value
@@ -103,14 +97,12 @@ mod tests {
                 !store
                     .compare_and_swap_with_ttl("key1", 100, 300, ttl, now)
                     .unwrap(),
-                "{name}: CAS with wrong old value should fail",
-                name
+                "{name}: CAS with wrong old value should fail"
             );
             assert_eq!(
                 store.get("key1", now).unwrap(),
                 Some(200),
-                "{name}: Value changed after failed CAS",
-                name
+                "{name}: Value changed after failed CAS"
             );
 
             // CAS on non-existent key
@@ -118,8 +110,7 @@ mod tests {
                 !store
                     .compare_and_swap_with_ttl("key2", 0, 100, ttl, now)
                     .unwrap(),
-                "{name}: CAS on non-existent key should fail",
-                name
+                "{name}: CAS on non-existent key should fail"
             );
         };
 
@@ -142,8 +133,7 @@ mod tests {
             assert_eq!(
                 store.get("key1", now).unwrap(),
                 Some(100),
-                "{name}: Value missing before expiry",
-                name
+                "{name}: Value missing before expiry"
             );
 
             // Value should exist just before expiry
@@ -151,8 +141,7 @@ mod tests {
             assert_eq!(
                 store.get("key1", almost_expired).unwrap(),
                 Some(100),
-                "{name}: Value missing just before expiry",
-                name
+                "{name}: Value missing just before expiry"
             );
 
             // Value should not exist after expiry
@@ -161,8 +150,7 @@ mod tests {
             assert_eq!(
                 store.get("key1", expired).unwrap(),
                 None,
-                "{name}: Value exists after expiry",
-                name
+                "{name}: Value exists after expiry"
             );
 
             // CAS should fail on expired key
@@ -170,8 +158,7 @@ mod tests {
                 !store
                     .compare_and_swap_with_ttl("key1", 100, 200, ttl, expired)
                     .unwrap(),
-                "{name}: CAS succeeded on expired key",
-                name
+                "{name}: CAS succeeded on expired key"
             );
 
             // Should be able to set expired key again
@@ -179,14 +166,12 @@ mod tests {
                 store
                     .set_if_not_exists_with_ttl("key1", 300, ttl, expired)
                     .unwrap(),
-                "{name}: Failed to set expired key",
-                name
+                "{name}: Failed to set expired key"
             );
             assert_eq!(
                 store.get("key1", expired).unwrap(),
                 Some(300),
-                "{name}: New value not set on expired key",
-                name
+                "{name}: New value not set on expired key"
             );
         };
 
@@ -205,16 +190,14 @@ mod tests {
                 store
                     .set_if_not_exists_with_ttl("key1", -1000, ttl, now)
                     .unwrap(),
-                "{name}: Failed to set negative value",
-                name
+                "{name}: Failed to set negative value"
             );
 
             // Should retrieve negative value correctly
             assert_eq!(
                 store.get("key1", now).unwrap(),
                 Some(-1000),
-                "{name}: Failed to retrieve negative value",
-                name
+                "{name}: Failed to retrieve negative value"
             );
 
             // CAS with negative values
@@ -222,14 +205,12 @@ mod tests {
                 store
                     .compare_and_swap_with_ttl("key1", -1000, -500, ttl, now)
                     .unwrap(),
-                "{name}: Failed to CAS negative values",
-                name
+                "{name}: Failed to CAS negative values"
             );
             assert_eq!(
                 store.get("key1", now).unwrap(),
                 Some(-500),
-                "{name}: Wrong value after negative CAS",
-                name
+                "{name}: Wrong value after negative CAS"
             );
         };
 
@@ -254,8 +235,7 @@ mod tests {
                 assert_eq!(
                     store.get("key1", now).unwrap(),
                     Some(100),
-                    "{name}: Value missing immediately after set",
-                    name
+                    "{name}: Value missing immediately after set"
                 );
             }
 
@@ -267,8 +247,7 @@ mod tests {
                 assert_eq!(
                     store.get("key1", expired).unwrap(),
                     None,
-                    "{name}: Value exists after short TTL expiry",
-                    name
+                    "{name}: Value exists after short TTL expiry"
                 );
             }
         };
@@ -290,8 +269,7 @@ mod tests {
             assert_eq!(
                 store.get("max", now).unwrap(),
                 Some(i64::MAX),
-                "{name}: Failed with i64::MAX",
-                name
+                "{name}: Failed with i64::MAX"
             );
 
             // Test i64::MIN
@@ -301,8 +279,7 @@ mod tests {
             assert_eq!(
                 store.get("min", now).unwrap(),
                 Some(i64::MIN),
-                "{name}: Failed with i64::MIN",
-                name
+                "{name}: Failed with i64::MIN"
             );
 
             // CAS with extreme values
@@ -310,8 +287,7 @@ mod tests {
                 store
                     .compare_and_swap_with_ttl("max", i64::MAX, i64::MAX - 1, ttl, now)
                     .unwrap(),
-                "{name}: Failed to CAS i64::MAX",
-                name
+                "{name}: Failed to CAS i64::MAX"
             );
         };
 
@@ -330,8 +306,7 @@ mod tests {
             assert_eq!(
                 store.get("", now).unwrap(),
                 Some(100),
-                "{name}: Failed with empty key",
-                name
+                "{name}: Failed with empty key"
             );
 
             // Very long key
@@ -342,8 +317,7 @@ mod tests {
             assert_eq!(
                 store.get(&long_key, now).unwrap(),
                 Some(200),
-                "{name}: Failed with long key",
-                name
+                "{name}: Failed with long key"
             );
 
             // Unicode key
@@ -354,8 +328,7 @@ mod tests {
             assert_eq!(
                 store.get(unicode_key, now).unwrap(),
                 Some(300),
-                "{name}: Failed with unicode key",
-                name
+                "{name}: Failed with unicode key"
             );
 
             // Key with special characters
@@ -366,8 +339,7 @@ mod tests {
             assert_eq!(
                 store.get(special_key, now).unwrap(),
                 Some(400),
-                "{name}: Failed with special characters",
-                name
+                "{name}: Failed with special characters"
             );
         };
 
@@ -405,8 +377,7 @@ mod tests {
             assert_eq!(
                 store.get("counter", now).unwrap(),
                 Some(current),
-                "{name}: Counter increment failed",
-                name
+                "{name}: Counter increment failed"
             );
         };
 
@@ -431,9 +402,7 @@ mod tests {
             for i in 0..100 {
                 assert!(
                     store.get(&format!("key{i}"), now).unwrap().is_some(),
-                    "{name}: Key {} missing before expiry",
-                    name,
-                    i
+                    "{name}: Key {i} missing before expiry"
                 );
             }
 
@@ -450,9 +419,7 @@ mod tests {
                 assert_eq!(
                     store.get(&format!("key{i}"), expired).unwrap(),
                     None,
-                    "{name}: Key {} exists after expiry",
-                    name,
-                    i
+                    "{name}: Key {i} exists after expiry"
                 );
             }
         };
@@ -478,8 +445,7 @@ mod tests {
                 store
                     .compare_and_swap_with_ttl("key1", 100, 200, long_ttl, now)
                     .unwrap(),
-                "{name}: CAS failed",
-                name
+                "{name}: CAS failed"
             );
 
             // Should still exist after original TTL
@@ -487,8 +453,7 @@ mod tests {
             assert_eq!(
                 store.get("key1", after_short).unwrap(),
                 Some(200),
-                "{name}: Value expired with original TTL",
-                name
+                "{name}: Value expired with original TTL"
             );
 
             // Should expire after new TTL
@@ -497,8 +462,7 @@ mod tests {
             assert_eq!(
                 store.get("key1", after_long).unwrap(),
                 None,
-                "{name}: Value didn't expire with new TTL",
-                name
+                "{name}: Value didn't expire with new TTL"
             );
         };
 
@@ -524,8 +488,7 @@ mod tests {
             assert_eq!(
                 store.get("key1", later).unwrap(),
                 None,
-                "{name}: Value with zero TTL exists after time passed",
-                name
+                "{name}: Value with zero TTL exists after time passed"
             );
         };
 
@@ -545,9 +508,7 @@ mod tests {
                 let key = format!("key_{i}");
                 assert!(
                     store.set_if_not_exists_with_ttl(&key, i, ttl, now).unwrap(),
-                    "{name}: Failed to set key {}",
-                    name,
-                    i
+                    "{name}: Failed to set key {i}"
                 );
             }
 
@@ -557,9 +518,7 @@ mod tests {
                 assert_eq!(
                     store.get(&key, now).unwrap(),
                     Some(i),
-                    "{name}: Wrong value for key {}",
-                    name,
-                    i
+                    "{name}: Wrong value for key {i}"
                 );
             }
 
@@ -570,9 +529,7 @@ mod tests {
                     store
                         .compare_and_swap_with_ttl(&key, i, i + 1000, ttl, now)
                         .unwrap(),
-                    "{name}: CAS failed for key {}",
-                    name,
-                    i
+                    "{name}: CAS failed for key {i}"
                 );
             }
 
@@ -582,9 +539,7 @@ mod tests {
                 assert_eq!(
                     store.get(&key, now).unwrap(),
                     Some(i + 1000),
-                    "{name}: Wrong value after CAS for key {}",
-                    name,
-                    i
+                    "{name}: Wrong value after CAS for key {i}"
                 );
             }
         };
@@ -614,8 +569,7 @@ mod tests {
                 assert_eq!(
                     result.remaining,
                     max_burst - i - 1,
-                    "{name}: Wrong remaining count",
-                    name
+                    "{name}: Wrong remaining count"
                 );
             }
 
@@ -632,8 +586,7 @@ mod tests {
                 .unwrap();
             assert!(
                 allowed,
-                "{name}: Request should be allowed after token regeneration",
-                name
+                "{name}: Request should be allowed after token regeneration"
             );
             assert_eq!(result.remaining, 0, "{name}: Should have exactly 1 token");
         }
