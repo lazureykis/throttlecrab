@@ -11,7 +11,7 @@ use clap::Parser;
 use crate::actor::RateLimiterActor;
 use crate::transport::{
     Transport, compact_protocol::CompactProtocolTransport, grpc::GrpcTransport,
-    msgpack::MsgPackTransport, msgpack_optimized::OptimizedMsgPackTransport,
+    http::HttpTransport, msgpack::MsgPackTransport, msgpack_optimized::OptimizedMsgPackTransport,
 };
 use crate::types::ThrottleRequest;
 
@@ -49,6 +49,10 @@ struct Args {
     /// Use gRPC transport
     #[arg(long)]
     grpc: bool,
+
+    /// Use HTTP transport with JSON
+    #[arg(long)]
+    http: bool,
 }
 
 #[tokio::main]
@@ -77,6 +81,10 @@ async fn main() -> Result<()> {
             tracing::info!("Using gRPC transport");
             let transport = GrpcTransport::new(&args.host, args.port);
             transport.start(limiter).await?;
+        } else if args.http {
+            tracing::info!("Using HTTP transport with JSON");
+            let transport = HttpTransport::new(&args.host, args.port);
+            transport.start(limiter).await?;
         } else if args.compact {
             tracing::info!("Using compact binary protocol");
             let transport = CompactProtocolTransport::new(&args.host, args.port);
@@ -86,6 +94,7 @@ async fn main() -> Result<()> {
             let transport = OptimizedMsgPackTransport::new(&args.host, args.port);
             transport.start(limiter).await?;
         } else {
+            tracing::info!("Using MessagePack transport (default)");
             let transport = MsgPackTransport::new(&args.host, args.port);
             transport.start(limiter).await?;
         }
