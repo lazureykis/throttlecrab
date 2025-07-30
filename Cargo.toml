@@ -84,3 +84,7 @@ harness = false
 [[bench]]
 name = "cleanup_strategies"
 harness = false
+
+[[bench]]
+name = "grpc_throughput"
+harness = false

@@ -4,6 +4,7 @@ use serde::{Deserialize, Serialize};
 use std::io::{Read, Write};
 use std::net::TcpStream;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use tokio::runtime::Runtime;
 
 #[derive(Debug, Serialize, Deserialize)]
 struct MsgPackRequest {
@@ -85,6 +86,35 @@ fn make_compact_request(stream: &mut TcpStream, key: &str) -> std::io::Result<bo
     Ok(response[1] == 1) // allowed field
 }
 
+// Include the generated protobuf code
+pub mod throttlecrab {
+    tonic::include_proto!("throttlecrab");
+}
+
+use throttlecrab::ThrottleRequest;
+use throttlecrab::rate_limiter_client::RateLimiterClient;
+
+async fn make_grpc_request(
+    client: &mut RateLimiterClient<tonic::transport::Channel>,
+    key: &str,
+) -> Result<bool, tonic::Status> {
+    let now = SystemTime::now();
+    let duration = now.duration_since(UNIX_EPOCH).unwrap();
+
+    let request = tonic::Request::new(ThrottleRequest {
+        key: key.to_string(),
+        max_burst: 100,
+        count_per_period: 1000,
+        period: 60,
+        quantity: 1,
+        timestamp_secs: duration.as_secs() as i64,
+        timestamp_nanos: duration.subsec_nanos() as i32,
+    });
+
+    let response = client.throttle(request).await?;
+    Ok(response.into_inner().allowed)
+}
+
 fn benchmark_protocol(c: &mut Criterion, port: u16, name: &str, is_compact: bool) {
     let mut group = c.benchmark_group(name);
     group.throughput(Throughput::Elements(1));
@@ -128,11 +158,61 @@ fn benchmark_protocol(c: &mut Criterion, port: u16, name: &str, is_compact: bool
     group.finish();
 }
 
+fn benchmark_grpc_protocol(c: &mut Criterion, port: u16) {
+    let mut group = c.benchmark_group("protocol_grpc");
+    group.throughput(Throughput::Elements(1));
+    group.measurement_time(Duration::from_secs(10));
+    group.warm_up_time(Duration::from_secs(2));
+
+    let runtime = Runtime::new().unwrap();
+
+    group.bench_function("single_request", |b| {
+        let client = runtime.block_on(async {
+            RateLimiterClient::connect(format!("http://127.0.0.1:{port}"))
+                .await
+                .unwrap()
+        });
+        let mut client = client;
+        let mut counter = 0u64;
+
+        b.iter(|| {
+            let key = format!("bench_key_{counter}");
+            counter += 1;
+            runtime
+                .block_on(make_grpc_request(&mut client, &key))
+                .unwrap()
+        });
+    });
+
+    group.bench_function("batch_100", |b| {
+        let client = runtime.block_on(async {
+            RateLimiterClient::connect(format!("http://127.0.0.1:{port}"))
+                .await
+                .unwrap()
+        });
+        let mut client = client;
+        let mut counter = 0u64;
+
+        b.iter(|| {
+            runtime.block_on(async {
+                for _ in 0..100 {
+                    let key = format!("bench_key_{counter}");
+                    counter += 1;
+                    make_grpc_request(&mut client, &key).await.unwrap();
+                }
+            });
+        });
+    });
+
+    group.finish();
+}
+
 fn protocol_comparison(c: &mut Criterion) {
-    println!("Make sure to run three server instances:");
+    println!("Make sure to run four server instances:");
     println!("  1. cargo run --features bin -- --server --port 9090");
     println!("  2. cargo run --features bin -- --server --port 9091 --optimized");
     println!("  3. cargo run --features bin -- --server --port 9092 --compact");
+    println!("  4. cargo run --features bin -- --server --port 9093 --grpc");
     println!("Waiting for servers to start...");
     std::thread::sleep(Duration::from_secs(2));
 
@@ -153,10 +233,23 @@ fn protocol_comparison(c: &mut Criterion) {
         }
     }
 
+    // Test gRPC connection
+    let runtime = Runtime::new().unwrap();
+    match runtime.block_on(RateLimiterClient::connect("http://127.0.0.1:9093")) {
+        Ok(_) => println!("Connected to grpc server on port 9093"),
+        Err(e) => {
+            eprintln!("Failed to connect to grpc server on port 9093: {e}");
+            return;
+        }
+    }
+
     // Run benchmarks
     for (port, name, is_compact) in servers {
         benchmark_protocol(c, port, &format!("protocol_{name}"), is_compact);
     }
+
+    // Run gRPC benchmark
+    benchmark_grpc_protocol(c, 9093);
 }
 
 criterion_group!(benches, protocol_comparison);

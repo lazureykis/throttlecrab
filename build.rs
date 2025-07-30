@@ -9,7 +9,9 @@ fn main() {
                 println!("cargo:warning=Make sure protoc is installed:");
                 println!("cargo:warning=  macOS: brew install protobuf");
                 println!("cargo:warning=  Ubuntu: apt-get install protobuf-compiler");
-                println!("cargo:warning=  Or download from: https://github.com/protocolbuffers/protobuf/releases");
+                println!(
+                    "cargo:warning=  Or download from: https://github.com/protocolbuffers/protobuf/releases"
+                );
             }
         }
     }
