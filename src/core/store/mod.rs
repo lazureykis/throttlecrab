@@ -1,11 +1,20 @@
-use std::collections::HashMap;
 use std::time::{Duration, SystemTime};
+
+#[cfg(feature = "ahash")]
+use ahash::AHashMap as HashMap;
+#[cfg(not(feature = "ahash"))]
+use std::collections::HashMap;
 
 #[cfg(test)]
 mod tests;
 
 pub mod optimized;
 pub mod fast_hasher;
+pub mod adaptive_cleanup;
+pub mod amortized;
+
+#[cfg(test)]
+mod cleanup_test;
 
 /// Store trait for rate limiter state storage (similar to redis-cell)
 pub trait Store {

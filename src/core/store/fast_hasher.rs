@@ -3,6 +3,9 @@ use std::hash::{BuildHasher, Hasher};
 use std::time::{Duration, SystemTime};
 use super::Store;
 
+// Note: These custom hashers are kept for benchmarking comparisons
+// The default stores now use ahash when the feature is enabled
+
 /// A very fast, non-cryptographic hasher based on FxHash
 /// This is suitable for our use case since we don't need protection against HashDoS
 #[derive(Default)]

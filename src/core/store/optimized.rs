@@ -1,6 +1,10 @@
-use std::collections::HashMap;
 use std::time::{Duration, SystemTime};
 use super::Store;
+
+#[cfg(feature = "ahash")]
+use ahash::AHashMap as HashMap;
+#[cfg(not(feature = "ahash"))]
+use std::collections::HashMap;
 
 /// Optimized in-memory store implementation
 pub struct OptimizedMemoryStore {
@@ -26,6 +30,16 @@ impl OptimizedMemoryStore {
             cleanup_interval: Duration::from_secs(60),
             expired_count: 0,
         }
+    }
+    
+    #[cfg(test)]
+    pub fn len(&self) -> usize {
+        self.data.len()
+    }
+    
+    #[cfg(test)]
+    pub fn expired_count(&self) -> usize {
+        self.expired_count
     }
 
     fn maybe_clean_expired(&mut self, now: SystemTime) {
