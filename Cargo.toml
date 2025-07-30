@@ -30,13 +30,15 @@ serde_json = { version = "1", optional = true }
 tonic = { version = "0.14.0", optional = true }
 tonic-prost = { version = "0.14.0", optional = true }
 prost = { version = "0.14.1", optional = true }
+axum = { version = "0.8.4", optional = true }
+tower = { version = "0.5", optional = true }
 
 [features]
 default = ["ahash"]
 # Enable fast hashing
 ahash = ["dep:ahash"]
 # Enable all binary dependencies
-bin = ["tokio", "async-trait", "anyhow", "rmp-serde", "serde", "bytes", "tracing", "tracing-subscriber", "clap", "config", "serde_json", "tonic", "tonic-prost", "prost"]
+bin = ["tokio", "async-trait", "anyhow", "rmp-serde", "serde", "bytes", "tracing", "tracing-subscriber", "clap", "config", "serde_json", "tonic", "tonic-prost", "prost", "axum", "tower"]
 
 [[bin]]
 name = "throttlecrab"
@@ -59,6 +61,9 @@ ahash = "0.8"
 tonic = "0.14.0"
 tonic-prost = "0.14.0"
 prost = "0.14.1"
+# For HTTP examples
+reqwest = { version = "0.12", features = ["json"] }
+anyhow = "1"
 
 [[bench]]
 name = "tcp_throughput"

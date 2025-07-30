@@ -15,7 +15,10 @@ A high-performance GCRA (Generic Cell Rate Algorithm) rate limiter library for R
 - **High performance**: Lock-free design with minimal overhead
 - **Flexible parameters**: Different rate limits per key with dynamic configuration
 - **TTL support**: Automatic cleanup of expired entries
-- **Standalone server**: Optional TCP server with MessagePack or gRPC protocol for distributed rate limiting
+- **Standalone server**: Multiple protocol support for distributed rate limiting:
+  - **MessagePack over TCP**: Most efficient, minimal overhead
+  - **HTTP with JSON**: Standard REST API for easy integration
+  - **gRPC**: For service mesh and microservices
 
 ## Installation
 
@@ -85,8 +88,10 @@ throttlecrab --server
 # Or with custom address
 throttlecrab --server --host 0.0.0.0 --port 8080
 
-# Use gRPC transport (requires protoc installed)
-throttlecrab --server --grpc
+# Use different transports:
+throttlecrab --server --http      # HTTP with JSON (REST API)
+throttlecrab --server --grpc      # gRPC transport
+throttlecrab --server             # MessagePack over TCP (default, most efficient)
 ```
 
 ### Client Example
@@ -170,6 +175,41 @@ Response fields:
 - `reset_after`: Time until full capacity reset (seconds)
 - `retry_after`: Time until next request allowed (seconds)
 
+### HTTP REST API
+
+When running with `--http`, the server exposes a REST API:
+
+**Endpoint**: `POST /throttle`
+
+**Request Body** (JSON):
+```json
+{
+  "key": "user:123",
+  "max_burst": 10,
+  "count_per_period": 100,
+  "period": 60,
+  "quantity": 1
+}
+```
+
+**Response** (JSON):
+```json
+{
+  "allowed": true,
+  "limit": 10,
+  "remaining": 9,
+  "reset_after": 60,
+  "retry_after": 0
+}
+```
+
+**Example**:
+```bash
+curl -X POST http://localhost:9090/throttle \
+  -H "Content-Type: application/json" \
+  -d '{"key":"api_key_123","max_burst":10,"count_per_period":100,"period":60}'
+```
+
 ### gRPC Protocol
 
 When running with `--grpc`, the server exposes a gRPC service defined in `proto/throttlecrab.proto`:
@@ -194,6 +234,59 @@ The Generic Cell Rate Algorithm (GCRA) is a rate limiting algorithm that provide
 - **Memory efficiency**: O(1) space per key
 
 GCRA works by tracking the "Theoretical Arrival Time" (TAT) of requests, ensuring consistent spacing between allowed requests while permitting controlled bursts.
+
+## Scaling Strategy
+
+ThrottleCrab is designed for single-instance performance, but can be scaled horizontally using a sharding approach:
+
+### Single Instance Performance
+A single ThrottleCrab instance can handle hundreds of thousands of requests per second on modern hardware, which is sufficient for most use cases.
+
+### Horizontal Scaling with Sharding
+For extreme scale, you can run multiple ThrottleCrab instances and shard by key:
+
+```rust
+// Client-side sharding example
+fn get_rate_limiter_instance(key: &str, instances: &[String]) -> &str {
+    let hash = calculate_hash(key);
+    let shard_index = hash % instances.len();
+    &instances[shard_index]
+}
+
+// Use consistent hashing for better distribution
+use std::collections::hash_map::DefaultHasher;
+use std::hash::{Hash, Hasher};
+
+fn calculate_hash(key: &str) -> usize {
+    let mut hasher = DefaultHasher::new();
+    key.hash(&mut hasher);
+    hasher.finish() as usize
+}
+```
+
+### Sharding Best Practices
+1. **Consistent Hashing**: Use consistent hashing to minimize reshuffling when adding/removing instances
+2. **Key Design**: Design your rate limit keys to distribute evenly (e.g., include user IDs)
+3. **Health Checks**: Implement health checks and failover for high availability
+4. **Monitoring**: Track key distribution across shards to detect hot spots
+
+### Example Deployment
+```yaml
+# docker-compose.yml for 3-shard deployment
+version: '3'
+services:
+  throttlecrab-1:
+    image: throttlecrab:latest
+    command: ["--server", "--host", "0.0.0.0", "--port", "9090"]
+    
+  throttlecrab-2:
+    image: throttlecrab:latest
+    command: ["--server", "--host", "0.0.0.0", "--port", "9090"]
+    
+  throttlecrab-3:
+    image: throttlecrab:latest
+    command: ["--server", "--host", "0.0.0.0", "--port", "9090"]
+```
 
 ## License
 
