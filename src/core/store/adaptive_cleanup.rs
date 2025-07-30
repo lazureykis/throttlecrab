@@ -118,14 +118,6 @@ impl AdaptiveMemoryStore {
         self.expired_count = 0;
         self.operations_since_cleanup = 0;
 
-        // Log cleanup stats in debug mode
-        #[cfg(debug_assertions)]
-        {
-            eprintln!(
-                "Cleanup: removed {}/{} entries, next in {:?}",
-                removed, initial_len, self.current_cleanup_interval
-            );
-        }
     }
 
     fn maybe_clean_expired(&mut self, now: SystemTime) {
