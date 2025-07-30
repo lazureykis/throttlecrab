@@ -1,6 +1,6 @@
 use std::time::{Instant, SystemTime};
+use throttlecrab::RateLimiter;
 use throttlecrab::core::store::optimized::OptimizedMemoryStore;
-use throttlecrab::{MemoryStore, RateLimiter};
 
 fn benchmark_store(name: &str, mut limiter: RateLimiter<impl throttlecrab::Store>) {
     println!("\n{name} Benchmark");
@@ -50,10 +50,6 @@ fn main() {
     #[cfg(not(feature = "ahash"))]
     println!("✗ Using standard HashMap (slower)");
 
-    // Benchmark standard store
-    let standard_limiter = RateLimiter::new(MemoryStore::new());
-    benchmark_store("Standard MemoryStore", standard_limiter);
-
     // Benchmark optimized store
     let optimized_limiter = RateLimiter::new(OptimizedMemoryStore::with_capacity(10_000));
     benchmark_store("Optimized MemoryStore", optimized_limiter);
@@ -65,5 +61,4 @@ fn main() {
     println!("- Deferred cleanup (only every 60s or when 20% expired)");
     println!("- Pre-allocated capacity to avoid rehashing");
     println!("- Fast AHash hashing (SIMD-optimized)");
-    println!("\nExpected improvement: 50-100x faster for workloads with many keys!");
 }

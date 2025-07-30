@@ -10,15 +10,9 @@ mod tests;
 
 pub mod adaptive_cleanup;
 pub mod amortized;
-pub mod arena;
-pub mod bloom_filter;
-pub mod btree_store;
 pub mod compact;
 pub mod fast_hasher;
-pub mod heap_store;
 pub mod optimized;
-pub mod raw_api_store;
-pub mod timing_wheel;
 
 #[cfg(test)]
 mod cleanup_test;
@@ -54,6 +48,8 @@ pub trait Store {
     ) -> Result<bool, String>;
 }
 
+// Keeping MemoryStore for backward compatibility but it's deprecated
+// Use OptimizedMemoryStore instead
 /// In-memory store implementation
 pub struct MemoryStore {
     data: HashMap<String, (i64, Option<SystemTime>)>,

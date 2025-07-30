@@ -1,9 +1,10 @@
 use std::time::SystemTime;
-use throttlecrab::{MemoryStore, RateLimiter};
+use throttlecrab::RateLimiter;
+use throttlecrab::core::store::optimized::OptimizedMemoryStore;
 
 fn main() {
-    // Create a rate limiter with memory store
-    let mut limiter = RateLimiter::new(MemoryStore::new());
+    // Create a rate limiter with optimized memory store
+    let mut limiter = RateLimiter::new(OptimizedMemoryStore::with_capacity(1000));
 
     // Simulate API requests with rate limiting
     // Allow 10 requests per minute with burst of 5

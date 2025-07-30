@@ -1,17 +1,11 @@
 use std::time::{Instant, SystemTime};
+use throttlecrab::RateLimiter;
 use throttlecrab::core::store::{
     adaptive_cleanup::AdaptiveMemoryStore,
     amortized::{AmortizedMemoryStore, ProbabilisticMemoryStore},
-    arena::ArenaMemoryStore,
-    bloom_filter::BloomFilterStore,
-    btree_store::BTreeStore,
     compact::CompactMemoryStore,
-    heap_store::HeapStore,
     optimized::{InternedMemoryStore, OptimizedMemoryStore},
-    raw_api_store::{RawApiStore, RawApiStoreV2},
-    timing_wheel::TimingWheelStore,
 };
-use throttlecrab::{MemoryStore, RateLimiter};
 
 fn benchmark_store<S: throttlecrab::core::store::Store>(
     name: &str,
@@ -54,8 +48,8 @@ fn main() {
     let iterations = 400_000;
 
     println!("Configuration:");
-    println!("  Unique keys: {}", num_keys);
-    println!("  Total operations: {}", iterations);
+    println!("  Unique keys: {num_keys}");
+    println!("  Total operations: {iterations}");
     println!("  Rate limit: 1000 requests per 3600 seconds (1 hour)");
     println!("  Burst: 100");
     println!();
@@ -64,14 +58,6 @@ fn main() {
         "Store Implementation      | Throughput   | Allowed         | Blocked         | Total Time"
     );
     println!("{}", "-".repeat(90));
-
-    // Standard MemoryStore
-    benchmark_store(
-        "Standard MemoryStore",
-        RateLimiter::new(MemoryStore::new()),
-        num_keys,
-        iterations,
-    );
 
     // OptimizedMemoryStore
     benchmark_store(
@@ -113,70 +99,10 @@ fn main() {
         iterations,
     );
 
-    // ArenaMemoryStore
-    benchmark_store(
-        "Arena MemoryStore",
-        RateLimiter::new(ArenaMemoryStore::with_capacity(num_keys)),
-        num_keys,
-        iterations,
-    );
-
     // CompactMemoryStore
     benchmark_store(
         "Compact MemoryStore",
         RateLimiter::new(CompactMemoryStore::with_capacity(num_keys)),
-        num_keys,
-        iterations,
-    );
-
-    // TimingWheelStore
-    benchmark_store(
-        "TimingWheel Store",
-        RateLimiter::new(TimingWheelStore::with_capacity(num_keys)),
-        num_keys,
-        iterations,
-    );
-
-    // BloomFilterStore with OptimizedMemoryStore
-    benchmark_store(
-        "BloomFilter Store",
-        RateLimiter::new(BloomFilterStore::with_config(
-            OptimizedMemoryStore::with_capacity(num_keys),
-            num_keys,
-            0.01
-        )),
-        num_keys,
-        iterations,
-    );
-
-    // BTreeStore
-    benchmark_store(
-        "BTree Store",
-        RateLimiter::new(BTreeStore::with_capacity(num_keys)),
-        num_keys,
-        iterations,
-    );
-
-    // HeapStore
-    benchmark_store(
-        "Heap Store",
-        RateLimiter::new(HeapStore::with_capacity(num_keys)),
-        num_keys,
-        iterations,
-    );
-
-    // RawApiStore
-    benchmark_store(
-        "RawApi Store",
-        RateLimiter::new(RawApiStore::with_capacity(num_keys)),
-        num_keys,
-        iterations,
-    );
-
-    // RawApiStoreV2
-    benchmark_store(
-        "RawApiV2 Store",
-        RateLimiter::new(RawApiStoreV2::with_capacity(num_keys)),
         num_keys,
         iterations,
     );
