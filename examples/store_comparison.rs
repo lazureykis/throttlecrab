@@ -5,6 +5,7 @@ use throttlecrab::core::store::{
     arena::ArenaMemoryStore,
     compact::CompactMemoryStore,
     optimized::{InternedMemoryStore, OptimizedMemoryStore},
+    timing_wheel::TimingWheelStore,
 };
 use throttlecrab::{MemoryStore, RateLimiter};
 
@@ -120,6 +121,14 @@ fn main() {
     benchmark_store(
         "Compact MemoryStore",
         RateLimiter::new(CompactMemoryStore::with_capacity(num_keys)),
+        num_keys,
+        iterations,
+    );
+
+    // TimingWheelStore
+    benchmark_store(
+        "TimingWheel Store",
+        RateLimiter::new(TimingWheelStore::with_capacity(num_keys)),
         num_keys,
         iterations,
     );

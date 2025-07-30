@@ -14,6 +14,7 @@ pub mod arena;
 pub mod compact;
 pub mod fast_hasher;
 pub mod optimized;
+pub mod timing_wheel;
 
 #[cfg(test)]
 mod cleanup_test;
