@@ -2,8 +2,8 @@ use std::time::{Instant, SystemTime};
 use throttlecrab::RateLimiter;
 use throttlecrab::core::store::{
     adaptive_cleanup::AdaptiveMemoryStore,
-    amortized::{AmortizedMemoryStore, ProbabilisticMemoryStore},
     optimized::{InternedMemoryStore, OptimizedMemoryStore},
+    probabilistic::ProbabilisticMemoryStore,
 };
 
 #[derive(Clone, Copy)]
@@ -210,12 +210,6 @@ fn main() {
         let (ops_per_sec, allowed, blocked) =
             benchmark_pattern("Interned", limiter, pattern, num_keys, iterations);
         results.push(("Interned", ops_per_sec, allowed, blocked));
-
-        // Amortized Store
-        let limiter = RateLimiter::new(AmortizedMemoryStore::with_capacity(num_keys));
-        let (ops_per_sec, allowed, blocked) =
-            benchmark_pattern("Amortized", limiter, pattern, num_keys, iterations);
-        results.push(("Amortized", ops_per_sec, allowed, blocked));
 
         // Probabilistic Store
         let limiter = RateLimiter::new(ProbabilisticMemoryStore::with_capacity(num_keys));

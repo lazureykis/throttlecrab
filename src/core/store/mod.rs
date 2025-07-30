@@ -9,9 +9,9 @@ use std::collections::HashMap;
 mod tests;
 
 pub mod adaptive_cleanup;
-pub mod amortized;
 pub mod fast_hasher;
 pub mod optimized;
+pub mod probabilistic;
 
 #[cfg(test)]
 mod cleanup_test;

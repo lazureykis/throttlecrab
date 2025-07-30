@@ -4,8 +4,8 @@
 mod tests {
     use crate::RateLimiter;
     use crate::core::store::adaptive_cleanup::AdaptiveMemoryStore;
-    use crate::core::store::amortized::{AmortizedMemoryStore, ProbabilisticMemoryStore};
     use crate::core::store::optimized::{InternedMemoryStore, OptimizedMemoryStore};
+    use crate::core::store::probabilistic::ProbabilisticMemoryStore;
     use crate::core::store::*;
     use std::time::{Duration, SystemTime};
 
@@ -15,7 +15,6 @@ mod tests {
             // Removed: Standard, Arena, TimingWheel, BloomFilter, BTree, Heap, RawApi stores
             $test_fn("Optimized", &mut OptimizedMemoryStore::with_capacity(100));
             $test_fn("Interned", &mut InternedMemoryStore::with_capacity(100));
-            $test_fn("Amortized", &mut AmortizedMemoryStore::with_capacity(100));
             $test_fn(
                 "Probabilistic",
                 &mut ProbabilisticMemoryStore::with_capacity(100),
@@ -597,10 +596,6 @@ mod tests {
         test_rate_limiter(
             "Interned",
             RateLimiter::new(InternedMemoryStore::with_capacity(100)),
-        );
-        test_rate_limiter(
-            "Amortized",
-            RateLimiter::new(AmortizedMemoryStore::with_capacity(100)),
         );
         test_rate_limiter(
             "Probabilistic",
