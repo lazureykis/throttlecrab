@@ -50,7 +50,7 @@ impl AmortizedMemoryStore {
         }
 
         // Clean a small batch
-        let mut removed = 0;
+        let mut _removed = 0;
         let end = (self.cleanup_index + self.entries_per_cleanup).min(self.cleanup_cursor.len());
 
         for i in self.cleanup_index..end {
@@ -62,15 +62,15 @@ impl AmortizedMemoryStore {
 
             if should_remove {
                 self.data.remove(key);
-                removed += 1;
+                _removed += 1;
             }
         }
 
         self.cleanup_index = end;
 
         #[cfg(debug_assertions)]
-        if removed > 0 {
-            eprintln!("Amortized cleanup: removed {removed} entries");
+        if _removed > 0 {
+            eprintln!("Amortized cleanup: removed {_removed} entries");
         }
     }
 }
@@ -166,7 +166,7 @@ impl ProbabilisticMemoryStore {
         let should_clean = (self.operations_count.wrapping_mul(2654435761) % 1000) < 1;
 
         if should_clean {
-            let before = self.data.len();
+            let _before = self.data.len();
             self.data.retain(|_, (_, expiry)| {
                 if let Some(exp) = expiry {
                     *exp > now
@@ -177,7 +177,7 @@ impl ProbabilisticMemoryStore {
 
             #[cfg(debug_assertions)]
             {
-                let removed = before - self.data.len();
+                let removed = _before - self.data.len();
                 if removed > 0 {
                     eprintln!("Probabilistic cleanup: removed {removed} entries");
                 }

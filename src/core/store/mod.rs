@@ -10,6 +10,7 @@ mod tests;
 
 pub mod adaptive_cleanup;
 pub mod amortized;
+pub mod arena;
 pub mod fast_hasher;
 pub mod optimized;
 

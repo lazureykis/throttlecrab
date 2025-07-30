@@ -1,6 +1,7 @@
 use criterion::{BenchmarkId, Criterion, Throughput, criterion_group, criterion_main};
 use std::hint::black_box;
 use std::time::{Duration, SystemTime};
+use throttlecrab::core::store::arena::ArenaMemoryStore;
 use throttlecrab::core::store::fast_hasher::{FastHashMemoryStore, SimpleHashMemoryStore};
 use throttlecrab::core::store::optimized::{InternedMemoryStore, OptimizedMemoryStore};
 use throttlecrab::{MemoryStore, RateLimiter};
@@ -168,6 +169,35 @@ fn benchmark_store_shootout(c: &mut Criterion) {
             |b, &num_keys| {
                 let mut limiter =
                     RateLimiter::new(AHashMemoryStore::with_capacity(num_keys as usize));
+                let mut counter = 0u64;
+
+                b.iter(|| {
+                    let key = format!("key_{}", counter % num_keys);
+                    counter += 1;
+
+                    let (allowed, _result) = limiter
+                        .rate_limit(
+                            black_box(&key),
+                            black_box(100),
+                            black_box(1000),
+                            black_box(60),
+                            black_box(1),
+                            black_box(SystemTime::now()),
+                        )
+                        .unwrap();
+
+                    black_box(allowed)
+                });
+            },
+        );
+
+        // ArenaMemoryStore
+        group.bench_with_input(
+            BenchmarkId::new("arena", num_keys),
+            &num_keys,
+            |b, &num_keys| {
+                let mut limiter =
+                    RateLimiter::new(ArenaMemoryStore::with_capacity(num_keys as usize));
                 let mut counter = 0u64;
 
                 b.iter(|| {
