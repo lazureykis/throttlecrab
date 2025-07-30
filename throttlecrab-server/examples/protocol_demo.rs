@@ -179,19 +179,13 @@ fn main() -> std::io::Result<()> {
     println!("======================================");
     println!();
     println!("Start the servers with:");
-    println!("  1. cargo run --features bin -- --server --port 9090");
-    println!("  2. cargo run --features bin -- --server --port 9091 --optimized");
-    println!("  3. cargo run --features bin -- --server --port 9092 --compact");
+    println!("  1. cargo run --features bin -- --server --port 9090 --msgpack");
+    println!("  2. cargo run --features bin -- --server --port 9092 --compact");
     println!();
 
-    // Test standard MessagePack
-    if let Err(e) = test_msgpack(9090, "Standard MessagePack") {
-        eprintln!("Standard protocol test failed: {e}");
-    }
-
-    // Test optimized MessagePack
-    if let Err(e) = test_msgpack(9091, "Optimized MessagePack") {
-        eprintln!("Optimized protocol test failed: {e}");
+    // Test MessagePack
+    if let Err(e) = test_msgpack(9090, "MessagePack") {
+        eprintln!("MessagePack protocol test failed: {e}");
     }
 
     // Test compact binary protocol
@@ -200,8 +194,7 @@ fn main() -> std::io::Result<()> {
     }
 
     println!("\nProtocol comparison summary:");
-    println!("- Standard MessagePack: Good compatibility, moderate performance");
-    println!("- Optimized MessagePack: Better performance, same compatibility");
+    println!("- MessagePack: Good balance of compatibility and performance");
     println!("- Compact Binary: Best performance, custom protocol");
 
     Ok(())

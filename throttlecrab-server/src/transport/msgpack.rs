@@ -10,6 +10,13 @@ use std::sync::Arc;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::{TcpListener, TcpStream};
 
+/// Size of the read buffer - tuned for typical request sizes
+const READ_BUFFER_SIZE: usize = 4096;
+/// Size of the write buffer - tuned for typical response sizes  
+const WRITE_BUFFER_SIZE: usize = 512;
+/// Maximum message size (1MB)
+const MAX_MESSAGE_SIZE: usize = 1024 * 1024;
+
 pub struct MsgPackTransport {
     host: String,
     port: u16,
@@ -24,7 +31,14 @@ impl MsgPackTransport {
     }
 
     async fn handle_connection(mut socket: TcpStream, limiter: RateLimiterHandle) -> Result<()> {
-        let mut buffer = BytesMut::with_capacity(8192);
+        // Pre-allocate buffers that will be reused
+        let mut read_buffer = BytesMut::with_capacity(READ_BUFFER_SIZE);
+        let mut write_buffer = BytesMut::with_capacity(WRITE_BUFFER_SIZE);
+
+        // Set TCP_NODELAY for lower latency
+        socket.set_nodelay(true)?;
+
+        tracing::debug!("Starting optimized connection handler");
 
         loop {
             // Read length prefix (4 bytes)
@@ -33,28 +47,35 @@ impl MsgPackTransport {
                 Ok(_) => {}
                 Err(e) => {
                     if e.kind() == std::io::ErrorKind::UnexpectedEof {
-                        // Client disconnected
-                        break;
+                        break; // Client disconnected
                     }
                     return Err(e.into());
                 }
             }
 
             let len = u32::from_be_bytes(len_bytes) as usize;
+            tracing::debug!("Received message with length: {}", len);
 
             // Validate length
-            if len > 1024 * 1024 {
-                // 1MB max message size
+            if len > MAX_MESSAGE_SIZE {
                 tracing::warn!("Message too large: {} bytes", len);
                 break;
             }
 
-            // Read message
-            buffer.resize(len, 0);
-            socket.read_exact(&mut buffer).await?;
+            // Ensure buffer has enough capacity
+            if read_buffer.capacity() < len {
+                read_buffer.reserve(len - read_buffer.capacity());
+            }
+
+            // Clear and resize buffer
+            read_buffer.clear();
+            read_buffer.resize(len, 0);
+
+            // Read message directly into buffer
+            socket.read_exact(&mut read_buffer).await?;
 
             // Decode request
-            let response = match rmp_serde::from_slice::<MsgPackRequest>(&buffer) {
+            let response = match rmp_serde::from_slice::<MsgPackRequest>(&read_buffer) {
                 Ok(request) => {
                     if request.cmd != 1 {
                         MsgPackResponse::error("Unknown command")
@@ -75,12 +96,17 @@ impl MsgPackTransport {
                 }
             };
 
-            // Encode and send response
+            // Serialize response to temporary buffer first
             let response_bytes = rmp_serde::to_vec(&response)?;
-            let len_bytes = (response_bytes.len() as u32).to_be_bytes();
 
-            socket.write_all(&len_bytes).await?;
-            socket.write_all(&response_bytes).await?;
+            // Clear write buffer and write length-prefixed message
+            write_buffer.clear();
+            let len_bytes = (response_bytes.len() as u32).to_be_bytes();
+            write_buffer.extend_from_slice(&len_bytes);
+            write_buffer.extend_from_slice(&response_bytes);
+
+            // Send the entire buffer in one write
+            socket.write_all(&write_buffer).await?;
             socket.flush().await?;
         }
 
