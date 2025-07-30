@@ -3,6 +3,7 @@ use throttlecrab::core::store::{
     adaptive_cleanup::AdaptiveMemoryStore,
     amortized::{AmortizedMemoryStore, ProbabilisticMemoryStore},
     arena::ArenaMemoryStore,
+    bloom_filter::BloomFilterStore,
     compact::CompactMemoryStore,
     optimized::{InternedMemoryStore, OptimizedMemoryStore},
     timing_wheel::TimingWheelStore,
@@ -129,6 +130,18 @@ fn main() {
     benchmark_store(
         "TimingWheel Store",
         RateLimiter::new(TimingWheelStore::with_capacity(num_keys)),
+        num_keys,
+        iterations,
+    );
+
+    // BloomFilterStore with OptimizedMemoryStore
+    benchmark_store(
+        "BloomFilter Store",
+        RateLimiter::new(BloomFilterStore::with_config(
+            OptimizedMemoryStore::with_capacity(num_keys),
+            num_keys,
+            0.01
+        )),
         num_keys,
         iterations,
     );
