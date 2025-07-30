@@ -38,7 +38,7 @@ impl MsgPackTransport {
         // Set TCP_NODELAY for lower latency
         socket.set_nodelay(true)?;
 
-        tracing::debug!("Starting optimized connection handler");
+        tracing::debug!("Starting connection handler");
 
         loop {
             // Read length prefix (4 bytes)
