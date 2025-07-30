@@ -92,12 +92,12 @@ fn benchmark_protocol(c: &mut Criterion, port: u16, name: &str, is_compact: bool
     group.warm_up_time(Duration::from_secs(2));
 
     group.bench_function("single_request", |b| {
-        let mut stream = TcpStream::connect(format!("127.0.0.1:{}", port)).unwrap();
+        let mut stream = TcpStream::connect(format!("127.0.0.1:{port}")).unwrap();
         stream.set_nodelay(true).unwrap();
         let mut counter = 0u64;
 
         b.iter(|| {
-            let key = format!("bench_key_{}", counter);
+            let key = format!("bench_key_{counter}");
             counter += 1;
             if is_compact {
                 make_compact_request(&mut stream, &key).unwrap()
@@ -108,13 +108,13 @@ fn benchmark_protocol(c: &mut Criterion, port: u16, name: &str, is_compact: bool
     });
 
     group.bench_function("batch_100", |b| {
-        let mut stream = TcpStream::connect(format!("127.0.0.1:{}", port)).unwrap();
+        let mut stream = TcpStream::connect(format!("127.0.0.1:{port}")).unwrap();
         stream.set_nodelay(true).unwrap();
         let mut counter = 0u64;
 
         b.iter(|| {
             for _ in 0..100 {
-                let key = format!("bench_key_{}", counter);
+                let key = format!("bench_key_{counter}");
                 counter += 1;
                 if is_compact {
                     make_compact_request(&mut stream, &key).unwrap();
@@ -144,13 +144,10 @@ fn protocol_comparison(c: &mut Criterion) {
     ];
 
     for (port, name, _) in &servers {
-        match TcpStream::connect(format!("127.0.0.1:{}", port)) {
-            Ok(_) => println!("Connected to {} server on port {}", name, port),
+        match TcpStream::connect(format!("127.0.0.1:{port}")) {
+            Ok(_) => println!("Connected to {name} server on port {port}"),
             Err(e) => {
-                eprintln!(
-                    "Failed to connect to {} server on port {}: {}",
-                    name, port, e
-                );
+                eprintln!("Failed to connect to {name} server on port {port}: {e}");
                 return;
             }
         }
@@ -158,7 +155,7 @@ fn protocol_comparison(c: &mut Criterion) {
 
     // Run benchmarks
     for (port, name, is_compact) in servers {
-        benchmark_protocol(c, port, &format!("protocol_{}", name), is_compact);
+        benchmark_protocol(c, port, &format!("protocol_{name}"), is_compact);
     }
 }
 

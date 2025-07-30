@@ -1,7 +1,7 @@
+use super::Store;
 use std::collections::HashMap;
 use std::hash::{BuildHasher, Hasher};
 use std::time::{Duration, SystemTime};
-use super::Store;
 
 // Note: These custom hashers are kept for benchmarking comparisons
 // The default stores now use ahash when the feature is enabled
@@ -92,11 +92,11 @@ impl FastHashMemoryStore {
     pub fn new() -> Self {
         Self::with_capacity(1000)
     }
-    
+
     pub fn with_capacity(capacity: usize) -> Self {
         let mut data = FxHashMap::default();
         data.reserve((capacity as f64 * 1.3) as usize);
-        
+
         FastHashMemoryStore {
             data,
             next_cleanup: SystemTime::now() + Duration::from_secs(60),
@@ -106,9 +106,9 @@ impl FastHashMemoryStore {
     }
 
     fn maybe_clean_expired(&mut self, now: SystemTime) {
-        let should_clean = now >= self.next_cleanup || 
-                          (self.expired_count > 100 && self.expired_count > self.data.len() / 5);
-        
+        let should_clean = now >= self.next_cleanup
+            || (self.expired_count > 100 && self.expired_count > self.data.len() / 5);
+
         if should_clean {
             self.data.retain(|_, (_, expiry)| {
                 if let Some(exp) = expiry {
@@ -244,11 +244,11 @@ impl SimpleHashMemoryStore {
     pub fn new() -> Self {
         Self::with_capacity(1000)
     }
-    
+
     pub fn with_capacity(capacity: usize) -> Self {
         let mut data = SimpleHashMap::default();
         data.reserve((capacity as f64 * 1.3) as usize);
-        
+
         SimpleHashMemoryStore {
             data,
             next_cleanup: SystemTime::now() + Duration::from_secs(60),
@@ -258,9 +258,9 @@ impl SimpleHashMemoryStore {
     }
 
     fn maybe_clean_expired(&mut self, now: SystemTime) {
-        let should_clean = now >= self.next_cleanup || 
-                          (self.expired_count > 100 && self.expired_count > self.data.len() / 5);
-        
+        let should_clean = now >= self.next_cleanup
+            || (self.expired_count > 100 && self.expired_count > self.data.len() / 5);
+
         if should_clean {
             self.data.retain(|_, (_, expiry)| {
                 if let Some(exp) = expiry {
@@ -272,6 +272,12 @@ impl SimpleHashMemoryStore {
             self.next_cleanup = now + self.cleanup_interval;
             self.expired_count = 0;
         }
+    }
+}
+
+impl Default for SimpleHashMemoryStore {
+    fn default() -> Self {
+        Self::new()
     }
 }
 

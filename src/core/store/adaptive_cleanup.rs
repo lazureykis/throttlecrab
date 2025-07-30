@@ -1,5 +1,5 @@
-use std::time::{Duration, SystemTime};
 use super::Store;
+use std::time::{Duration, SystemTime};
 
 #[cfg(feature = "ahash")]
 use ahash::AHashMap as HashMap;
@@ -27,7 +27,7 @@ impl AdaptiveMemoryStore {
     pub fn new() -> Self {
         Self::with_capacity(1000)
     }
-    
+
     pub fn with_capacity(capacity: usize) -> Self {
         AdaptiveMemoryStore {
             data: HashMap::with_capacity((capacity as f64 * 1.3) as usize),
@@ -48,39 +48,39 @@ impl AdaptiveMemoryStore {
         if now >= self.next_cleanup {
             return true;
         }
-        
+
         // Operation count trigger (prevent unbounded growth)
         if self.operations_since_cleanup >= self.max_operations_before_cleanup {
             return true;
         }
-        
+
         // Expired percentage trigger with dynamic threshold
         if self.expired_count > 50 {
             let expired_ratio = self.expired_count as f64 / self.data.len().max(1) as f64;
-            
+
             // More aggressive cleanup if we removed a lot last time
             let threshold = if self.last_cleanup_removed > self.last_cleanup_total / 4 {
                 0.1 // Clean at 10% if last cleanup was productive
             } else {
                 0.25 // Otherwise wait until 25%
             };
-            
+
             if expired_ratio > threshold {
                 return true;
             }
         }
-        
+
         // Memory pressure trigger (if HashMap is getting too large)
         if self.data.len() > self.data.capacity() * 3 / 4 {
             return true;
         }
-        
+
         false
     }
 
     fn cleanup(&mut self, now: SystemTime) {
         let initial_len = self.data.len();
-        
+
         self.data.retain(|_, (_, expiry)| {
             if let Some(exp) = expiry {
                 *exp > now
@@ -88,27 +88,27 @@ impl AdaptiveMemoryStore {
                 true
             }
         });
-        
+
         let removed = initial_len - self.data.len();
-        
+
         // Adaptive interval adjustment
         if removed == 0 && self.expired_count == 0 {
             // No expired entries, increase interval
-            self.current_cleanup_interval = (self.current_cleanup_interval * 2)
-                .min(self.max_cleanup_interval);
+            self.current_cleanup_interval =
+                (self.current_cleanup_interval * 2).min(self.max_cleanup_interval);
         } else if removed > initial_len / 2 {
             // Removed many entries, decrease interval
-            self.current_cleanup_interval = (self.current_cleanup_interval / 2)
-                .max(self.min_cleanup_interval);
+            self.current_cleanup_interval =
+                (self.current_cleanup_interval / 2).max(self.min_cleanup_interval);
         }
-        
+
         // Update state
         self.last_cleanup_removed = removed;
         self.last_cleanup_total = initial_len;
         self.next_cleanup = now + self.current_cleanup_interval;
         self.expired_count = 0;
         self.operations_since_cleanup = 0;
-        
+
         // Log cleanup stats in debug mode
         #[cfg(debug_assertions)]
         {
@@ -121,7 +121,7 @@ impl AdaptiveMemoryStore {
 
     fn maybe_clean_expired(&mut self, now: SystemTime) {
         self.operations_since_cleanup += 1;
-        
+
         if self.should_clean(now) {
             self.cleanup(now);
         }

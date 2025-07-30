@@ -1,5 +1,5 @@
-use std::time::{Duration, SystemTime};
 use super::Store;
+use std::time::{Duration, SystemTime};
 
 #[cfg(feature = "ahash")]
 use ahash::AHashMap as HashMap;
@@ -21,7 +21,7 @@ impl OptimizedMemoryStore {
     pub fn new() -> Self {
         Self::with_capacity(1000)
     }
-    
+
     pub fn with_capacity(capacity: usize) -> Self {
         OptimizedMemoryStore {
             // Pre-allocate with 30% overhead to avoid rehashing
@@ -31,12 +31,17 @@ impl OptimizedMemoryStore {
             expired_count: 0,
         }
     }
-    
+
     #[cfg(test)]
     pub fn len(&self) -> usize {
         self.data.len()
     }
-    
+
+    #[cfg(test)]
+    pub fn is_empty(&self) -> bool {
+        self.data.is_empty()
+    }
+
     #[cfg(test)]
     pub fn expired_count(&self) -> usize {
         self.expired_count
@@ -44,9 +49,9 @@ impl OptimizedMemoryStore {
 
     fn maybe_clean_expired(&mut self, now: SystemTime) {
         // Clean if we've passed the cleanup time OR if expired entries exceed 20% of total
-        let should_clean = now >= self.next_cleanup || 
-                          (self.expired_count > 100 && self.expired_count > self.data.len() / 5);
-        
+        let should_clean = now >= self.next_cleanup
+            || (self.expired_count > 100 && self.expired_count > self.data.len() / 5);
+
         if should_clean {
             self.data.retain(|_, (_, expiry)| {
                 if let Some(exp) = expiry {
@@ -151,7 +156,7 @@ impl InternedMemoryStore {
     pub fn new() -> Self {
         Self::with_capacity(1000)
     }
-    
+
     pub fn with_capacity(capacity: usize) -> Self {
         let adjusted_capacity = (capacity as f64 * 1.3) as usize;
         InternedMemoryStore {
@@ -186,9 +191,15 @@ impl InternedMemoryStore {
             // Also clean up unused key mappings
             let used_ids: std::collections::HashSet<_> = self.data.keys().copied().collect();
             self.key_to_id.retain(|_, id| used_ids.contains(id));
-            
+
             self.next_cleanup = now + self.cleanup_interval;
         }
+    }
+}
+
+impl Default for InternedMemoryStore {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
@@ -202,7 +213,7 @@ impl Store for InternedMemoryStore {
         now: SystemTime,
     ) -> Result<bool, String> {
         self.maybe_clean_expired(now);
-        
+
         let id = self.get_or_create_id(key);
         match self.data.get(&id) {
             Some((_current, Some(expiry))) if *expiry <= now => Ok(false),
@@ -240,7 +251,7 @@ impl Store for InternedMemoryStore {
         now: SystemTime,
     ) -> Result<bool, String> {
         self.maybe_clean_expired(now);
-        
+
         let id = self.get_or_create_id(key);
         match self.data.get(&id) {
             Some((_, Some(expiry))) if *expiry > now => Ok(false),

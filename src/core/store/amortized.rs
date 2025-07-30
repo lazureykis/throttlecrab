@@ -1,5 +1,5 @@
-use std::time::{Duration, SystemTime};
 use super::Store;
+use std::time::{Duration, SystemTime};
 
 #[cfg(feature = "ahash")]
 use ahash::AHashMap as HashMap;
@@ -22,7 +22,7 @@ impl AmortizedMemoryStore {
     pub fn new() -> Self {
         Self::with_capacity(1000)
     }
-    
+
     pub fn with_capacity(capacity: usize) -> Self {
         AmortizedMemoryStore {
             data: HashMap::with_capacity((capacity as f64 * 1.3) as usize),
@@ -30,47 +30,47 @@ impl AmortizedMemoryStore {
             cleanup_index: 0,
             operations_count: 0,
             operations_per_cleanup: 100, // Check every 100 operations
-            entries_per_cleanup: 10,      // Clean up to 10 entries each time
+            entries_per_cleanup: 10,     // Clean up to 10 entries each time
         }
     }
 
     fn amortized_cleanup(&mut self, now: SystemTime) {
         self.operations_count += 1;
-        
+
         // Only cleanup every N operations
         if self.operations_count % self.operations_per_cleanup != 0 {
             return;
         }
-        
+
         // Rebuild cursor if needed
         if self.cleanup_index >= self.cleanup_cursor.len() {
             self.cleanup_cursor.clear();
             self.cleanup_cursor.extend(self.data.keys().cloned());
             self.cleanup_index = 0;
         }
-        
+
         // Clean a small batch
         let mut removed = 0;
         let end = (self.cleanup_index + self.entries_per_cleanup).min(self.cleanup_cursor.len());
-        
+
         for i in self.cleanup_index..end {
             let key = &self.cleanup_cursor[i];
             let should_remove = match self.data.get(key) {
                 Some((_, Some(expiry))) => *expiry <= now,
                 _ => false,
             };
-            
+
             if should_remove {
                 self.data.remove(key);
                 removed += 1;
             }
         }
-        
+
         self.cleanup_index = end;
-        
+
         #[cfg(debug_assertions)]
         if removed > 0 {
-            eprintln!("Amortized cleanup: removed {} entries", removed);
+            eprintln!("Amortized cleanup: removed {removed} entries");
         }
     }
 }
@@ -149,7 +149,7 @@ impl ProbabilisticMemoryStore {
     pub fn new() -> Self {
         Self::with_capacity(1000)
     }
-    
+
     pub fn with_capacity(capacity: usize) -> Self {
         ProbabilisticMemoryStore {
             data: HashMap::with_capacity((capacity as f64 * 1.3) as usize),
@@ -160,11 +160,11 @@ impl ProbabilisticMemoryStore {
 
     fn maybe_cleanup(&mut self, now: SystemTime) {
         self.operations_count += 1;
-        
+
         // Simple pseudo-random using operations count
         // This is deterministic but spreads cleanups evenly
         let should_clean = (self.operations_count.wrapping_mul(2654435761) % 1000) < 1;
-        
+
         if should_clean {
             let before = self.data.len();
             self.data.retain(|_, (_, expiry)| {
@@ -174,15 +174,21 @@ impl ProbabilisticMemoryStore {
                     true
                 }
             });
-            
+
             #[cfg(debug_assertions)]
             {
                 let removed = before - self.data.len();
                 if removed > 0 {
-                    eprintln!("Probabilistic cleanup: removed {} entries", removed);
+                    eprintln!("Probabilistic cleanup: removed {removed} entries");
                 }
             }
         }
+    }
+}
+
+impl Default for ProbabilisticMemoryStore {
+    fn default() -> Self {
+        Self::new()
     }
 }
 

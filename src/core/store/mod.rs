@@ -8,10 +8,10 @@ use std::collections::HashMap;
 #[cfg(test)]
 mod tests;
 
-pub mod optimized;
-pub mod fast_hasher;
 pub mod adaptive_cleanup;
 pub mod amortized;
+pub mod fast_hasher;
+pub mod optimized;
 
 #[cfg(test)]
 mod cleanup_test;

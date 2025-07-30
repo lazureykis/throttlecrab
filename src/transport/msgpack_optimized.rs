@@ -37,7 +37,7 @@ impl OptimizedMsgPackTransport {
 
         // Set TCP_NODELAY for lower latency
         socket.set_nodelay(true)?;
-        
+
         tracing::debug!("Starting optimized connection handler");
 
         loop {
@@ -98,7 +98,7 @@ impl OptimizedMsgPackTransport {
 
             // Serialize response to temporary buffer first
             let response_bytes = rmp_serde::to_vec(&response)?;
-            
+
             // Clear write buffer and write length-prefixed message
             write_buffer.clear();
             let len_bytes = (response_bytes.len() as u32).to_be_bytes();

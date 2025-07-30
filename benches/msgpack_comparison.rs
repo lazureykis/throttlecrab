@@ -69,25 +69,25 @@ fn benchmark_msgpack_transport(c: &mut Criterion, port: u16, name: &str) {
     group.warm_up_time(Duration::from_secs(3));
 
     group.bench_function("single_request", |b| {
-        let mut stream = TcpStream::connect(format!("127.0.0.1:{}", port)).unwrap();
+        let mut stream = TcpStream::connect(format!("127.0.0.1:{port}")).unwrap();
         stream.set_nodelay(true).unwrap();
         let mut counter = 0u64;
 
         b.iter(|| {
-            let key = format!("bench_key_{}", counter);
+            let key = format!("bench_key_{counter}");
             counter += 1;
             make_request(&mut stream, &key).unwrap()
         });
     });
 
     group.bench_function("pipelined_10", |b| {
-        let mut stream = TcpStream::connect(format!("127.0.0.1:{}", port)).unwrap();
+        let mut stream = TcpStream::connect(format!("127.0.0.1:{port}")).unwrap();
         stream.set_nodelay(true).unwrap();
         let mut counter = 0u64;
 
         b.iter(|| {
             for _ in 0..10 {
-                let key = format!("bench_key_{}", counter);
+                let key = format!("bench_key_{counter}");
                 counter += 1;
                 make_request(&mut stream, &key).unwrap();
             }
@@ -108,7 +108,7 @@ fn msgpack_comparison(c: &mut Criterion) {
     match TcpStream::connect("127.0.0.1:9090") {
         Ok(_) => println!("Connected to standard server on port 9090"),
         Err(e) => {
-            eprintln!("Failed to connect to standard server on port 9090: {}", e);
+            eprintln!("Failed to connect to standard server on port 9090: {e}");
             eprintln!(
                 "Please start the server with: cargo run --features bin -- --server --port 9090"
             );
@@ -119,7 +119,7 @@ fn msgpack_comparison(c: &mut Criterion) {
     match TcpStream::connect("127.0.0.1:9091") {
         Ok(_) => println!("Connected to optimized server on port 9091"),
         Err(e) => {
-            eprintln!("Failed to connect to optimized server on port 9091: {}", e);
+            eprintln!("Failed to connect to optimized server on port 9091: {e}");
             eprintln!(
                 "Please start the server with: cargo run --features bin -- --server --port 9091 --optimized"
             );

@@ -28,7 +28,6 @@ use tokio::net::{TcpListener, TcpStream};
 /// - remaining: i64 (8 bytes)
 /// - retry_after: i64 (8 bytes)
 /// - reset_after: i64 (8 bytes)
-
 const READ_BUFFER_SIZE: usize = 256;
 const WRITE_BUFFER_SIZE: usize = 64;
 const MAX_KEY_LENGTH: usize = 255;

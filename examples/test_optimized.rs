@@ -27,10 +27,10 @@ struct Response {
 
 fn main() -> std::io::Result<()> {
     println!("Testing optimized MessagePack transport...");
-    
+
     let mut stream = TcpStream::connect("127.0.0.1:9090")?;
     stream.set_nodelay(true)?;
-    
+
     let request = Request {
         cmd: 1,
         key: "test_key".to_string(),
@@ -43,36 +43,36 @@ fn main() -> std::io::Result<()> {
             .unwrap()
             .as_secs() as i64,
     };
-    
+
     // Serialize request
     let mut buf = Vec::new();
     request.serialize(&mut Serializer::new(&mut buf)).unwrap();
     println!("Request serialized, size: {} bytes", buf.len());
-    
+
     // Send length prefix
     let len_bytes = (buf.len() as u32).to_be_bytes();
-    println!("Sending length prefix: {:?}", len_bytes);
+    println!("Sending length prefix: {len_bytes:?}");
     stream.write_all(&len_bytes)?;
-    
+
     // Send request
     println!("Sending request data...");
     stream.write_all(&buf)?;
     stream.flush()?;
-    
+
     println!("Waiting for response...");
-    
+
     // Read response length
     let mut len_buf = [0u8; 4];
     stream.read_exact(&mut len_buf)?;
     let len = u32::from_be_bytes(len_buf) as usize;
-    println!("Response length: {} bytes", len);
-    
+    println!("Response length: {len} bytes");
+
     // Read response
     let mut response_buf = vec![0u8; len];
     stream.read_exact(&mut response_buf)?;
-    
+
     let response: Response = rmp_serde::from_slice(&response_buf).unwrap();
-    println!("Response: {:?}", response);
-    
+    println!("Response: {response:?}");
+
     Ok(())
 }
