@@ -1,6 +1,6 @@
 [package]
 name = "throttlecrab-server"
-version = "0.2.2"
+version = "0.2.3"
 authors.workspace = true
 edition.workspace = true
 description = "A high-performance rate limiting server with multiple protocol support"
@@ -16,7 +16,7 @@ path = "src/main.rs"
 
 [dependencies]
 # Core library
-throttlecrab = { path = "../throttlecrab", version = "0.2.0", features = ["ahash"] }
+throttlecrab = { path = "../throttlecrab", version = "0.2.3", features = ["ahash"] }
 
 # Async runtime
 tokio = { workspace = true }
