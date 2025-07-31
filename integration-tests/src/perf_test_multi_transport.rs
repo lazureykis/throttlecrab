@@ -227,13 +227,9 @@ async fn msgpack_worker(
         reset_after: i64,
     }
 
-    // Create connection pool
-    let mut connections = Vec::new();
-    for _ in 0..5 {
-        let stream = TcpStream::connect(format!("127.0.0.1:{port}")).await?;
-        connections.push(stream);
-    }
-    let connections = Arc::new(tokio::sync::Mutex::new(connections));
+    // Create a dedicated connection for this worker (no sharing between threads)
+    let mut stream = TcpStream::connect(format!("127.0.0.1:{port}")).await?;
+    stream.set_nodelay(true)?;
 
     // Pre-generate requests
     let mut requests = Vec::with_capacity(requests_per_thread);
@@ -263,16 +259,9 @@ async fn msgpack_worker(
 
     let mut latencies = Vec::with_capacity(requests_per_thread);
 
-    // Send all requests
+    // Send all requests on the same connection
     for request in requests {
         let start = Instant::now();
-
-        // Get connection from pool
-        let mut stream = {
-            let mut pool = connections.lock().await;
-            pool.pop()
-                .ok_or_else(|| anyhow::anyhow!("No available connections"))?
-        };
 
         // Serialize request
         let mut buf = Vec::new();
@@ -298,11 +287,11 @@ async fn msgpack_worker(
             let response: Response =
                 Deserialize::deserialize(&mut Deserializer::new(&response_buf[..]))?;
 
-            Ok::<(Response, TcpStream), anyhow::Error>((response, stream))
+            Ok::<Response, anyhow::Error>(response)
         }
         .await
         {
-            Ok((response, stream)) => {
+            Ok(response) => {
                 let latency = start.elapsed();
                 latencies.push(latency);
                 stats.total_requests.fetch_add(1, Ordering::Relaxed);
@@ -315,14 +304,20 @@ async fn msgpack_worker(
                 } else {
                     stats.rate_limited.fetch_add(1, Ordering::Relaxed);
                 }
-
-                // Return connection to pool
-                let mut pool = connections.lock().await;
-                pool.push(stream);
             }
-            Err(_) => {
+            Err(e) => {
+                eprintln!("MessagePack protocol error: {e}");
                 stats.failed.fetch_add(1, Ordering::Relaxed);
                 stats.total_requests.fetch_add(1, Ordering::Relaxed);
+
+                // Try to reconnect
+                match TcpStream::connect(format!("127.0.0.1:{port}")).await {
+                    Ok(new_stream) => {
+                        stream = new_stream;
+                        let _ = stream.set_nodelay(true);
+                    }
+                    Err(_) => break, // Can't reconnect, stop this worker
+                }
             }
         }
     }
