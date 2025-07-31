@@ -2,8 +2,8 @@
 
 use anyhow::Result;
 use bytes::{BufMut, BytesMut};
-use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpStream;
@@ -39,7 +39,7 @@ pub async fn run_direct_native_test(
             // Each thread gets its own connection
             let mut stream = TcpStream::connect(format!("127.0.0.1:{port}")).await?;
             stream.set_nodelay(true)?;
-            
+
             // Pre-allocate buffers
             let mut request_buf = BytesMut::with_capacity(256);
             let mut response_buf = [0u8; 34];
@@ -52,7 +52,7 @@ pub async fn run_direct_native_test(
 
             for i in 0..requests_per_thread {
                 let key = format!("key_{}_{}", thread_id, i % 1000);
-                
+
                 // Build request
                 request_buf.clear();
                 request_buf.put_u8(1); // cmd
@@ -61,7 +61,7 @@ pub async fn run_direct_native_test(
                 request_buf.put_i64_le(100000); // rate
                 request_buf.put_i64_le(60); // period
                 request_buf.put_i64_le(1); // quantity
-                
+
                 let timestamp = SystemTime::now()
                     .duration_since(UNIX_EPOCH)
                     .unwrap()
@@ -71,17 +71,17 @@ pub async fn run_direct_native_test(
 
                 // Send request
                 stream.write_all(&request_buf).await?;
-                
+
                 // Read response
                 stream.read_exact(&mut response_buf).await?;
-                
+
                 let allowed = response_buf[1];
                 stats.total.fetch_add(1, Ordering::Relaxed);
                 if allowed == 1 {
                     stats.successful.fetch_add(1, Ordering::Relaxed);
                 }
             }
-            
+
             Ok::<(), anyhow::Error>(())
         });
     }

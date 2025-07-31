@@ -4,7 +4,7 @@ use anyhow::Result;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{Duration, Instant};
-use throttlecrab_client::{ThrottleCrabClientV2, ClientBuilderV2};
+use throttlecrab_client::{ClientBuilderV2, ThrottleCrabClientV2};
 use tokio::sync::Barrier;
 use tokio::task::JoinSet;
 

@@ -19,4 +19,4 @@ pub use protocol::{ThrottleRequest, ThrottleResponse};
 pub use client::ClientBuilder;
 
 // V2 exports
-pub use client_v2::{ThrottleCrabClientV2, ClientBuilderV2};
+pub use client_v2::{ClientBuilderV2, ThrottleCrabClientV2};

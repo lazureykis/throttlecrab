@@ -77,8 +77,11 @@ impl<S: Store> RateLimiter<S> {
 
         if allowed {
             // Update the store with new TAT
-            let ttl =
-                Duration::from_nanos((new_tat - now_ns + delay_variation_tolerance_ns) as u64);
+            let ttl = Duration::from_nanos(
+                new_tat
+                    .saturating_sub(now_ns)
+                    .saturating_add(delay_variation_tolerance_ns) as u64,
+            );
 
             // Try to update - if it fails due to race condition, recalculate
             if let Some(old_tat) = tat_val {
@@ -141,7 +144,10 @@ impl<S: Store> RateLimiter<S> {
         };
 
         let reset_after = Duration::from_nanos(
-            (current_tat.saturating_sub(now_ns) + delay_variation_tolerance_ns).max(0) as u64,
+            current_tat
+                .saturating_sub(now_ns)
+                .saturating_add(delay_variation_tolerance_ns)
+                .max(0) as u64,
         );
 
         let retry_after = if allowed {
