@@ -382,6 +382,32 @@ throttlecrab-server \
 - **Metrics**: Internal performance metrics available via logs
 - **Resource Usage**: Monitor memory usage based on active keys
 
+## Time Synchronization
+
+### Important Considerations
+
+ThrottleCrab uses system time for rate limiting calculations. When deploying in distributed environments:
+
+1. **Client-Server Time Sync**: Ensure all clients and servers have synchronized clocks (use NTP)
+   - Time drift between systems can affect rate limiting accuracy
+   - Consider using server-provided timestamps for consistency
+
+2. **Time Adjustments**: ThrottleCrab handles system time changes gracefully:
+   - If time goes backwards, it starts a fresh rate limiting window
+   - No panics or service interruptions during NTP adjustments
+   - Uses saturating arithmetic to prevent overflow issues
+
+3. **Best Practices**:
+   - Use NTP to keep all systems synchronized within 1-2 seconds
+   - For critical applications, use the server's timestamp in requests
+   - Monitor clock drift between your systems
+   - Consider using monotonic clocks for interval measurements
+
+4. **Protocol Support**:
+   - Native protocol includes timestamp in requests
+   - HTTP clients can include timestamp in request body
+   - Server can optionally use its own time if client timestamps are unreliable
+
 ### Scaling Strategies
 
 #### Vertical Scaling
