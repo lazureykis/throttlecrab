@@ -41,9 +41,9 @@ fn main() {
     for &size in &test_sizes {
         println!("\n--- Testing with {size} keys ---");
 
-        // Optimized store - should handle any size
+        // Periodic store - should handle any size
         test_store_capacity(
-            "Optimized MemoryStore",
+            "Periodic Store",
             RateLimiter::new(PeriodicStore::with_capacity(size / 2)), // Under-provision
             size,
         );

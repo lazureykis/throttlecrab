@@ -53,33 +53,25 @@ fn main() {
     );
     println!("{}", "-".repeat(90));
 
-    // OptimizedMemoryStore
+    // PeriodicStore
     benchmark_store(
-        "Optimized MemoryStore",
+        "Periodic Store",
         RateLimiter::new(PeriodicStore::with_capacity(num_keys)),
         num_keys,
         iterations,
     );
 
-    // InternedMemoryStore
+    // ProbabilisticStore
     benchmark_store(
-        "Interned MemoryStore",
-        RateLimiter::new(PeriodicStore::with_capacity(num_keys)),
-        num_keys,
-        iterations,
-    );
-
-    // ProbabilisticMemoryStore
-    benchmark_store(
-        "Probabilistic MemoryStore",
+        "Probabilistic Store",
         RateLimiter::new(ProbabilisticStore::with_capacity(num_keys)),
         num_keys,
         iterations,
     );
 
-    // AdaptiveMemoryStore
+    // AdaptiveStore
     benchmark_store(
-        "Adaptive MemoryStore",
+        "Adaptive Store",
         RateLimiter::new(AdaptiveStore::with_capacity(num_keys)),
         num_keys,
         iterations,

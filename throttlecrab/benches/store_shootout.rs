@@ -48,8 +48,7 @@ fn benchmark_store_shootout(c: &mut Criterion) {
             BenchmarkId::new("ahash", num_keys),
             &num_keys,
             |b, &num_keys| {
-                let mut limiter =
-                    RateLimiter::new(AHashStore::with_capacity(num_keys as usize));
+                let mut limiter = RateLimiter::new(AHashStore::with_capacity(num_keys as usize));
                 let mut counter = 0u64;
 
                 b.iter(|| {

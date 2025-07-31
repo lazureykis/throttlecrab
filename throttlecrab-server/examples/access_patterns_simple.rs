@@ -82,16 +82,7 @@ fn main() {
 
         // Benchmark each store
         benchmark_store(
-            "Optimized",
-            RateLimiter::new(PeriodicStore::with_capacity(num_keys)),
-            pattern_name,
-            &*test_fn,
-            num_keys,
-            iterations,
-        );
-
-        benchmark_store(
-            "Interned",
+            "Periodic",
             RateLimiter::new(PeriodicStore::with_capacity(num_keys)),
             pattern_name,
             &*test_fn,

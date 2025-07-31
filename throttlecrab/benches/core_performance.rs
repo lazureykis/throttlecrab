@@ -206,7 +206,6 @@ fn benchmark_store_comparison(c: &mut Criterion) {
         });
     });
 
-
     group.bench_function("ahash_memory_store", |b| {
         let mut limiter = RateLimiter::new(AHashStore::with_capacity(num_keys as usize));
         let mut counter = 0u64;

@@ -194,17 +194,11 @@ fn main() {
     for pattern in patterns {
         let mut results = Vec::new();
 
-        // Optimized Store
+        // Periodic Store
         let limiter = RateLimiter::new(PeriodicStore::with_capacity(num_keys));
         let (ops_per_sec, allowed, blocked) =
-            benchmark_pattern("Optimized", limiter, pattern, num_keys, iterations);
-        results.push(("Optimized", ops_per_sec, allowed, blocked));
-
-        // Interned Store
-        let limiter = RateLimiter::new(PeriodicStore::with_capacity(num_keys));
-        let (ops_per_sec, allowed, blocked) =
-            benchmark_pattern("Interned", limiter, pattern, num_keys, iterations);
-        results.push(("Interned", ops_per_sec, allowed, blocked));
+            benchmark_pattern("Periodic", limiter, pattern, num_keys, iterations);
+        results.push(("Periodic", ops_per_sec, allowed, blocked));
 
         // Probabilistic Store
         let limiter = RateLimiter::new(ProbabilisticStore::with_capacity(num_keys));

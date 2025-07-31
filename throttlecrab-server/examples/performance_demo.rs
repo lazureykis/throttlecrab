@@ -52,7 +52,7 @@ fn main() {
     // Show improvement
     println!("\n📊 Performance Summary");
     println!("{}", "=".repeat(40));
-    println!("The OptimizedMemoryStore with AHash provides:");
+    println!("The PeriodicStore with AHash provides:");
     println!("- Deferred cleanup (only every 60s or when 20% expired)");
     println!("- Pre-allocated capacity to avoid rehashing");
     println!("- Fast AHash hashing (SIMD-optimized)");
