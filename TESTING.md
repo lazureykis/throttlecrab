@@ -86,12 +86,6 @@ cargo bench store_comparison
 cargo bench access_patterns
 ```
 
-To run example-based benchmarks:
-```bash
-cd benches
-./run_benchmarks.sh
-```
-
 ### Server Benchmarks
 
 The server includes comprehensive benchmark suites:

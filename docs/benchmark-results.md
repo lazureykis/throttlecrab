@@ -164,8 +164,8 @@ All benchmarks use:
 Run benchmarks yourself:
 ```bash
 # Library benchmarks
-cd throttlecrab/benches
-./run_benchmarks.sh
+cd throttlecrab
+cargo bench
 
 # Server benchmarks
 cd throttlecrab-server/tests

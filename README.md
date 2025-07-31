@@ -308,10 +308,6 @@ cargo test --release
 # Run benchmarks
 cd throttlecrab
 cargo bench
-
-# Run example benchmarks
-cd benches
-./run_benchmarks.sh
 ```
 
 ### Performance Testing
