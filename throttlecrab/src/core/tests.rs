@@ -176,6 +176,221 @@ fn test_saturating_arithmetic() {
 }
 
 #[test]
+fn test_remaining_count_accuracy() {
+    let mut limiter = RateLimiter::new(PeriodicStore::new());
+    let start_time = SystemTime::now();
+    
+    // Test parameters: burst=5, rate=10/60s (1 token per 6 seconds)
+    let burst = 5;
+    let rate = 10;
+    let period = 60;
+    
+    // Test 1: First request should have burst-1 remaining
+    let (allowed, result) = limiter
+        .rate_limit("remaining_test", burst, rate, period, 1, start_time)
+        .unwrap();
+    assert!(allowed);
+    assert_eq!(result.remaining, 4, "First request should leave 4 remaining");
+    
+    // Test 2: Consume rest of burst capacity
+    for i in 2..=5 {
+        let (allowed, result) = limiter
+            .rate_limit("remaining_test", burst, rate, period, 1, start_time)
+            .unwrap();
+        assert!(allowed, "Request {} should be allowed", i);
+        assert_eq!(
+            result.remaining, 
+            (5 - i) as i64, 
+            "Request {} should leave {} remaining", 
+            i, 
+            5 - i
+        );
+    }
+    
+    // Test 3: Next request should be blocked with 0 remaining
+    let (allowed, result) = limiter
+        .rate_limit("remaining_test", burst, rate, period, 1, start_time)
+        .unwrap();
+    assert!(!allowed, "Should be rate limited after burst");
+    assert_eq!(result.remaining, 0, "Should have 0 remaining when blocked");
+    assert!(result.retry_after.as_secs() > 0, "Should have positive retry_after");
+    
+    // Test 4: After token replenishment, should allow with 0 remaining
+    // Wait for one token to replenish (6 seconds in this case)
+    let after_replenish = start_time + Duration::from_secs(6);
+    let (allowed, result) = limiter
+        .rate_limit("remaining_test", burst, rate, period, 1, after_replenish)
+        .unwrap();
+    assert!(allowed, "Should allow after replenishment");
+    assert_eq!(result.remaining, 0, "Should have 0 remaining after using replenished token");
+    
+    // Test 5: Immediate next request should be blocked again
+    let (allowed, result) = limiter
+        .rate_limit("remaining_test", burst, rate, period, 1, after_replenish)
+        .unwrap();
+    assert!(!allowed, "Should be blocked again");
+    assert_eq!(result.remaining, 0);
+    
+    // Test 6: Test with larger quantity
+    let (allowed, result) = limiter
+        .rate_limit("quantity_remaining", burst, rate, period, 3, start_time)
+        .unwrap();
+    assert!(allowed);
+    assert_eq!(result.remaining, 2, "Using quantity=3 should leave 2 remaining");
+    
+    // Test 7: Quantity larger than remaining should be blocked
+    let (allowed, result) = limiter
+        .rate_limit("quantity_remaining", burst, rate, period, 3, start_time)
+        .unwrap();
+    assert!(!allowed, "Quantity larger than remaining should be blocked");
+    assert_eq!(result.remaining, 2, "Remaining should not change on blocked request");
+    
+    // Test 8: But smaller quantity should work
+    let (allowed, result) = limiter
+        .rate_limit("quantity_remaining", burst, rate, period, 2, start_time)
+        .unwrap();
+    assert!(allowed, "Quantity equal to remaining should be allowed");
+    assert_eq!(result.remaining, 0);
+    
+    // Test 9: Edge case - very high rate (multiple tokens per second)
+    let (allowed, result) = limiter
+        .rate_limit("high_rate", 10, 600, 60, 1, start_time)
+        .unwrap();
+    assert!(allowed);
+    assert_eq!(result.remaining, 9);
+    
+    // After 1 second, should have replenished ~10 tokens
+    let one_sec_later = start_time + Duration::from_secs(1);
+    
+    // Use up the burst
+    for _ in 0..9 {
+        limiter.rate_limit("high_rate", 10, 600, 60, 1, start_time).unwrap();
+    }
+    
+    // Should have replenished some tokens after 1 second
+    let (allowed, result) = limiter
+        .rate_limit("high_rate", 10, 600, 60, 1, one_sec_later)
+        .unwrap();
+    assert!(allowed, "Should have replenished tokens");
+    assert!(result.remaining < 10, "Should not be at full capacity immediately");
+}
+
+#[test]
+fn test_remaining_count_all_stores() {
+    use super::{AdaptiveStore, ProbabilisticStore};
+    
+    // Test the same scenario with all store types
+    fn test_scenario<S: super::Store>(mut limiter: RateLimiter<S>) {
+        let now = SystemTime::now();
+        
+        // Use burst of 3 for simpler testing
+        let burst = 3;
+        let rate = 6;
+        let period = 60;
+        
+        // Consume all burst
+        for i in 1..=3 {
+            let (allowed, result) = limiter
+                .rate_limit("test_key", burst, rate, period, 1, now)
+                .unwrap();
+            assert!(allowed, "Request {} should be allowed", i);
+            assert_eq!(result.remaining, (3 - i) as i64);
+        }
+        
+        // Next should be blocked
+        let (allowed, result) = limiter
+            .rate_limit("test_key", burst, rate, period, 1, now)
+            .unwrap();
+        assert!(!allowed);
+        assert_eq!(result.remaining, 0);
+        
+        // After 10 seconds (1 token replenished)
+        let later = now + Duration::from_secs(10);
+        let (allowed, result) = limiter
+            .rate_limit("test_key", burst, rate, period, 1, later)
+            .unwrap();
+        assert!(allowed);
+        assert_eq!(result.remaining, 0, "Should use the replenished token immediately");
+    }
+    
+    // Test with PeriodicStore
+    test_scenario(RateLimiter::new(PeriodicStore::new()));
+    
+    // Test with AdaptiveStore
+    test_scenario(RateLimiter::new(AdaptiveStore::new()));
+    
+    // Test with ProbabilisticStore
+    test_scenario(RateLimiter::new(ProbabilisticStore::new()));
+}
+
+#[test]
+fn test_edge_cases_zero_remaining() {
+    let mut limiter = RateLimiter::new(PeriodicStore::new());
+    let now = SystemTime::now();
+    
+    // Edge case 1: Exact token replenishment timing
+    // burst=2, rate=120/60s = 2 per second
+    let (allowed, result) = limiter
+        .rate_limit("exact_timing", 2, 120, 60, 1, now)
+        .unwrap();
+    assert!(allowed);
+    assert_eq!(result.remaining, 1);
+    
+    let (allowed, result) = limiter
+        .rate_limit("exact_timing", 2, 120, 60, 1, now)
+        .unwrap();
+    assert!(allowed);
+    assert_eq!(result.remaining, 0);
+    
+    // Exactly 0.5 seconds later - should have 1 token
+    let half_sec = now + Duration::from_millis(500);
+    let (allowed, result) = limiter
+        .rate_limit("exact_timing", 2, 120, 60, 1, half_sec)
+        .unwrap();
+    assert!(allowed);
+    assert_eq!(result.remaining, 0);
+    
+    // Edge case 2: Division by zero protection
+    // This would cause emission_interval to be 0
+    let result = limiter.rate_limit("zero_period", 10, 10, 0, 1, now);
+    assert!(result.is_err(), "Zero period should error");
+    
+    // Edge case 3: Fractional tokens
+    // burst=3, rate=7/60s means ~8.57 seconds per token
+    let (allowed, result) = limiter
+        .rate_limit("fractional", 3, 7, 60, 1, now)
+        .unwrap();
+    assert!(allowed);
+    assert_eq!(result.remaining, 2);
+    
+    // Use all burst
+    limiter.rate_limit("fractional", 3, 7, 60, 1, now).unwrap();
+    limiter.rate_limit("fractional", 3, 7, 60, 1, now).unwrap();
+    
+    // After 8 seconds, should still not have a token
+    let eight_sec = now + Duration::from_secs(8);
+    let (allowed, _) = limiter
+        .rate_limit("fractional", 3, 7, 60, 1, eight_sec)
+        .unwrap();
+    assert!(!allowed, "Should not have token after 8 seconds");
+    
+    // After 9 seconds, should have a token
+    let nine_sec = now + Duration::from_secs(9);
+    let (allowed, result) = limiter
+        .rate_limit("fractional", 3, 7, 60, 1, nine_sec)
+        .unwrap();
+    assert!(allowed, "Should have token after 9 seconds");
+    assert_eq!(result.remaining, 0);
+    
+    // Edge case 4: Maximum values
+    let (allowed, result) = limiter
+        .rate_limit("max_burst", i64::MAX / 1000, 100, 60, 1, now)
+        .unwrap();
+    assert!(allowed);
+    assert!(result.remaining > 0, "Should handle large burst values");
+}
+
+#[test]
 fn test_rapid_time_changes() {
     let mut limiter = RateLimiter::new(PeriodicStore::new());
 
