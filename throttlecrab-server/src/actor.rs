@@ -1,6 +1,6 @@
 use crate::types::{ThrottleRequest, ThrottleResponse};
 use anyhow::Result;
-use throttlecrab::{PeriodicStore, RateLimiter};
+use throttlecrab::{AdaptiveStore, CellError, PeriodicStore, ProbabilisticStore, RateLimiter};
 use tokio::sync::{mpsc, oneshot};
 
 /// Message types for the rate limiter actor
@@ -37,87 +37,125 @@ impl RateLimiterHandle {
     }
 }
 
-/// The rate limiter actor that runs in a single thread
-pub struct RateLimiterActor {
-    limiter: RateLimiter<PeriodicStore>,
-    rx: mpsc::Receiver<RateLimiterMessage>,
-}
+/// The rate limiter actor
+pub struct RateLimiterActor;
 
 impl RateLimiterActor {
-    /// Spawn a new rate limiter actor and return a handle to communicate with it
-    pub fn spawn(buffer_size: usize) -> RateLimiterHandle {
+    /// Spawn a new rate limiter actor with a periodic store
+    pub fn spawn_periodic(buffer_size: usize, store: PeriodicStore) -> RateLimiterHandle {
         let (tx, rx) = mpsc::channel(buffer_size);
 
         tokio::spawn(async move {
-            let mut actor = RateLimiterActor {
-                limiter: RateLimiter::new(PeriodicStore::new()),
-                rx,
-            };
-
-            actor.run().await;
+            let store_type = StoreType::Periodic(RateLimiter::new(store));
+            run_actor(rx, store_type).await;
         });
 
         RateLimiterHandle { tx }
     }
 
-    /// Main actor loop
-    async fn run(&mut self) {
-        while let Some(msg) = self.rx.recv().await {
-            match msg {
-                RateLimiterMessage::Throttle {
-                    request,
-                    response_tx,
-                } => {
-                    let response = self.handle_throttle(request);
-                    // Ignore send errors - receiver may have timed out
-                    let _ = response_tx.send(response);
-                }
-            }
-        }
+    /// Spawn a new rate limiter actor with a probabilistic store
+    pub fn spawn_probabilistic(buffer_size: usize, store: ProbabilisticStore) -> RateLimiterHandle {
+        let (tx, rx) = mpsc::channel(buffer_size);
 
-        tracing::info!("Rate limiter actor shutting down");
+        tokio::spawn(async move {
+            let store_type = StoreType::Probabilistic(RateLimiter::new(store));
+            run_actor(rx, store_type).await;
+        });
+
+        RateLimiterHandle { tx }
     }
 
-    /// Handle a throttle request
-    fn handle_throttle(&mut self, request: ThrottleRequest) -> Result<ThrottleResponse> {
-        // Check the rate limit
-        let (allowed, result) = self
-            .limiter
-            .rate_limit(
-                &request.key,
-                request.max_burst,
-                request.count_per_period,
-                request.period,
-                request.quantity,
-                request.timestamp,
-            )
-            .map_err(|e| anyhow::anyhow!("Rate limit check failed: {}", e))?;
+    /// Spawn a new rate limiter actor with an adaptive store
+    pub fn spawn_adaptive(buffer_size: usize, store: AdaptiveStore) -> RateLimiterHandle {
+        let (tx, rx) = mpsc::channel(buffer_size);
 
-        Ok(ThrottleResponse::from((allowed, result)))
+        tokio::spawn(async move {
+            let store_type = StoreType::Adaptive(RateLimiter::new(store));
+            run_actor(rx, store_type).await;
+        });
+
+        RateLimiterHandle { tx }
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
+/// Internal enum to handle different store types
+enum StoreType {
+    Periodic(RateLimiter<PeriodicStore>),
+    Probabilistic(RateLimiter<ProbabilisticStore>),
+    Adaptive(RateLimiter<AdaptiveStore>),
+}
 
-    #[tokio::test]
-    async fn test_basic_rate_limiting() {
-        let handle = RateLimiterActor::spawn(100);
-
-        // First request should succeed
-        let req = ThrottleRequest {
-            key: "test".to_string(),
-            max_burst: 5,
-            count_per_period: 10,
-            period: 60,
-            quantity: 1,
-            timestamp: std::time::SystemTime::now(),
-        };
-
-        let resp = handle.throttle(req.clone()).await.unwrap();
-        assert!(resp.allowed);
-        assert_eq!(resp.limit, 5);
-        assert_eq!(resp.remaining, 4);
+impl StoreType {
+    fn rate_limit(
+        &mut self,
+        key: &str,
+        max_burst: i64,
+        count_per_period: i64,
+        period: i64,
+        quantity: i64,
+        timestamp: std::time::SystemTime,
+    ) -> Result<(bool, throttlecrab::RateLimitResult), CellError> {
+        match self {
+            StoreType::Periodic(limiter) => limiter.rate_limit(
+                key,
+                max_burst,
+                count_per_period,
+                period,
+                quantity,
+                timestamp,
+            ),
+            StoreType::Probabilistic(limiter) => limiter.rate_limit(
+                key,
+                max_burst,
+                count_per_period,
+                period,
+                quantity,
+                timestamp,
+            ),
+            StoreType::Adaptive(limiter) => limiter.rate_limit(
+                key,
+                max_burst,
+                count_per_period,
+                period,
+                quantity,
+                timestamp,
+            ),
+        }
     }
+}
+
+async fn run_actor(mut rx: mpsc::Receiver<RateLimiterMessage>, mut store_type: StoreType) {
+    while let Some(msg) = rx.recv().await {
+        match msg {
+            RateLimiterMessage::Throttle {
+                request,
+                response_tx,
+            } => {
+                let response = handle_throttle(&mut store_type, request);
+                // Ignore send errors - receiver may have timed out
+                let _ = response_tx.send(response);
+            }
+        }
+    }
+
+    tracing::info!("Rate limiter actor shutting down");
+}
+
+fn handle_throttle(
+    store_type: &mut StoreType,
+    request: ThrottleRequest,
+) -> Result<ThrottleResponse> {
+    // Check the rate limit
+    let (allowed, result) = store_type
+        .rate_limit(
+            &request.key,
+            request.max_burst,
+            request.count_per_period,
+            request.period,
+            request.quantity,
+            request.timestamp,
+        )
+        .map_err(|e| anyhow::anyhow!("Rate limit check failed: {}", e))?;
+
+    Ok(ThrottleResponse::from((allowed, result)))
 }

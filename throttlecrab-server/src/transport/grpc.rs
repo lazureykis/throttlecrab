@@ -95,7 +95,11 @@ mod tests {
     #[tokio::test]
     async fn test_grpc_server_basic() {
         // Start server
-        let limiter = RateLimiterActor::spawn(1000);
+        let store = throttlecrab::PeriodicStore::builder()
+            .capacity(1000)
+            .cleanup_interval(std::time::Duration::from_secs(60))
+            .build();
+        let limiter = RateLimiterActor::spawn_periodic(1000, store);
         let transport = GrpcTransport::new("127.0.0.1", 9091);
 
         // Run server in background
@@ -136,7 +140,11 @@ mod tests {
     #[tokio::test]
     async fn test_grpc_rate_limiting() {
         // Start server
-        let limiter = RateLimiterActor::spawn(1000);
+        let store = throttlecrab::PeriodicStore::builder()
+            .capacity(1000)
+            .cleanup_interval(std::time::Duration::from_secs(60))
+            .build();
+        let limiter = RateLimiterActor::spawn_periodic(1000, store);
         let transport = GrpcTransport::new("127.0.0.1", 9092);
 
         // Run server in background

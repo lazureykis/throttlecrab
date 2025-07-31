@@ -6,7 +6,10 @@ mod tests;
 
 pub use rate::Rate;
 pub use rate_limiter::{RateLimitResult, RateLimiter};
-pub use store::{AdaptiveStore, PeriodicStore, ProbabilisticStore, Store};
+pub use store::{
+    AdaptiveStore, AdaptiveStoreBuilder, PeriodicStore, PeriodicStoreBuilder, ProbabilisticStore,
+    ProbabilisticStoreBuilder, Store,
+};
 
 use std::error::Error;
 use std::fmt;
