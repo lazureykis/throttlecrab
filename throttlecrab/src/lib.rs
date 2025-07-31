@@ -1,8 +1,8 @@
 pub mod core;
 
 pub use core::{
-    AdaptiveStore, CellError, PeriodicStore, ProbabilisticStore, Rate, RateLimitResult,
-    RateLimiter, Store,
+    AdaptiveStore, AdaptiveStoreBuilder, CellError, PeriodicStore, PeriodicStoreBuilder,
+    ProbabilisticStore, ProbabilisticStoreBuilder, Rate, RateLimitResult, RateLimiter, Store,
 };
 
 // Re-export the store module so benchmarks can access it

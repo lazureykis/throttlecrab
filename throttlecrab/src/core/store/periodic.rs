@@ -23,6 +23,12 @@ pub struct PeriodicStore {
     expired_count: usize,
 }
 
+/// Builder for PeriodicStore
+pub struct PeriodicStoreBuilder {
+    capacity: usize,
+    cleanup_interval: Duration,
+}
+
 impl PeriodicStore {
     pub fn new() -> Self {
         Self::with_capacity(DEFAULT_CAPACITY)
@@ -34,6 +40,22 @@ impl PeriodicStore {
             data: HashMap::with_capacity((capacity as f64 * CAPACITY_OVERHEAD_FACTOR) as usize),
             next_cleanup: SystemTime::now() + Duration::from_secs(DEFAULT_CLEANUP_INTERVAL_SECS),
             cleanup_interval: Duration::from_secs(DEFAULT_CLEANUP_INTERVAL_SECS),
+            expired_count: 0,
+        }
+    }
+
+    pub fn builder() -> PeriodicStoreBuilder {
+        PeriodicStoreBuilder {
+            capacity: DEFAULT_CAPACITY,
+            cleanup_interval: Duration::from_secs(DEFAULT_CLEANUP_INTERVAL_SECS),
+        }
+    }
+
+    fn with_config(capacity: usize, cleanup_interval: Duration) -> Self {
+        PeriodicStore {
+            data: HashMap::with_capacity((capacity as f64 * CAPACITY_OVERHEAD_FACTOR) as usize),
+            next_cleanup: SystemTime::now() + cleanup_interval,
+            cleanup_interval,
             expired_count: 0,
         }
     }
@@ -138,5 +160,21 @@ impl Store for PeriodicStore {
                 Ok(true)
             }
         }
+    }
+}
+
+impl PeriodicStoreBuilder {
+    pub fn capacity(mut self, capacity: usize) -> Self {
+        self.capacity = capacity;
+        self
+    }
+
+    pub fn cleanup_interval(mut self, interval: Duration) -> Self {
+        self.cleanup_interval = interval;
+        self
+    }
+
+    pub fn build(self) -> PeriodicStore {
+        PeriodicStore::with_config(self.capacity, self.cleanup_interval)
     }
 }

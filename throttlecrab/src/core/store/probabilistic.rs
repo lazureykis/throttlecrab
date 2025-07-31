@@ -16,6 +16,13 @@ const PROBABILISTIC_CLEANUP_MODULO: u64 = 1000; // 0.1% chance
 pub struct ProbabilisticStore {
     data: HashMap<String, (i64, Option<SystemTime>)>,
     operations_count: u64,
+    cleanup_probability: u64,
+}
+
+/// Builder for ProbabilisticStore
+pub struct ProbabilisticStoreBuilder {
+    capacity: usize,
+    cleanup_probability: u64,
 }
 
 impl ProbabilisticStore {
@@ -27,6 +34,22 @@ impl ProbabilisticStore {
         ProbabilisticStore {
             data: HashMap::with_capacity((capacity as f64 * CAPACITY_OVERHEAD_FACTOR) as usize),
             operations_count: 0,
+            cleanup_probability: PROBABILISTIC_CLEANUP_MODULO,
+        }
+    }
+
+    pub fn builder() -> ProbabilisticStoreBuilder {
+        ProbabilisticStoreBuilder {
+            capacity: DEFAULT_CAPACITY,
+            cleanup_probability: PROBABILISTIC_CLEANUP_MODULO,
+        }
+    }
+
+    fn with_config(capacity: usize, cleanup_probability: u64) -> Self {
+        ProbabilisticStore {
+            data: HashMap::with_capacity((capacity as f64 * CAPACITY_OVERHEAD_FACTOR) as usize),
+            operations_count: 0,
+            cleanup_probability,
         }
     }
 
@@ -36,7 +59,7 @@ impl ProbabilisticStore {
         // Simple pseudo-random using operations count
         // This gives uniform distribution over time while being deterministic
         let hash = self.operations_count.wrapping_mul(2654435761); // Prime multiplier
-        if hash % PROBABILISTIC_CLEANUP_MODULO == 0 {
+        if hash % self.cleanup_probability == 0 {
             self.data.retain(|_, (_, expiry)| {
                 if let Some(exp) = expiry {
                     *exp > now
@@ -107,5 +130,21 @@ impl Store for ProbabilisticStore {
                 Ok(true)
             }
         }
+    }
+}
+
+impl ProbabilisticStoreBuilder {
+    pub fn capacity(mut self, capacity: usize) -> Self {
+        self.capacity = capacity;
+        self
+    }
+
+    pub fn cleanup_probability(mut self, probability: u64) -> Self {
+        self.cleanup_probability = probability;
+        self
+    }
+
+    pub fn build(self) -> ProbabilisticStore {
+        ProbabilisticStore::with_config(self.capacity, self.cleanup_probability)
     }
 }

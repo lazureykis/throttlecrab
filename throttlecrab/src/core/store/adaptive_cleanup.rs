@@ -33,6 +33,14 @@ pub struct AdaptiveStore {
     last_cleanup_total: usize,
 }
 
+/// Builder for AdaptiveStore
+pub struct AdaptiveStoreBuilder {
+    capacity: usize,
+    min_cleanup_interval: Duration,
+    max_cleanup_interval: Duration,
+    max_operations_before_cleanup: usize,
+}
+
 impl AdaptiveStore {
     pub fn new() -> Self {
         Self::with_capacity(DEFAULT_CAPACITY)
@@ -48,6 +56,35 @@ impl AdaptiveStore {
             expired_count: 0,
             operations_since_cleanup: 0,
             max_operations_before_cleanup: MAX_OPERATIONS_BEFORE_CLEANUP,
+            last_cleanup_removed: 0,
+            last_cleanup_total: 0,
+        }
+    }
+
+    pub fn builder() -> AdaptiveStoreBuilder {
+        AdaptiveStoreBuilder {
+            capacity: DEFAULT_CAPACITY,
+            min_cleanup_interval: Duration::from_secs(MIN_CLEANUP_INTERVAL_SECS),
+            max_cleanup_interval: Duration::from_secs(MAX_CLEANUP_INTERVAL_SECS),
+            max_operations_before_cleanup: MAX_OPERATIONS_BEFORE_CLEANUP,
+        }
+    }
+
+    fn with_config(
+        capacity: usize,
+        min_cleanup_interval: Duration,
+        max_cleanup_interval: Duration,
+        max_operations_before_cleanup: usize,
+    ) -> Self {
+        AdaptiveStore {
+            data: HashMap::with_capacity((capacity as f64 * CAPACITY_OVERHEAD_FACTOR) as usize),
+            next_cleanup: SystemTime::now() + Duration::from_secs(DEFAULT_CLEANUP_INTERVAL_SECS),
+            min_cleanup_interval,
+            max_cleanup_interval,
+            current_cleanup_interval: Duration::from_secs(DEFAULT_CLEANUP_INTERVAL_SECS),
+            expired_count: 0,
+            operations_since_cleanup: 0,
+            max_operations_before_cleanup,
             last_cleanup_removed: 0,
             last_cleanup_total: 0,
         }
@@ -197,6 +234,37 @@ impl Store for AdaptiveStore {
                 Ok(true)
             }
         }
+    }
+}
+
+impl AdaptiveStoreBuilder {
+    pub fn capacity(mut self, capacity: usize) -> Self {
+        self.capacity = capacity;
+        self
+    }
+
+    pub fn min_interval(mut self, interval: Duration) -> Self {
+        self.min_cleanup_interval = interval;
+        self
+    }
+
+    pub fn max_interval(mut self, interval: Duration) -> Self {
+        self.max_cleanup_interval = interval;
+        self
+    }
+
+    pub fn max_operations(mut self, max_ops: usize) -> Self {
+        self.max_operations_before_cleanup = max_ops;
+        self
+    }
+
+    pub fn build(self) -> AdaptiveStore {
+        AdaptiveStore::with_config(
+            self.capacity,
+            self.min_cleanup_interval,
+            self.max_cleanup_interval,
+            self.max_operations_before_cleanup,
+        )
     }
 }
 

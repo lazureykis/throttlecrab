@@ -1,4 +1,6 @@
 mod actor;
+mod config;
+mod store;
 mod transport;
 mod types;
 
@@ -6,169 +8,109 @@ mod types;
 mod actor_tests;
 
 use anyhow::Result;
-use clap::Parser;
+use tokio::task::JoinSet;
 
-use crate::actor::RateLimiterActor;
+use crate::config::Config;
 use crate::transport::{
     Transport, grpc::GrpcTransport, http::HttpTransport, msgpack::MsgPackTransport,
     native::NativeTransport,
 };
-use crate::types::ThrottleRequest;
-
-#[derive(Parser, Debug)]
-#[command(author, version, about, long_about = None)]
-struct Args {
-    /// Run in server mode
-    #[arg(long)]
-    server: bool,
-
-    /// Host to bind to (server mode)
-    #[arg(long, default_value = "127.0.0.1")]
-    host: String,
-
-    /// Port to bind to (server mode)
-    #[arg(long, default_value = "9090")]
-    port: u16,
-
-    /// Channel buffer size
-    #[arg(long, default_value = "10000")]
-    buffer_size: usize,
-
-    /// Run demo mode
-    #[arg(long)]
-    demo: bool,
-
-    /// Use MessagePack transport
-    #[arg(long)]
-    msgpack: bool,
-
-    /// Use native binary protocol
-    #[arg(long)]
-    native: bool,
-
-    /// Use gRPC transport
-    #[arg(long)]
-    grpc: bool,
-
-    /// Use HTTP transport with JSON
-    #[arg(long)]
-    http: bool,
-}
 
 #[tokio::main]
 async fn main() -> Result<()> {
+    // Parse configuration from environment variables and CLI arguments
+    let config = Config::from_env_and_args()?;
+
     // Initialize logging
     tracing_subscriber::fmt()
         .with_env_filter(
             tracing_subscriber::EnvFilter::from_default_env()
-                .add_directive("throttlecrab=info".parse()?),
+                .add_directive(format!("throttlecrab={}", config.log_level).parse()?),
         )
         .init();
 
-    let args = Args::parse();
+    // Create the rate limiter actor with the configured store
+    let limiter = store::create_rate_limiter(&config.store, config.buffer_size);
 
-    // Spawn the rate limiter actor
-    let limiter = RateLimiterActor::spawn(args.buffer_size);
+    // Create a set to manage multiple transport tasks
+    let mut transport_tasks = JoinSet::new();
 
-    if args.server {
-        tracing::info!(
-            "Starting ThrottleCrab server on {}:{}",
-            args.host,
-            args.port
-        );
+    // Start HTTP transport if enabled
+    if let Some(http_config) = &config.transports.http {
+        let limiter_handle = limiter.clone();
+        let host = http_config.host.clone();
+        let port = http_config.port;
 
-        if args.grpc {
-            tracing::info!("Using gRPC transport");
-            let transport = GrpcTransport::new(&args.host, args.port);
-            transport.start(limiter).await?;
-        } else if args.http {
-            tracing::info!("Using HTTP transport with JSON");
-            let transport = HttpTransport::new(&args.host, args.port);
-            transport.start(limiter).await?;
-        } else if args.native {
-            tracing::info!("Using native binary protocol");
-            let transport = NativeTransport::new(&args.host, args.port);
-            transport.start(limiter).await?;
-        } else if args.msgpack {
-            tracing::info!("Using MessagePack transport");
-            let transport = MsgPackTransport::new(&args.host, args.port);
-            transport.start(limiter).await?;
-        } else {
-            tracing::info!("Using MessagePack transport (default)");
-            let transport = MsgPackTransport::new(&args.host, args.port);
-            transport.start(limiter).await?;
-        }
-    } else if args.demo {
-        run_demo(limiter).await?;
-    } else {
-        println!("ThrottleCrab - High-performance rate limiter");
-        println!();
-        println!("Usage:");
-        println!("  throttlecrab --server              Start server mode");
-        println!("  throttlecrab --demo                Run demo");
-        println!();
-        println!("Server options:");
-        println!("  --host <HOST>                      Host to bind to [default: 127.0.0.1]");
-        println!("  --port <PORT>                      Port to bind to [default: 9090]");
-        println!("  --buffer-size <SIZE>               Channel buffer size [default: 10000]");
+        transport_tasks.spawn(async move {
+            tracing::info!("Starting HTTP transport on {}:{}", host, port);
+            let transport = HttpTransport::new(&host, port);
+            transport.start(limiter_handle).await
+        });
     }
 
-    Ok(())
-}
+    // Start gRPC transport if enabled
+    if let Some(grpc_config) = &config.transports.grpc {
+        let limiter_handle = limiter.clone();
+        let host = grpc_config.host.clone();
+        let port = grpc_config.port;
 
-async fn run_demo(limiter: actor::RateLimiterHandle) -> Result<()> {
-    println!("Running ThrottleCrab demo...");
-    println!();
+        transport_tasks.spawn(async move {
+            tracing::info!("Starting gRPC transport on {}:{}", host, port);
+            let transport = GrpcTransport::new(&host, port);
+            transport.start(limiter_handle).await
+        });
+    }
 
-    // Test request
-    let mut request = ThrottleRequest {
-        key: "user:123".to_string(),
-        max_burst: 15,
-        count_per_period: 30,
-        period: 60,
-        quantity: 1,
-        timestamp: std::time::SystemTime::now(),
-    };
+    // Start MessagePack transport if enabled
+    if let Some(msgpack_config) = &config.transports.msgpack {
+        let limiter_handle = limiter.clone();
+        let host = msgpack_config.host.clone();
+        let port = msgpack_config.port;
 
-    println!("Testing rate limiter with redis-cell compatible API:");
-    println!("Key: {}", request.key);
-    println!("Burst: {}", request.max_burst);
-    println!(
-        "Rate: {} per {} seconds",
-        request.count_per_period, request.period
+        transport_tasks.spawn(async move {
+            tracing::info!("Starting MessagePack transport on {}:{}", host, port);
+            let transport = MsgPackTransport::new(&host, port);
+            transport.start(limiter_handle).await
+        });
+    }
+
+    // Start Native transport if enabled
+    if let Some(native_config) = &config.transports.native {
+        let limiter_handle = limiter.clone();
+        let host = native_config.host.clone();
+        let port = native_config.port;
+
+        transport_tasks.spawn(async move {
+            tracing::info!("Starting Native transport on {}:{}", host, port);
+            let transport = NativeTransport::new(&host, port);
+            transport.start(limiter_handle).await
+        });
+    }
+
+    tracing::info!(
+        "ThrottleCrab server started with store type: {:?}",
+        config.store.store_type
     );
-    println!();
+    tracing::info!(
+        "Store capacity: {}, Buffer size: {}",
+        config.store.capacity,
+        config.buffer_size
+    );
 
-    // Make a few requests
-    for i in 1..=20 {
-        // Update timestamp for each request
-        request.timestamp = std::time::SystemTime::now();
-        let response = limiter.throttle(request.clone()).await?;
-
-        println!(
-            "Request #{}: {} (remaining: {}/{}, retry_after: {}s, reset_after: {}s)",
-            i,
-            if response.allowed {
-                "ALLOWED"
-            } else {
-                "BLOCKED"
-            },
-            response.remaining,
-            response.limit,
-            response.retry_after,
-            response.reset_after,
-        );
-
-        // If blocked, wait before retrying
-        if !response.allowed && response.retry_after > 0 {
-            println!(
-                "  -> Rate limited! Waiting {}s before continuing...",
-                response.retry_after
-            );
-            tokio::time::sleep(tokio::time::Duration::from_secs(
-                response.retry_after as u64,
-            ))
-            .await;
+    // Wait for all transport tasks to complete (they run indefinitely)
+    while let Some(result) = transport_tasks.join_next().await {
+        match result {
+            Ok(Ok(())) => {
+                tracing::info!("Transport task completed successfully");
+            }
+            Ok(Err(e)) => {
+                tracing::error!("Transport task failed: {}", e);
+                return Err(e);
+            }
+            Err(e) => {
+                tracing::error!("Transport task panicked: {}", e);
+                return Err(anyhow::anyhow!("Transport task panicked"));
+            }
         }
     }
 

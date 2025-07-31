@@ -8,15 +8,18 @@ mod fast_hasher;
 mod periodic;
 mod probabilistic;
 
-pub use adaptive_cleanup::AdaptiveStore;
-pub use periodic::PeriodicStore;
-pub use probabilistic::ProbabilisticStore;
+pub use adaptive_cleanup::{AdaptiveStore, AdaptiveStoreBuilder};
+pub use periodic::{PeriodicStore, PeriodicStoreBuilder};
+pub use probabilistic::{ProbabilisticStore, ProbabilisticStoreBuilder};
 
 #[cfg(test)]
 mod cleanup_test;
 
 #[cfg(test)]
 mod store_test_suite;
+
+#[cfg(test)]
+mod tests_builders;
 
 /// Store trait for rate limiter state storage (similar to redis-cell)
 pub trait Store {

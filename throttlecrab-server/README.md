@@ -33,19 +33,61 @@ cargo build --release
 
 ## Usage
 
-Start the throttlecrab server:
+Start the throttlecrab server (at least one transport must be specified):
 
 ```bash
-# Run with default settings (MessagePack on 127.0.0.1:9090)
-throttlecrab --server
+# Run with MessagePack transport
+throttlecrab-server --msgpack
 
-# Or with custom address
-throttlecrab --server --host 0.0.0.0 --port 8080
+# Run with HTTP transport on custom port
+throttlecrab-server --http --http-port 7070
 
-# Use different transports:
-throttlecrab --server --http      # HTTP with JSON (REST API)
-throttlecrab --server --grpc      # gRPC transport
-throttlecrab --server             # MessagePack over TCP (default, most efficient)
+# Run multiple transports simultaneously
+throttlecrab-server --http --grpc --msgpack
+
+# Specify different hosts and ports for each transport
+throttlecrab-server --http --http-host 0.0.0.0 --http-port 8080 \
+                    --grpc --grpc-port 50051 \
+                    --msgpack --msgpack-port 9090
+
+# Configure store type and parameters
+throttlecrab-server --msgpack --store adaptive \
+                    --store-min-interval 5 \
+                    --store-max-interval 300 \
+                    --store-max-operations 1000000
+
+# Use periodic store with custom cleanup interval
+throttlecrab-server --http --store periodic --store-cleanup-interval 600
+
+# Use probabilistic store
+throttlecrab-server --grpc --store probabilistic --store-cleanup-probability 5000
+
+# Set custom buffer size and log level
+throttlecrab-server --msgpack --buffer-size 50000 --log-level debug
+```
+
+### Environment Variables
+
+All CLI arguments can be configured via environment variables with the `THROTTLECRAB_` prefix:
+
+```bash
+# Transport configuration
+export THROTTLECRAB_HTTP=true
+export THROTTLECRAB_HTTP_HOST=0.0.0.0
+export THROTTLECRAB_HTTP_PORT=8080
+
+# Store configuration
+export THROTTLECRAB_STORE=adaptive
+export THROTTLECRAB_STORE_CAPACITY=200000
+export THROTTLECRAB_STORE_MIN_INTERVAL=10
+
+# General configuration
+export THROTTLECRAB_BUFFER_SIZE=100000
+export THROTTLECRAB_LOG_LEVEL=info
+
+# CLI arguments override environment variables
+THROTTLECRAB_HTTP_PORT=8080 throttlecrab-server --http --http-port 7070
+# Server will use port 7070 (CLI takes precedence)
 ```
 
 ## Transport Comparison
