@@ -80,42 +80,10 @@ let client = ClientBuilder::new()
    let client = Arc::new(ThrottleCrabClient::connect("127.0.0.1:9090").await?);
    ```
 
-2. **Size your connection pool appropriately**
-   - Light load: 5-10 connections
-   - Medium load: 20-50 connections
-   - Heavy load: 50-100 connections
-
-3. **Use connection pooling effectively**
+2. **Use connection pooling effectively**
    - The client automatically manages a connection pool
    - Connections are reused across requests
    - Failed connections are automatically replaced
-
-### Performance Optimization
-
-1. **Batch operations when possible**
-   ```rust
-   let futures: Vec<_> = keys.iter()
-       .map(|key| client.check_rate_limit(key, 10, 100, 60))
-       .collect();
-   
-   let results = futures::future::join_all(futures).await;
-   ```
-
-2. **Use appropriate timeouts**
-   ```rust
-   // Shorter timeout for user-facing requests
-   let client = ClientBuilder::new()
-       .request_timeout(Duration::from_millis(100))
-       .build(addr).await?;
-   ```
-
-3. **Pre-warm connections**
-   ```rust
-   // Establish connections before traffic spike
-   let client = ClientBuilder::new()
-       .min_idle_connections(20)
-       .build(addr).await?;
-   ```
 
 ## Examples
 
@@ -126,12 +94,12 @@ use throttlecrab_client::ThrottleCrabClient;
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let client = ThrottleCrabClient::connect("127.0.0.1:9090").await?;
-    
+
     // Simple rate limit check
     let response = client
         .check_rate_limit("user:123", 10, 100, 60)
         .await?;
-    
+
     println!("Allowed: {}", response.allowed);
     println!("Remaining: {}", response.remaining);
     Ok(())
@@ -205,7 +173,7 @@ async fn main() {
     let client = ThrottleCrabClient::connect("127.0.0.1:9090")
         .await
         .expect("Failed to connect");
-    
+
     match client.check_rate_limit("key", 10, 100, 60).await {
         Ok(response) => {
             if response.allowed {

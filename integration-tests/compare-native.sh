@@ -41,14 +41,7 @@ echo -e "\n1. Testing direct native protocol (no connection pool)..."
     --requests $REQUESTS \
     --port $PORT
 
-echo -e "\n2. Testing client library V1 (with semaphore-based pool)..."
-../target/release/throttlecrab-integration-tests client-perf-test \
-    --threads $THREADS \
-    --requests $REQUESTS \
-    --port $PORT \
-    --pool-size $THREADS
-
-echo -e "\n3. Testing client library V2 (optimized pool)..."
+echo -e "\n2. Testing client library (optimized pool)..."
 ../target/release/throttlecrab-integration-tests client-v2-perf-test \
     --threads $THREADS \
     --requests $REQUESTS \

@@ -13,7 +13,7 @@ async fn main() -> anyhow::Result<()> {
     // Connect to throttlecrab server with default configuration
     println!("Connecting to throttlecrab server...");
     let client = ThrottleCrabClient::connect("127.0.0.1:9090").await?;
-    println!("Connected! Pool size: {}", client.pool_size());
+    println!("Connected!");
 
     // Example 1: Basic rate limit check
     println!("\n=== Basic Rate Limit Check ===");
@@ -49,20 +49,15 @@ async fn main() -> anyhow::Result<()> {
 
     // Example 3: Using the builder for advanced configuration
     println!("\n=== Custom Client Configuration ===");
-    let custom_client = ClientBuilder::new()
-        .max_connections(20)
-        .min_idle_connections(5)
+    let _custom_client = ClientBuilder::new()
+        .max_idle_connections(20)
         .connect_timeout(Duration::from_secs(10))
         .request_timeout(Duration::from_secs(2))
         .tcp_nodelay(true)
         .build("127.0.0.1:9090")
         .await?;
 
-    println!("Custom client pool size: {}", custom_client.pool_size());
-    println!(
-        "Available connections: {}",
-        custom_client.available_connections()
-    );
+    println!("Custom client created with optimized pool");
 
     // Example 4: Concurrent requests
     println!("\n=== Concurrent Requests ===");
@@ -72,7 +67,7 @@ async fn main() -> anyhow::Result<()> {
         let client = client.clone();
         handles.push(tokio::spawn(async move {
             let response = client
-                .check_rate_limit(format!("concurrent:test:{i}"), 100, 1000, 60)
+                .check_rate_limit(&format!("concurrent:test:{i}"), 100, 1000, 60)
                 .await?;
 
             println!(
@@ -89,6 +84,6 @@ async fn main() -> anyhow::Result<()> {
         handle.await??;
     }
 
-    println!("\nFinal pool size: {}", client.pool_size());
+    println!("\nAll requests completed.");
     Ok(())
 }

@@ -91,8 +91,7 @@ async fn test_client_throughput() {
 
     // Create client with optimal settings
     let client = ClientBuilder::new()
-        .max_connections(20)
-        .min_idle_connections(10)
+        .max_idle_connections(20)
         .connect_timeout(Duration::from_secs(5))
         .request_timeout(Duration::from_secs(30))
         .tcp_nodelay(true)
@@ -168,12 +167,11 @@ async fn test_pool_configurations() {
         ("Large pool", 50, 20),
     ];
 
-    for (name, max_conn, min_idle) in configurations {
+    for (name, max_conn, _min_idle) in configurations {
         println!("\n=== Testing {name} ===");
 
         let client = ClientBuilder::new()
-            .max_connections(max_conn)
-            .min_idle_connections(min_idle)
+            .max_idle_connections(max_conn)
             .tcp_nodelay(true)
             .build(format!("127.0.0.1:{port}"))
             .await
@@ -224,8 +222,7 @@ async fn test_connection_recovery() {
     let port = setup_server().await;
 
     let client = ClientBuilder::new()
-        .max_connections(5)
-        .min_idle_connections(2)
+        .max_idle_connections(5)
         .connect_timeout(Duration::from_secs(2))
         .request_timeout(Duration::from_secs(5))
         .build(format!("127.0.0.1:{port}"))
@@ -239,7 +236,7 @@ async fn test_connection_recovery() {
     for i in 0..100 {
         let start = Instant::now();
         match client
-            .check_rate_limit(format!("recovery_test_{i}"), 1000, 10000, 60)
+            .check_rate_limit(&format!("recovery_test_{i}"), 1000, 10000, 60)
             .await
         {
             Ok(response) => {
@@ -265,7 +262,7 @@ async fn test_connection_recovery() {
             for j in 0..20 {
                 let start = Instant::now();
                 match client
-                    .check_rate_limit(format!("stress_test_{i}_{j}"), 1000, 10000, 60)
+                    .check_rate_limit(&format!("stress_test_{i}_{j}"), 1000, 10000, 60)
                     .await
                 {
                     Ok(response) => {
@@ -291,7 +288,7 @@ async fn test_connection_recovery() {
     for i in 0..100 {
         let start = Instant::now();
         match client
-            .check_rate_limit(format!("recovery_test_2_{i}"), 1000, 10000, 60)
+            .check_rate_limit(&format!("recovery_test_2_{i}"), 1000, 10000, 60)
             .await
         {
             Ok(response) => {
@@ -319,8 +316,7 @@ async fn test_latency_percentiles() {
     let port = setup_server().await;
 
     let client = ClientBuilder::new()
-        .max_connections(10)
-        .min_idle_connections(5)
+        .max_idle_connections(10)
         .tcp_nodelay(true)
         .build(format!("127.0.0.1:{port}"))
         .await
