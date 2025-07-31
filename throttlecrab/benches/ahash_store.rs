@@ -84,10 +84,6 @@ impl Store for AHashStore {
         }
     }
 
-    fn log_debug(&self, _message: &str) {
-        // No-op
-    }
-
     fn set_if_not_exists_with_ttl(
         &mut self,
         key: &str,

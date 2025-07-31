@@ -36,9 +36,6 @@ pub trait Store {
     /// Get value
     fn get(&self, key: &str, now: SystemTime) -> Result<Option<i64>, String>;
 
-    /// Log debug message
-    fn log_debug(&self, message: &str);
-
     /// Set if not exists with TTL
     fn set_if_not_exists_with_ttl(
         &mut self,

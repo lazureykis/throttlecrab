@@ -163,10 +163,6 @@ impl Store for FastHashStore {
         }
     }
 
-    fn log_debug(&self, _message: &str) {
-        // No-op in library
-    }
-
     fn set_if_not_exists_with_ttl(
         &mut self,
         key: &str,
@@ -313,10 +309,6 @@ impl Store for SimpleHashStore {
             Some((value, None)) => Ok(Some(*value)),
             _ => Ok(None),
         }
-    }
-
-    fn log_debug(&self, _message: &str) {
-        // No-op in library
     }
 
     fn set_if_not_exists_with_ttl(
