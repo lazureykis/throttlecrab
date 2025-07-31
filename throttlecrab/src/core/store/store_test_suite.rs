@@ -3,23 +3,17 @@
 #[cfg(test)]
 mod tests {
     use crate::RateLimiter;
-    use crate::core::store::adaptive_cleanup::AdaptiveMemoryStore;
-    use crate::core::store::optimized::{InternedMemoryStore, OptimizedMemoryStore};
-    use crate::core::store::probabilistic::ProbabilisticMemoryStore;
     use crate::core::store::*;
+    use crate::core::store::{AdaptiveStore, PeriodicStore, ProbabilisticStore};
     use std::time::{Duration, SystemTime};
 
     /// Macro to test all stores with a given test function
     macro_rules! test_all_stores {
         ($test_fn:expr) => {
             // Removed: Standard, Arena, TimingWheel, BloomFilter, BTree, Heap, RawApi stores
-            $test_fn("Optimized", &mut OptimizedMemoryStore::with_capacity(100));
-            $test_fn("Interned", &mut InternedMemoryStore::with_capacity(100));
-            $test_fn(
-                "Probabilistic",
-                &mut ProbabilisticMemoryStore::with_capacity(100),
-            );
-            $test_fn("Adaptive", &mut AdaptiveMemoryStore::with_capacity(100));
+            $test_fn("Periodic", &mut PeriodicStore::with_capacity(100));
+            $test_fn("Probabilistic", &mut ProbabilisticStore::with_capacity(100));
+            $test_fn("Adaptive", &mut AdaptiveStore::with_capacity(100));
         };
     }
 
@@ -590,20 +584,16 @@ mod tests {
 
         // Test each store type (removed: Standard, Arena, TimingWheel, BloomFilter, BTree, Heap, RawApi)
         test_rate_limiter(
-            "Optimized",
-            RateLimiter::new(OptimizedMemoryStore::with_capacity(100)),
-        );
-        test_rate_limiter(
-            "Interned",
-            RateLimiter::new(InternedMemoryStore::with_capacity(100)),
+            "Periodic",
+            RateLimiter::new(PeriodicStore::with_capacity(100)),
         );
         test_rate_limiter(
             "Probabilistic",
-            RateLimiter::new(ProbabilisticMemoryStore::with_capacity(100)),
+            RateLimiter::new(ProbabilisticStore::with_capacity(100)),
         );
         test_rate_limiter(
             "Adaptive",
-            RateLimiter::new(AdaptiveMemoryStore::with_capacity(100)),
+            RateLimiter::new(AdaptiveStore::with_capacity(100)),
         );
     }
 }

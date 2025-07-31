@@ -1,12 +1,10 @@
 use criterion::{Criterion, Throughput, criterion_group, criterion_main};
 use std::hint::black_box;
 use std::time::{Duration, SystemTime};
-use throttlecrab::store::fast_hasher::{FastHashMemoryStore, SimpleHashMemoryStore};
-use throttlecrab::store::optimized::{InternedMemoryStore, OptimizedMemoryStore};
-use throttlecrab::{MemoryStore, RateLimiter};
+use throttlecrab::{PeriodicStore, RateLimiter};
 
 mod ahash_store;
-use ahash_store::AHashMemoryStore;
+use ahash_store::AHashStore;
 
 fn benchmark_core_rate_limiter(c: &mut Criterion) {
     let mut group = c.benchmark_group("core_rate_limiter");
@@ -15,7 +13,7 @@ fn benchmark_core_rate_limiter(c: &mut Criterion) {
 
     // Test with a simple configuration
     group.bench_function("single_key_allowed", |b| {
-        let mut limiter = RateLimiter::new(MemoryStore::new());
+        let mut limiter = RateLimiter::new(PeriodicStore::new());
         let mut counter = 0u64;
 
         b.iter(|| {
@@ -39,7 +37,7 @@ fn benchmark_core_rate_limiter(c: &mut Criterion) {
 
     // Test with multiple keys to simulate real-world usage
     group.bench_function("rotating_keys_100", |b| {
-        let mut limiter = RateLimiter::new(MemoryStore::new());
+        let mut limiter = RateLimiter::new(PeriodicStore::new());
         let mut counter = 0u64;
 
         b.iter(|| {
@@ -63,7 +61,7 @@ fn benchmark_core_rate_limiter(c: &mut Criterion) {
 
     // Test when rate limit is exceeded (worst case)
     group.bench_function("single_key_denied", |b| {
-        let mut limiter = RateLimiter::new(MemoryStore::new());
+        let mut limiter = RateLimiter::new(PeriodicStore::new());
 
         // Exhaust the rate limit first
         let key = "exhausted_key";
@@ -91,7 +89,7 @@ fn benchmark_core_rate_limiter(c: &mut Criterion) {
 
     // Test with high burst values
     group.bench_function("high_burst_single_key", |b| {
-        let mut limiter = RateLimiter::new(MemoryStore::new());
+        let mut limiter = RateLimiter::new(PeriodicStore::new());
         let mut counter = 0u64;
 
         b.iter(|| {
@@ -115,7 +113,7 @@ fn benchmark_core_rate_limiter(c: &mut Criterion) {
 
     // Test with varying quantities
     group.bench_function("varying_quantities", |b| {
-        let mut limiter = RateLimiter::new(MemoryStore::new());
+        let mut limiter = RateLimiter::new(PeriodicStore::new());
         let mut counter = 0u64;
 
         b.iter(|| {
@@ -151,7 +149,7 @@ fn benchmark_memory_store_growth(c: &mut Criterion) {
             format!("unique_keys_{num_keys}"),
             &num_keys,
             |b, &num_keys| {
-                let mut limiter = RateLimiter::new(MemoryStore::new());
+                let mut limiter = RateLimiter::new(PeriodicStore::new());
                 let mut counter = 0u64;
 
                 b.iter(|| {
@@ -186,99 +184,7 @@ fn benchmark_store_comparison(c: &mut Criterion) {
     let num_keys = 10000u64;
 
     group.bench_function("standard_memory_store", |b| {
-        let mut limiter = RateLimiter::new(MemoryStore::new());
-        let mut counter = 0u64;
-
-        b.iter(|| {
-            let key = format!("key_{}", counter % num_keys);
-            counter += 1;
-
-            let (allowed, _result) = limiter
-                .rate_limit(
-                    black_box(&key),
-                    black_box(100),
-                    black_box(1000),
-                    black_box(60),
-                    black_box(1),
-                    black_box(SystemTime::now()),
-                )
-                .unwrap();
-
-            black_box(allowed)
-        });
-    });
-
-    group.bench_function("optimized_memory_store", |b| {
-        let mut limiter = RateLimiter::new(OptimizedMemoryStore::with_capacity(num_keys as usize));
-        let mut counter = 0u64;
-
-        b.iter(|| {
-            let key = format!("key_{}", counter % num_keys);
-            counter += 1;
-
-            let (allowed, _result) = limiter
-                .rate_limit(
-                    black_box(&key),
-                    black_box(100),
-                    black_box(1000),
-                    black_box(60),
-                    black_box(1),
-                    black_box(SystemTime::now()),
-                )
-                .unwrap();
-
-            black_box(allowed)
-        });
-    });
-
-    group.bench_function("interned_memory_store", |b| {
-        let mut limiter = RateLimiter::new(InternedMemoryStore::with_capacity(num_keys as usize));
-        let mut counter = 0u64;
-
-        b.iter(|| {
-            let key = format!("key_{}", counter % num_keys);
-            counter += 1;
-
-            let (allowed, _result) = limiter
-                .rate_limit(
-                    black_box(&key),
-                    black_box(100),
-                    black_box(1000),
-                    black_box(60),
-                    black_box(1),
-                    black_box(SystemTime::now()),
-                )
-                .unwrap();
-
-            black_box(allowed)
-        });
-    });
-
-    group.bench_function("fast_hash_memory_store", |b| {
-        let mut limiter = RateLimiter::new(FastHashMemoryStore::with_capacity(num_keys as usize));
-        let mut counter = 0u64;
-
-        b.iter(|| {
-            let key = format!("key_{}", counter % num_keys);
-            counter += 1;
-
-            let (allowed, _result) = limiter
-                .rate_limit(
-                    black_box(&key),
-                    black_box(100),
-                    black_box(1000),
-                    black_box(60),
-                    black_box(1),
-                    black_box(SystemTime::now()),
-                )
-                .unwrap();
-
-            black_box(allowed)
-        });
-    });
-
-    group.bench_function("simple_hash_memory_store", |b| {
-        let mut limiter = RateLimiter::new(SimpleHashMemoryStore::with_capacity(num_keys as usize));
+        let mut limiter = RateLimiter::new(PeriodicStore::new());
         let mut counter = 0u64;
 
         b.iter(|| {
@@ -301,7 +207,7 @@ fn benchmark_store_comparison(c: &mut Criterion) {
     });
 
     group.bench_function("ahash_memory_store", |b| {
-        let mut limiter = RateLimiter::new(AHashMemoryStore::with_capacity(num_keys as usize));
+        let mut limiter = RateLimiter::new(AHashStore::with_capacity(num_keys as usize));
         let mut counter = 0u64;
 
         b.iter(|| {

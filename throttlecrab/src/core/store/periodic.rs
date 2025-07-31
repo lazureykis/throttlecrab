@@ -1,42 +1,62 @@
-use ahash::AHashMap;
+use super::Store;
 use std::time::{Duration, SystemTime};
-use throttlecrab::Store;
 
-/// Memory store using ahash for benchmarking only
-pub struct AHashStore {
-    data: AHashMap<String, (i64, Option<SystemTime>)>,
+#[cfg(feature = "ahash")]
+use ahash::AHashMap as HashMap;
+#[cfg(not(feature = "ahash"))]
+use std::collections::HashMap;
+
+// Configuration constants
+const DEFAULT_CAPACITY: usize = 1000;
+const CAPACITY_OVERHEAD_FACTOR: f64 = 1.3;
+const DEFAULT_CLEANUP_INTERVAL_SECS: u64 = 60;
+
+/// Periodic cleanup store implementation
+/// Cleans up expired entries at regular time intervals
+pub struct PeriodicStore {
+    data: HashMap<String, (i64, Option<SystemTime>)>,
+    // Track when next cleanup is needed
     next_cleanup: SystemTime,
+    // Cleanup interval
     cleanup_interval: Duration,
+    // Track number of expired entries
     expired_count: usize,
 }
 
-impl Default for AHashStore {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-impl AHashStore {
+impl PeriodicStore {
     pub fn new() -> Self {
-        Self::with_capacity(1000)
+        Self::with_capacity(DEFAULT_CAPACITY)
     }
 
     pub fn with_capacity(capacity: usize) -> Self {
-        let data = AHashMap::with_capacity((capacity as f64 * 1.3) as usize);
-
-        AHashStore {
-            data,
-            next_cleanup: SystemTime::now() + Duration::from_secs(60),
-            cleanup_interval: Duration::from_secs(60),
+        PeriodicStore {
+            // Pre-allocate with overhead to avoid rehashing
+            data: HashMap::with_capacity((capacity as f64 * CAPACITY_OVERHEAD_FACTOR) as usize),
+            next_cleanup: SystemTime::now() + Duration::from_secs(DEFAULT_CLEANUP_INTERVAL_SECS),
+            cleanup_interval: Duration::from_secs(DEFAULT_CLEANUP_INTERVAL_SECS),
             expired_count: 0,
         }
     }
 
-    fn maybe_clean_expired(&mut self, now: SystemTime) {
-        let should_clean = now >= self.next_cleanup
-            || (self.expired_count > 100 && self.expired_count > self.data.len() / 5);
+    #[cfg(test)]
+    pub fn len(&self) -> usize {
+        self.data.len()
+    }
 
-        if should_clean {
+    #[cfg(test)]
+    pub fn is_empty(&self) -> bool {
+        self.data.is_empty()
+    }
+
+    #[cfg(test)]
+    pub fn expired_count(&self) -> usize {
+        self.expired_count
+    }
+
+    fn maybe_clean_expired(&mut self, now: SystemTime) {
+        // Clean periodically based on time
+        if now >= self.next_cleanup {
+            let before_count = self.data.len();
             self.data.retain(|_, (_, expiry)| {
                 if let Some(exp) = expiry {
                     *exp > now
@@ -44,13 +64,19 @@ impl AHashStore {
                     true
                 }
             });
+            self.expired_count = before_count.saturating_sub(self.data.len());
             self.next_cleanup = now + self.cleanup_interval;
-            self.expired_count = 0;
         }
     }
 }
 
-impl Store for AHashStore {
+impl Default for PeriodicStore {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl Store for PeriodicStore {
     fn compare_and_swap_with_ttl(
         &mut self,
         key: &str,
@@ -59,13 +85,11 @@ impl Store for AHashStore {
         ttl: Duration,
         now: SystemTime,
     ) -> Result<bool, String> {
+        // Only clean periodically, not on every operation
         self.maybe_clean_expired(now);
 
         match self.data.get(key) {
-            Some((_current, Some(expiry))) if *expiry <= now => {
-                self.expired_count += 1;
-                Ok(false)
-            }
+            Some((_current, Some(expiry))) if *expiry <= now => Ok(false),
             Some((current, _)) if *current == old => {
                 let expiry = now + ttl;
                 self.data.insert(key.to_string(), (new, Some(expiry)));
@@ -85,7 +109,7 @@ impl Store for AHashStore {
     }
 
     fn log_debug(&self, _message: &str) {
-        // No-op
+        // No-op in library
     }
 
     fn set_if_not_exists_with_ttl(
@@ -97,16 +121,18 @@ impl Store for AHashStore {
     ) -> Result<bool, String> {
         self.maybe_clean_expired(now);
 
+        // Check for existing non-expired key
         match self.data.get(key) {
             Some((_, Some(expiry))) if *expiry > now => Ok(false),
             Some((_, None)) => Ok(false),
             Some((_, Some(_expiry))) => {
-                self.expired_count += 1;
+                // Key is expired - insert the new value
                 let expiry = now + ttl;
                 self.data.insert(key.to_string(), (value, Some(expiry)));
                 Ok(true)
             }
             None => {
+                // Key doesn't exist
                 let expiry = now + ttl;
                 self.data.insert(key.to_string(), (value, Some(expiry)));
                 Ok(true)

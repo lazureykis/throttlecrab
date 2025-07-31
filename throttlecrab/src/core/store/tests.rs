@@ -1,9 +1,9 @@
-use super::{MemoryStore, Store};
+use super::{PeriodicStore, Store};
 use std::time::{Duration, SystemTime};
 
 #[test]
 fn test_memory_store_set_and_get() {
-    let mut store = MemoryStore::new();
+    let mut store = PeriodicStore::new();
     let now = SystemTime::now();
 
     // Set a value
@@ -29,7 +29,7 @@ fn test_memory_store_set_and_get() {
 
 #[test]
 fn test_memory_store_compare_and_swap() {
-    let mut store = MemoryStore::new();
+    let mut store = PeriodicStore::new();
     let now = SystemTime::now();
 
     // Set initial value
@@ -58,7 +58,7 @@ fn test_memory_store_compare_and_swap() {
 
 #[test]
 fn test_memory_store_ttl() {
-    let mut store = MemoryStore::new();
+    let mut store = PeriodicStore::new();
     let now = SystemTime::now();
 
     // Set with very short TTL
@@ -85,7 +85,7 @@ fn test_memory_store_ttl() {
 
 #[test]
 fn test_memory_store_get_nonexistent() {
-    let store = MemoryStore::new();
+    let store = PeriodicStore::new();
     let now = SystemTime::now();
 
     let value = store.get("nonexistent", now).unwrap();
@@ -94,7 +94,7 @@ fn test_memory_store_get_nonexistent() {
 
 #[test]
 fn test_memory_store_multiple_keys() {
-    let mut store = MemoryStore::new();
+    let mut store = PeriodicStore::new();
     let now = SystemTime::now();
 
     // Set multiple keys

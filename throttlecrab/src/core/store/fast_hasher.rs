@@ -81,14 +81,14 @@ impl BuildHasher for FxBuildHasher {
 pub type FxHashMap<K, V> = HashMap<K, V, FxBuildHasher>;
 
 /// Memory store using fast hasher
-pub struct FastHashMemoryStore {
+pub struct FastHashStore {
     data: FxHashMap<String, (i64, Option<SystemTime>)>,
     next_cleanup: SystemTime,
     cleanup_interval: Duration,
     expired_count: usize,
 }
 
-impl FastHashMemoryStore {
+impl FastHashStore {
     pub fn new() -> Self {
         Self::with_capacity(1000)
     }
@@ -97,7 +97,7 @@ impl FastHashMemoryStore {
         let mut data = FxHashMap::default();
         data.reserve((capacity as f64 * 1.3) as usize);
 
-        FastHashMemoryStore {
+        FastHashStore {
             data,
             next_cleanup: SystemTime::now() + Duration::from_secs(60),
             cleanup_interval: Duration::from_secs(60),
@@ -123,13 +123,13 @@ impl FastHashMemoryStore {
     }
 }
 
-impl Default for FastHashMemoryStore {
+impl Default for FastHashStore {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl Store for FastHashMemoryStore {
+impl Store for FastHashStore {
     fn compare_and_swap_with_ttl(
         &mut self,
         key: &str,
@@ -233,14 +233,14 @@ impl BuildHasher for SimpleBuildHasher {
 pub type SimpleHashMap<K, V> = HashMap<K, V, SimpleBuildHasher>;
 
 /// Memory store using simple multiplicative hasher
-pub struct SimpleHashMemoryStore {
+pub struct SimpleHashStore {
     data: SimpleHashMap<String, (i64, Option<SystemTime>)>,
     next_cleanup: SystemTime,
     cleanup_interval: Duration,
     expired_count: usize,
 }
 
-impl SimpleHashMemoryStore {
+impl SimpleHashStore {
     pub fn new() -> Self {
         Self::with_capacity(1000)
     }
@@ -249,7 +249,7 @@ impl SimpleHashMemoryStore {
         let mut data = SimpleHashMap::default();
         data.reserve((capacity as f64 * 1.3) as usize);
 
-        SimpleHashMemoryStore {
+        SimpleHashStore {
             data,
             next_cleanup: SystemTime::now() + Duration::from_secs(60),
             cleanup_interval: Duration::from_secs(60),
@@ -275,13 +275,13 @@ impl SimpleHashMemoryStore {
     }
 }
 
-impl Default for SimpleHashMemoryStore {
+impl Default for SimpleHashStore {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl Store for SimpleHashMemoryStore {
+impl Store for SimpleHashStore {
     fn compare_and_swap_with_ttl(
         &mut self,
         key: &str,

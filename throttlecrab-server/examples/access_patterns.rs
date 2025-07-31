@@ -1,10 +1,5 @@
 use std::time::{Instant, SystemTime};
-use throttlecrab::RateLimiter;
-use throttlecrab::store::{
-    adaptive_cleanup::AdaptiveMemoryStore,
-    optimized::{InternedMemoryStore, OptimizedMemoryStore},
-    probabilistic::ProbabilisticMemoryStore,
-};
+use throttlecrab::{AdaptiveStore, PeriodicStore, ProbabilisticStore, RateLimiter};
 
 #[derive(Clone, Copy)]
 enum AccessPattern {
@@ -199,26 +194,20 @@ fn main() {
     for pattern in patterns {
         let mut results = Vec::new();
 
-        // Optimized Store
-        let limiter = RateLimiter::new(OptimizedMemoryStore::with_capacity(num_keys));
+        // Periodic Store
+        let limiter = RateLimiter::new(PeriodicStore::with_capacity(num_keys));
         let (ops_per_sec, allowed, blocked) =
-            benchmark_pattern("Optimized", limiter, pattern, num_keys, iterations);
-        results.push(("Optimized", ops_per_sec, allowed, blocked));
-
-        // Interned Store
-        let limiter = RateLimiter::new(InternedMemoryStore::with_capacity(num_keys));
-        let (ops_per_sec, allowed, blocked) =
-            benchmark_pattern("Interned", limiter, pattern, num_keys, iterations);
-        results.push(("Interned", ops_per_sec, allowed, blocked));
+            benchmark_pattern("Periodic", limiter, pattern, num_keys, iterations);
+        results.push(("Periodic", ops_per_sec, allowed, blocked));
 
         // Probabilistic Store
-        let limiter = RateLimiter::new(ProbabilisticMemoryStore::with_capacity(num_keys));
+        let limiter = RateLimiter::new(ProbabilisticStore::with_capacity(num_keys));
         let (ops_per_sec, allowed, blocked) =
             benchmark_pattern("Probabilistic", limiter, pattern, num_keys, iterations);
         results.push(("Probabilistic", ops_per_sec, allowed, blocked));
 
         // Adaptive Store
-        let limiter = RateLimiter::new(AdaptiveMemoryStore::with_capacity(num_keys));
+        let limiter = RateLimiter::new(AdaptiveStore::with_capacity(num_keys));
         let (ops_per_sec, allowed, blocked) =
             benchmark_pattern("Adaptive", limiter, pattern, num_keys, iterations);
         results.push(("Adaptive", ops_per_sec, allowed, blocked));

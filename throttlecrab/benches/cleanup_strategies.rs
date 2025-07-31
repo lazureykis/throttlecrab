@@ -1,10 +1,7 @@
 use criterion::{Criterion, Throughput, criterion_group, criterion_main};
 use std::hint::black_box;
 use std::time::{Duration, SystemTime};
-use throttlecrab::store::adaptive_cleanup::AdaptiveMemoryStore;
-use throttlecrab::store::optimized::OptimizedMemoryStore;
-use throttlecrab::store::probabilistic::ProbabilisticMemoryStore;
-use throttlecrab::{MemoryStore, RateLimiter};
+use throttlecrab::{AdaptiveStore, PeriodicStore, ProbabilisticStore, RateLimiter};
 
 /// Benchmark cleanup strategies with expired entries
 fn benchmark_with_expiration(c: &mut Criterion) {
@@ -13,7 +10,7 @@ fn benchmark_with_expiration(c: &mut Criterion) {
 
     // Test with 50% expired entries
     group.bench_function("standard_50pct_expired", |b| {
-        let mut limiter = RateLimiter::new(MemoryStore::new());
+        let mut limiter = RateLimiter::new(PeriodicStore::new());
         let start_time = SystemTime::now();
         let mut counter = 0u64;
 
@@ -49,7 +46,7 @@ fn benchmark_with_expiration(c: &mut Criterion) {
     });
 
     group.bench_function("optimized_50pct_expired", |b| {
-        let mut limiter = RateLimiter::new(OptimizedMemoryStore::with_capacity(10_000));
+        let mut limiter = RateLimiter::new(PeriodicStore::with_capacity(10_000));
         let start_time = SystemTime::now();
         let mut counter = 0u64;
 
@@ -84,7 +81,7 @@ fn benchmark_with_expiration(c: &mut Criterion) {
     });
 
     group.bench_function("adaptive_50pct_expired", |b| {
-        let mut limiter = RateLimiter::new(AdaptiveMemoryStore::with_capacity(10_000));
+        let mut limiter = RateLimiter::new(AdaptiveStore::with_capacity(10_000));
         let start_time = SystemTime::now();
         let mut counter = 0u64;
 
@@ -119,7 +116,7 @@ fn benchmark_with_expiration(c: &mut Criterion) {
     });
 
     group.bench_function("probabilistic_50pct_expired", |b| {
-        let mut limiter = RateLimiter::new(ProbabilisticMemoryStore::with_capacity(10_000));
+        let mut limiter = RateLimiter::new(ProbabilisticStore::with_capacity(10_000));
         let start_time = SystemTime::now();
         let mut counter = 0u64;
 
@@ -164,7 +161,7 @@ fn benchmark_latency_percentiles(c: &mut Criterion) {
 
     // Standard cleanup - expect periodic spikes
     group.bench_function("standard_cleanup_spikes", |b| {
-        let mut limiter = RateLimiter::new(MemoryStore::new());
+        let mut limiter = RateLimiter::new(PeriodicStore::new());
         let mut counter = 0u64;
 
         b.iter(|| {
