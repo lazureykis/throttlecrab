@@ -82,7 +82,7 @@ impl std::str::FromStr for StoreType {
 #[command(
     name = "throttlecrab-server",
     about = "High-performance rate limiting server",
-    long_about = "A high-performance rate limiting server with multiple protocol support.\n\nAt least one transport must be specified."
+    long_about = "A high-performance rate limiting server with multiple protocol support.\n\nAt least one transport must be specified.\n\nEnvironment variables with THROTTLECRAB_ prefix are supported. CLI arguments take precedence over environment variables."
 )]
 pub struct Args {
     // HTTP Transport
@@ -246,6 +246,14 @@ pub struct Args {
         env = "THROTTLECRAB_LOG_LEVEL"
     )]
     pub log_level: String,
+
+    // Utility options
+    #[arg(
+        long,
+        help = "List all environment variables and exit",
+        action = clap::ArgAction::SetTrue
+    )]
+    pub list_env_vars: bool,
 }
 
 impl Config {
@@ -255,6 +263,12 @@ impl Config {
         // 2. Environment variables
         // 3. Default values (lowest priority)
         let args = Args::parse();
+
+        // Handle --list-env-vars
+        if args.list_env_vars {
+            Self::print_env_vars();
+            std::process::exit(0);
+        }
 
         // Build config from parsed args (which already include env vars)
         let mut config = Config {
@@ -306,8 +320,21 @@ impl Config {
             });
         }
 
-        // Validate that at least one transport is enabled
-        if !config.has_any_transport() {
+        // Validate configuration
+        config.validate()?;
+
+        Ok(config)
+    }
+
+    pub fn has_any_transport(&self) -> bool {
+        self.transports.http.is_some()
+            || self.transports.grpc.is_some()
+            || self.transports.msgpack.is_some()
+            || self.transports.native.is_some()
+    }
+
+    fn validate(&self) -> Result<()> {
+        if !self.has_any_transport() {
             return Err(anyhow!(
                 "At least one transport must be specified.\n\n\
                 Available transports:\n  \
@@ -322,14 +349,87 @@ impl Config {
             ));
         }
 
-        Ok(config)
+        // Additional validation could be added here in the future
+        // e.g., validate port ranges, check for conflicting options, etc.
+
+        Ok(())
     }
 
-    pub fn has_any_transport(&self) -> bool {
-        self.transports.http.is_some()
-            || self.transports.grpc.is_some()
-            || self.transports.msgpack.is_some()
-            || self.transports.native.is_some()
+    fn print_env_vars() {
+        println!("ThrottleCrab Environment Variables");
+        println!("==================================");
+        println!();
+        println!("All environment variables use the THROTTLECRAB_ prefix.");
+        println!("CLI arguments take precedence over environment variables.");
+        println!();
+
+        println!("Transport Configuration:");
+        println!("  THROTTLECRAB_HTTP=true|false          Enable HTTP transport");
+        println!("  THROTTLECRAB_HTTP_HOST=<host>         HTTP host [default: 127.0.0.1]");
+        println!("  THROTTLECRAB_HTTP_PORT=<port>         HTTP port [default: 8080]");
+        println!();
+        println!("  THROTTLECRAB_GRPC=true|false          Enable gRPC transport");
+        println!("  THROTTLECRAB_GRPC_HOST=<host>         gRPC host [default: 127.0.0.1]");
+        println!("  THROTTLECRAB_GRPC_PORT=<port>         gRPC port [default: 8070]");
+        println!();
+        println!("  THROTTLECRAB_MSGPACK=true|false       Enable MessagePack transport");
+        println!("  THROTTLECRAB_MSGPACK_HOST=<host>      MessagePack host [default: 127.0.0.1]");
+        println!("  THROTTLECRAB_MSGPACK_PORT=<port>      MessagePack port [default: 8071]");
+        println!();
+        println!("  THROTTLECRAB_NATIVE=true|false        Enable Native transport");
+        println!("  THROTTLECRAB_NATIVE_HOST=<host>       Native host [default: 127.0.0.1]");
+        println!("  THROTTLECRAB_NATIVE_PORT=<port>       Native port [default: 8072]");
+        println!();
+
+        println!("Store Configuration:");
+        println!(
+            "  THROTTLECRAB_STORE=<type>             Store type: periodic, probabilistic, adaptive [default: periodic]"
+        );
+        println!(
+            "  THROTTLECRAB_STORE_CAPACITY=<size>    Initial store capacity [default: 100000]"
+        );
+        println!();
+        println!("  For periodic store:");
+        println!(
+            "    THROTTLECRAB_STORE_CLEANUP_INTERVAL=<secs>   Cleanup interval in seconds [default: 300]"
+        );
+        println!();
+        println!("  For probabilistic store:");
+        println!(
+            "    THROTTLECRAB_STORE_CLEANUP_PROBABILITY=<n>   Cleanup probability (1 in N) [default: 10000]"
+        );
+        println!();
+        println!("  For adaptive store:");
+        println!(
+            "    THROTTLECRAB_STORE_MIN_INTERVAL=<secs>       Minimum cleanup interval [default: 5]"
+        );
+        println!(
+            "    THROTTLECRAB_STORE_MAX_INTERVAL=<secs>       Maximum cleanup interval [default: 300]"
+        );
+        println!(
+            "    THROTTLECRAB_STORE_MAX_OPERATIONS=<n>        Max operations before cleanup [default: 1000000]"
+        );
+        println!();
+
+        println!("General Configuration:");
+        println!("  THROTTLECRAB_BUFFER_SIZE=<size>       Channel buffer size [default: 100000]");
+        println!(
+            "  THROTTLECRAB_LOG_LEVEL=<level>        Log level: error, warn, info, debug, trace [default: info]"
+        );
+        println!();
+
+        println!("Examples:");
+        println!("  # Enable HTTP transport on port 8080");
+        println!("  export THROTTLECRAB_HTTP=true");
+        println!("  export THROTTLECRAB_HTTP_PORT=8080");
+        println!();
+        println!("  # Use adaptive store with custom settings");
+        println!("  export THROTTLECRAB_STORE=adaptive");
+        println!("  export THROTTLECRAB_STORE_MIN_INTERVAL=10");
+        println!("  export THROTTLECRAB_STORE_MAX_INTERVAL=600");
+        println!();
+        println!("  # Run server (CLI args override env vars)");
+        println!("  throttlecrab-server --http-port 9090  # Will use port 9090, not 8080");
     }
 }
 
@@ -357,5 +457,95 @@ mod tests {
             StoreType::Adaptive
         );
         assert!(StoreType::from_str("invalid").is_err());
+    }
+
+    #[test]
+    fn test_config_validation_no_transport() {
+        let config = Config {
+            transports: TransportConfig {
+                http: None,
+                grpc: None,
+                msgpack: None,
+                native: None,
+            },
+            store: StoreConfig {
+                store_type: StoreType::Periodic,
+                capacity: 100_000,
+                cleanup_interval: 300,
+                cleanup_probability: 10_000,
+                min_interval: 5,
+                max_interval: 300,
+                max_operations: 1_000_000,
+            },
+            buffer_size: 100_000,
+            log_level: "info".to_string(),
+        };
+
+        assert!(config.validate().is_err());
+        assert!(!config.has_any_transport());
+    }
+
+    #[test]
+    fn test_config_validation_with_transport() {
+        let config = Config {
+            transports: TransportConfig {
+                http: Some(HttpConfig {
+                    host: "127.0.0.1".to_string(),
+                    port: 8080,
+                }),
+                grpc: None,
+                msgpack: None,
+                native: None,
+            },
+            store: StoreConfig {
+                store_type: StoreType::Periodic,
+                capacity: 100_000,
+                cleanup_interval: 300,
+                cleanup_probability: 10_000,
+                min_interval: 5,
+                max_interval: 300,
+                max_operations: 1_000_000,
+            },
+            buffer_size: 100_000,
+            log_level: "info".to_string(),
+        };
+
+        assert!(config.validate().is_ok());
+        assert!(config.has_any_transport());
+    }
+
+    #[test]
+    fn test_config_multiple_transports() {
+        let config = Config {
+            transports: TransportConfig {
+                http: Some(HttpConfig {
+                    host: "0.0.0.0".to_string(),
+                    port: 8080,
+                }),
+                grpc: Some(GrpcConfig {
+                    host: "0.0.0.0".to_string(),
+                    port: 50051,
+                }),
+                msgpack: Some(MsgPackConfig {
+                    host: "127.0.0.1".to_string(),
+                    port: 9090,
+                }),
+                native: None,
+            },
+            store: StoreConfig {
+                store_type: StoreType::Adaptive,
+                capacity: 200_000,
+                cleanup_interval: 300,
+                cleanup_probability: 10_000,
+                min_interval: 10,
+                max_interval: 600,
+                max_operations: 2_000_000,
+            },
+            buffer_size: 50_000,
+            log_level: "debug".to_string(),
+        };
+
+        assert!(config.validate().is_ok());
+        assert!(config.has_any_transport());
     }
 }
