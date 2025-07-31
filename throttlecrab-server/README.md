@@ -9,7 +9,7 @@ A high-performance rate limiting server with multiple protocol support, built on
 
 ## Features
 
-- **Multiple protocols**: Native binary, HTTP (JSON), gRPC, and MessagePack
+- **Multiple protocols**: Native binary, HTTP (JSON), and gRPC
 - **High performance**: Lock-free shared state with Tokio async runtime
 - **Production ready**: Health checks, configurable logging, systemd support
 - **Flexible deployment**: Docker, binary, or source installation
@@ -37,22 +37,21 @@ cargo build --release
 Start the throttlecrab server (at least one transport must be specified):
 
 ```bash
-# Run with MessagePack transport
-throttlecrab-server --msgpack
+# Run with HTTP transport
+throttlecrab-server --http
 
 # Run with HTTP transport on custom port
 throttlecrab-server --http --http-port 7070
 
 # Run multiple transports simultaneously
-throttlecrab-server --http --grpc --msgpack
+throttlecrab-server --http --grpc
 
 # Specify different hosts and ports for each transport
 throttlecrab-server --http --http-host 0.0.0.0 --http-port 8080 \
-                    --grpc --grpc-port 50051 \
-                    --msgpack --msgpack-port 9090
+                    --grpc --grpc-port 50051
 
 # Configure store type and parameters
-throttlecrab-server --msgpack --store adaptive \
+throttlecrab-server --http --store adaptive \
                     --store-min-interval 5 \
                     --store-max-interval 300 \
                     --store-max-operations 1000000
@@ -64,7 +63,7 @@ throttlecrab-server --http --store periodic --store-cleanup-interval 600
 throttlecrab-server --grpc --store probabilistic --store-cleanup-probability 5000
 
 # Set custom buffer size and log level
-throttlecrab-server --msgpack --buffer-size 50000 --log-level debug
+throttlecrab-server --http --buffer-size 50000 --log-level debug
 ```
 
 ### Environment Variables
@@ -98,7 +97,6 @@ THROTTLECRAB_HTTP_PORT=8080 throttlecrab-server --http --http-port 7070
 | Native | Binary | 183K req/s | 263 μs | 170 μs | Maximum performance |
 | HTTP | JSON | 173K req/s | 309 μs | 177 μs | Easy integration |
 | gRPC | Protobuf | 163K req/s | 370 μs | 186 μs | Service mesh |
-| MessagePack | TCP | 146K req/s | 301 μs | 214 μs | Cross-language support |
 
 ## Protocol Documentation
 
@@ -112,20 +110,6 @@ Fixed-size binary protocol with minimal overhead:
 
 For best performance, implement the native protocol in your application or use established HTTP clients with connection pooling.
 
-### MessagePack Protocol
-
-Framed protocol with MessagePack encoding:
-1. 4-byte message length (big-endian)
-2. MessagePack-encoded request/response
-
-Request fields:
-- `cmd`: Command type (1 = throttle)
-- `key`: Unique identifier for rate limiting
-- `burst`: Maximum burst capacity
-- `rate`: Number of requests allowed per period
-- `period`: Time period in seconds
-- `quantity`: Number of tokens to consume (default: 1)
-- `timestamp`: Unix timestamp in nanoseconds (optional)
 
 ### HTTP REST API
 
@@ -171,7 +155,7 @@ reqwest = { version = "0.12", features = ["json"] }
 
 ### Other Languages
 - **Go**: Use gRPC with generated client
-- **Python**: Use HTTP/JSON or MessagePack
+- **Python**: Use HTTP/JSON API
 - **Node.js**: Use HTTP/JSON API
 - **Java**: Use gRPC with generated client
 

@@ -1,115 +1,6 @@
-use rmp_serde::Serializer;
-use serde::{Deserialize, Serialize};
 use std::io::{Read, Write};
 use std::net::TcpStream;
 use std::time::{Instant, SystemTime, UNIX_EPOCH};
-
-#[derive(Debug, Serialize, Deserialize)]
-struct MsgPackRequest {
-    cmd: u8,
-    key: String,
-    burst: i64,
-    rate: i64,
-    period: i64,
-    quantity: i64,
-    timestamp: i64,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-struct MsgPackResponse {
-    ok: bool,
-    allowed: u8,
-    limit: i64,
-    remaining: i64,
-    retry_after: i64,
-    reset_after: i64,
-}
-
-fn test_msgpack(port: u16, protocol_name: &str) -> std::io::Result<()> {
-    println!("\n{protocol_name} Protocol Test (port {port})");
-    println!("{}", "-".repeat(40));
-
-    let mut stream = TcpStream::connect(format!("127.0.0.1:{port}"))?;
-    stream.set_nodelay(true)?;
-
-    // Test single request
-    let start = Instant::now();
-    let request = MsgPackRequest {
-        cmd: 1,
-        key: "test_key".to_string(),
-        burst: 100,
-        rate: 1000,
-        period: 60,
-        quantity: 1,
-        timestamp: SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap()
-            .as_nanos() as i64,
-    };
-
-    let mut buf = Vec::new();
-    request.serialize(&mut Serializer::new(&mut buf)).unwrap();
-
-    stream.write_all(&(buf.len() as u32).to_be_bytes())?;
-    stream.write_all(&buf)?;
-
-    let mut len_buf = [0u8; 4];
-    stream.read_exact(&mut len_buf)?;
-    let len = u32::from_be_bytes(len_buf) as usize;
-
-    let mut response_buf = vec![0u8; len];
-    stream.read_exact(&mut response_buf)?;
-
-    let response: MsgPackResponse = rmp_serde::from_slice(&response_buf).unwrap();
-    let latency = start.elapsed();
-
-    println!("Single request latency: {latency:?}");
-    println!(
-        "Response: allowed={}, remaining={}",
-        response.allowed, response.remaining
-    );
-
-    // Throughput test
-    let start = Instant::now();
-    let num_requests = 10_000;
-
-    for i in 0..num_requests {
-        let request = MsgPackRequest {
-            cmd: 1,
-            key: format!("key_{i}"),
-            burst: 100,
-            rate: 1000,
-            period: 60,
-            quantity: 1,
-            timestamp: SystemTime::now()
-                .duration_since(UNIX_EPOCH)
-                .unwrap()
-                .as_nanos() as i64,
-        };
-
-        buf.clear();
-        request.serialize(&mut Serializer::new(&mut buf)).unwrap();
-
-        stream.write_all(&(buf.len() as u32).to_be_bytes())?;
-        stream.write_all(&buf)?;
-
-        stream.read_exact(&mut len_buf)?;
-        let len = u32::from_be_bytes(len_buf) as usize;
-
-        if response_buf.len() < len {
-            response_buf.resize(len, 0);
-        }
-        stream.read_exact(&mut response_buf[..len])?;
-    }
-
-    let duration = start.elapsed();
-    let throughput = num_requests as f64 / duration.as_secs_f64();
-
-    println!("Throughput test: {num_requests} requests in {duration:?}");
-    println!("Rate: {throughput:.0} req/s");
-
-    Ok(())
-}
 
 fn test_native(port: u16) -> std::io::Result<()> {
     println!("\nNative Binary Protocol Test (port {port})");
@@ -135,7 +26,7 @@ fn test_native(port: u16) -> std::io::Result<()> {
     stream.write_all(&timestamp.to_le_bytes())?; // timestamp
     stream.write_all(key.as_bytes())?; // key
 
-    let mut response = [0u8; 33];
+    let mut response = [0u8; 34];
     stream.read_exact(&mut response)?;
     let latency = start.elapsed();
 
@@ -178,24 +69,19 @@ fn main() -> std::io::Result<()> {
     println!("ThrottleCrab Protocol Performance Demo");
     println!("======================================");
     println!();
-    println!("Start the servers with:");
-    println!("  1. cargo run --features bin -- --server --port 9090 --msgpack");
-    println!("  2. cargo run --features bin -- --server --port 9092 --native");
+    println!("Start the server with:");
+    println!("  cargo run --features bin -- --server --port 9092 --native");
     println!();
-
-    // Test MessagePack
-    if let Err(e) = test_msgpack(9090, "MessagePack") {
-        eprintln!("MessagePack protocol test failed: {e}");
-    }
 
     // Test native binary protocol
     if let Err(e) = test_native(9092) {
         eprintln!("Native protocol test failed: {e}");
     }
 
-    println!("\nProtocol comparison summary:");
-    println!("- MessagePack: Good balance of compatibility and performance");
+    println!("\nProtocol summary:");
     println!("- Native Binary: Best performance, custom protocol");
+    println!("- HTTP: Standard REST API (use curl or HTTP client)");
+    println!("- gRPC: High-performance RPC protocol (use grpcurl or gRPC client)");
 
     Ok(())
 }

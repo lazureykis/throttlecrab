@@ -33,7 +33,6 @@ impl Stats {
 pub enum Transport {
     Http,
     Grpc,
-    MsgPack,
     Native,
 }
 
@@ -42,10 +41,9 @@ impl Transport {
         match s.to_lowercase().as_str() {
             "http" => Ok(Transport::Http),
             "grpc" => Ok(Transport::Grpc),
-            "msgpack" => Ok(Transport::MsgPack),
             "native" => Ok(Transport::Native),
             _ => anyhow::bail!(
-                "Invalid transport: {}. Valid options: http, grpc, msgpack, native",
+                "Invalid transport: {}. Valid options: http, grpc, native",
                 s
             ),
         }
@@ -184,140 +182,6 @@ async fn grpc_worker(
             Err(_) => {
                 stats.failed.fetch_add(1, Ordering::Relaxed);
                 stats.total_requests.fetch_add(1, Ordering::Relaxed);
-            }
-        }
-    }
-
-    Ok(latencies)
-}
-
-async fn msgpack_worker(
-    thread_id: usize,
-    requests_per_thread: usize,
-    port: u16,
-    stats: Arc<Stats>,
-    barrier: Arc<Barrier>,
-    start_flag: Arc<AtomicU64>,
-) -> Result<Vec<Duration>> {
-    use rmp_serde::{Deserializer, Serializer};
-    use serde::{Deserialize, Serialize};
-
-    #[derive(Serialize)]
-    struct Request {
-        cmd: u8,
-        key: String,
-        burst: i64,
-        rate: i64,
-        period: i64,
-        quantity: i64,
-        timestamp: i64,
-    }
-
-    #[derive(Deserialize)]
-    struct Response {
-        ok: bool,
-        allowed: u8,
-        #[allow(dead_code)]
-        limit: i64,
-        #[allow(dead_code)]
-        remaining: i64,
-        #[allow(dead_code)]
-        retry_after: i64,
-        #[allow(dead_code)]
-        reset_after: i64,
-    }
-
-    // Create a dedicated connection for this worker (no sharing between threads)
-    let mut stream = TcpStream::connect(format!("127.0.0.1:{port}")).await?;
-    stream.set_nodelay(true)?;
-
-    // Pre-generate requests
-    let mut requests = Vec::with_capacity(requests_per_thread);
-    for i in 0..requests_per_thread {
-        let key = format!("key_{}_{}", thread_id, i % 1000);
-        requests.push(Request {
-            cmd: 1,
-            key,
-            burst: 100,
-            rate: 10,
-            period: 60,
-            quantity: 1,
-            timestamp: std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .unwrap()
-                .as_nanos() as i64,
-        });
-    }
-
-    // Wait for all threads to be ready
-    barrier.wait().await;
-
-    // Wait for start signal
-    while start_flag.load(Ordering::Acquire) == 0 {
-        tokio::task::yield_now().await;
-    }
-
-    let mut latencies = Vec::with_capacity(requests_per_thread);
-
-    // Send all requests on the same connection
-    for request in requests {
-        let start = Instant::now();
-
-        // Serialize request
-        let mut buf = Vec::new();
-        request.serialize(&mut Serializer::new(&mut buf))?;
-
-        match async {
-            // Write length prefix and data
-            let len = buf.len() as u32;
-            stream.write_all(&len.to_be_bytes()).await?;
-            stream.write_all(&buf).await?;
-            stream.flush().await?;
-
-            // Read response length
-            let mut len_buf = [0u8; 4];
-            stream.read_exact(&mut len_buf).await?;
-            let response_len = u32::from_be_bytes(len_buf) as usize;
-
-            // Read response data
-            let mut response_buf = vec![0u8; response_len];
-            stream.read_exact(&mut response_buf).await?;
-
-            // Deserialize response
-            let response: Response =
-                Deserialize::deserialize(&mut Deserializer::new(&response_buf[..]))?;
-
-            Ok::<Response, anyhow::Error>(response)
-        }
-        .await
-        {
-            Ok(response) => {
-                let latency = start.elapsed();
-                latencies.push(latency);
-                stats.total_requests.fetch_add(1, Ordering::Relaxed);
-                stats
-                    .total_latency_us
-                    .fetch_add(latency.as_micros() as u64, Ordering::Relaxed);
-
-                if response.ok && response.allowed == 1 {
-                    stats.successful.fetch_add(1, Ordering::Relaxed);
-                } else {
-                    stats.rate_limited.fetch_add(1, Ordering::Relaxed);
-                }
-            }
-            Err(e) => {
-                eprintln!("MessagePack protocol error: {e}");
-                stats.failed.fetch_add(1, Ordering::Relaxed);
-                stats.total_requests.fetch_add(1, Ordering::Relaxed);
-
-                // Try to reconnect
-                match TcpStream::connect(format!("127.0.0.1:{port}")).await {
-                    Ok(new_stream) => {
-                        stream = new_stream;
-                        let _ = stream.set_nodelay(true);
-                    }
-                    Err(_) => break, // Can't reconnect, stop this worker
-                }
             }
         }
     }
@@ -507,17 +371,6 @@ pub async fn run_performance_test(
                 }
                 Transport::Grpc => {
                     grpc_worker(
-                        thread_id,
-                        requests_per_thread,
-                        port,
-                        stats,
-                        barrier,
-                        start_flag,
-                    )
-                    .await
-                }
-                Transport::MsgPack => {
-                    msgpack_worker(
                         thread_id,
                         requests_per_thread,
                         port,

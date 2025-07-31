@@ -27,7 +27,7 @@ enum Commands {
         #[arg(short, long, default_value = "58080")]
         port: u16,
 
-        /// Transport type (http, grpc, msgpack, native)
+        /// Transport type (http, grpc, native)
         #[arg(short = 'T', long, default_value = "http")]
         transport: String,
     },

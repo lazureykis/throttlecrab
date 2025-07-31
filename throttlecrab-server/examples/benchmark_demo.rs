@@ -1,5 +1,3 @@
-use rmp_serde::Serializer;
-use serde::{Deserialize, Serialize};
 use std::io::{Read, Write};
 use std::net::TcpStream;
 use std::sync::Arc;
@@ -7,61 +5,27 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::thread;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
-#[derive(Debug, Serialize, Deserialize)]
-struct Request {
-    cmd: u8, // 1 = throttle
-    key: String,
-    burst: i64,
-    rate: i64,
-    period: i64,
-    quantity: i64,
-    timestamp: i64,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-struct Response {
-    ok: bool,
-    allowed: u8, // 0 or 1
-    limit: i64,
-    remaining: i64,
-    retry_after: i64,
-    reset_after: i64,
-}
-
 fn make_request(stream: &mut TcpStream, key: &str) -> std::io::Result<bool> {
-    let request = Request {
-        cmd: 1, // throttle command
-        key: key.to_string(),
-        burst: 100,
-        rate: 1000,
-        period: 60,
-        quantity: 1,
-        timestamp: SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap()
-            .as_nanos() as i64,
-    };
+    let timestamp = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap()
+        .as_nanos() as i64;
 
-    // Serialize request
-    let mut buf = Vec::new();
-    request.serialize(&mut Serializer::new(&mut buf)).unwrap();
+    // Send request using native binary protocol
+    stream.write_all(&[1u8])?; // cmd
+    stream.write_all(&[key.len() as u8])?; // key_len
+    stream.write_all(&100i64.to_le_bytes())?; // burst
+    stream.write_all(&1000i64.to_le_bytes())?; // rate
+    stream.write_all(&60i64.to_le_bytes())?; // period
+    stream.write_all(&1i64.to_le_bytes())?; // quantity
+    stream.write_all(&timestamp.to_le_bytes())?; // timestamp
+    stream.write_all(key.as_bytes())?; // key
 
-    // Send length prefix
-    let len = (buf.len() as u32).to_be_bytes();
-    stream.write_all(&len)?;
-    stream.write_all(&buf)?;
+    // Read response (34 bytes)
+    let mut response = [0u8; 34];
+    stream.read_exact(&mut response)?;
 
-    // Read response length
-    let mut len_buf = [0u8; 4];
-    stream.read_exact(&mut len_buf)?;
-    let len = u32::from_be_bytes(len_buf) as usize;
-
-    // Read response
-    let mut response_buf = vec![0u8; len];
-    stream.read_exact(&mut response_buf)?;
-
-    let response: Response = rmp_serde::from_slice(&response_buf).unwrap();
-    Ok(response.allowed == 1)
+    Ok(response[1] == 1) // allowed field
 }
 
 fn main() {
@@ -69,13 +33,13 @@ fn main() {
     println!("===========================");
     println!();
     println!("Make sure the server is running:");
-    println!("  cargo run --features bin -- --server");
+    println!("  cargo run --features bin -- --server --port 9092 --native");
     println!();
 
     // Test single thread performance
     println!("1. Single Thread Performance Test");
     println!("---------------------------------");
-    let mut stream = match TcpStream::connect("127.0.0.1:9090") {
+    let mut stream = match TcpStream::connect("127.0.0.1:9092") {
         Ok(s) => s,
         Err(e) => {
             eprintln!("Failed to connect to server: {e}");
@@ -114,7 +78,7 @@ fn main() {
         let total_requests = total_requests.clone();
 
         let handle = thread::spawn(move || {
-            let mut stream = TcpStream::connect("127.0.0.1:9090").unwrap();
+            let mut stream = TcpStream::connect("127.0.0.1:9092").unwrap();
 
             for i in 0..requests_per_thread {
                 let key = format!("thread_{thread_id}_key_{i}");
@@ -146,7 +110,7 @@ fn main() {
     println!("3. Burst Pattern Test");
     println!("---------------------");
 
-    let mut stream = TcpStream::connect("127.0.0.1:9090").unwrap();
+    let mut stream = TcpStream::connect("127.0.0.1:9092").unwrap();
     let num_bursts = 100;
     let burst_size = 50;
     let start = Instant::now();

@@ -233,7 +233,6 @@ impl MsgPackConnectionPool {
     }
 
     pub async fn test_request(&self, key: String) -> Result<bool> {
-        use rmp_serde::{Deserializer, Serializer};
         use serde::{Deserialize, Serialize};
 
         #[derive(Serialize)]

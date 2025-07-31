@@ -14,7 +14,6 @@ pub struct Config {
 pub struct TransportConfig {
     pub http: Option<HttpConfig>,
     pub grpc: Option<GrpcConfig>,
-    pub msgpack: Option<MsgPackConfig>,
     pub native: Option<NativeConfig>,
 }
 
@@ -26,12 +25,6 @@ pub struct HttpConfig {
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct GrpcConfig {
-    pub host: String,
-    pub port: u16,
-}
-
-#[derive(Debug, Clone, Deserialize)]
-pub struct MsgPackConfig {
     pub host: String,
     pub port: u16,
 }
@@ -124,30 +117,6 @@ pub struct Args {
         env = "THROTTLECRAB_GRPC_PORT"
     )]
     pub grpc_port: u16,
-
-    // MessagePack Transport
-    #[arg(
-        long,
-        help = "Enable MessagePack transport",
-        env = "THROTTLECRAB_MSGPACK"
-    )]
-    pub msgpack: bool,
-    #[arg(
-        long,
-        value_name = "HOST",
-        help = "MessagePack host",
-        default_value = "127.0.0.1",
-        env = "THROTTLECRAB_MSGPACK_HOST"
-    )]
-    pub msgpack_host: String,
-    #[arg(
-        long,
-        value_name = "PORT",
-        help = "MessagePack port",
-        default_value_t = 8071,
-        env = "THROTTLECRAB_MSGPACK_PORT"
-    )]
-    pub msgpack_port: u16,
 
     // Native Transport
     #[arg(long, help = "Enable Native transport", env = "THROTTLECRAB_NATIVE")]
@@ -275,7 +244,6 @@ impl Config {
             transports: TransportConfig {
                 http: None,
                 grpc: None,
-                msgpack: None,
                 native: None,
             },
             store: StoreConfig {
@@ -306,13 +274,6 @@ impl Config {
             });
         }
 
-        if args.msgpack {
-            config.transports.msgpack = Some(MsgPackConfig {
-                host: args.msgpack_host,
-                port: args.msgpack_port,
-            });
-        }
-
         if args.native {
             config.transports.native = Some(NativeConfig {
                 host: args.native_host,
@@ -329,7 +290,6 @@ impl Config {
     pub fn has_any_transport(&self) -> bool {
         self.transports.http.is_some()
             || self.transports.grpc.is_some()
-            || self.transports.msgpack.is_some()
             || self.transports.native.is_some()
     }
 
@@ -340,11 +300,10 @@ impl Config {
                 Available transports:\n  \
                 --http       Enable HTTP transport\n  \
                 --grpc       Enable gRPC transport\n  \
-                --msgpack    Enable MessagePack transport\n  \
                 --native     Enable Native transport\n\n\
                 Example:\n  \
                 throttlecrab-server --http --http-port 7070\n  \
-                throttlecrab-server --msgpack --grpc\n\n\
+                throttlecrab-server --grpc --native\n\n\
                 For more information, try '--help'"
             ));
         }
@@ -371,10 +330,6 @@ impl Config {
         println!("  THROTTLECRAB_GRPC=true|false          Enable gRPC transport");
         println!("  THROTTLECRAB_GRPC_HOST=<host>         gRPC host [default: 127.0.0.1]");
         println!("  THROTTLECRAB_GRPC_PORT=<port>         gRPC port [default: 8070]");
-        println!();
-        println!("  THROTTLECRAB_MSGPACK=true|false       Enable MessagePack transport");
-        println!("  THROTTLECRAB_MSGPACK_HOST=<host>      MessagePack host [default: 127.0.0.1]");
-        println!("  THROTTLECRAB_MSGPACK_PORT=<port>      MessagePack port [default: 8071]");
         println!();
         println!("  THROTTLECRAB_NATIVE=true|false        Enable Native transport");
         println!("  THROTTLECRAB_NATIVE_HOST=<host>       Native host [default: 127.0.0.1]");
@@ -465,7 +420,6 @@ mod tests {
             transports: TransportConfig {
                 http: None,
                 grpc: None,
-                msgpack: None,
                 native: None,
             },
             store: StoreConfig {
@@ -494,7 +448,6 @@ mod tests {
                     port: 8080,
                 }),
                 grpc: None,
-                msgpack: None,
                 native: None,
             },
             store: StoreConfig {
@@ -525,10 +478,6 @@ mod tests {
                 grpc: Some(GrpcConfig {
                     host: "0.0.0.0".to_string(),
                     port: 50051,
-                }),
-                msgpack: Some(MsgPackConfig {
-                    host: "127.0.0.1".to_string(),
-                    port: 9090,
                 }),
                 native: None,
             },

@@ -9,7 +9,7 @@ usage() {
     echo "Usage: $0 [OPTIONS]"
     echo ""
     echo "OPTIONS:"
-    echo "  -t, --transport TRANSPORT    Transport to test (http, grpc, msgpack, native) [default: http]"
+    echo "  -t, --transport TRANSPORT    Transport to test (http, grpc, native) [default: http]"
     echo "  -T, --threads NUM           Number of threads [default: 20]"
     echo "  -r, --requests NUM          Requests per thread [default: 5000]"
     echo "  -s, --store TYPE            Store type (adaptive, periodic, probabilistic) [default: adaptive]"
@@ -89,7 +89,7 @@ NATIVE_PORT=58072
 run_transport_test() {
     local transport=$1
     local port=$2
-    
+
     echo "=== Testing $transport transport ==="
     echo "Threads: $THREADS"
     echo "Requests per thread: $REQUESTS"
@@ -98,10 +98,10 @@ run_transport_test() {
     echo "Store type: $STORE"
     echo "Log level: $LOG_LEVEL"
     echo ""
-    
+
     # Kill any existing server on the port
     lsof -ti:$port | xargs kill -9 2>/dev/null || true
-    
+
     # Build transport-specific arguments
     case $transport in
         http)
@@ -117,7 +117,7 @@ run_transport_test() {
             TRANSPORT_ARGS="--native --native-port $port"
             ;;
     esac
-    
+
     # Start server
     echo "Starting server with $transport transport..."
     ../target/release/throttlecrab-server \
@@ -126,33 +126,33 @@ run_transport_test() {
         --store-capacity 1000000 \
         --buffer-size 1000000 \
         --log-level $LOG_LEVEL &
-    
+
     SERVER_PID=$!
     echo "Server started with PID: $SERVER_PID"
-    
+
     # Wait for server
     sleep 2
-    
+
     # Check if server is running
     if ! kill -0 $SERVER_PID 2>/dev/null; then
         echo "ERROR: Server failed to start"
         exit 1
     fi
-    
+
     # Run test
     echo -e "\nRunning performance test..."
-    
+
     ../target/release/throttlecrab-integration-tests perf-test \
         --threads $THREADS \
         --requests $REQUESTS \
         --port $port \
         --transport $transport
-    
+
     # Cleanup
     echo -e "\nStopping server..."
     kill $SERVER_PID
     wait $SERVER_PID 2>/dev/null || true
-    
+
     echo "Test completed for $transport transport!"
     echo ""
 }

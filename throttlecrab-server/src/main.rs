@@ -12,8 +12,7 @@ use tokio::task::JoinSet;
 
 use crate::config::Config;
 use crate::transport::{
-    Transport, grpc::GrpcTransport, http::HttpTransport, msgpack::MsgPackTransport,
-    native::NativeTransport,
+    Transport, grpc::GrpcTransport, http::HttpTransport, native::NativeTransport,
 };
 
 #[tokio::main]
@@ -57,19 +56,6 @@ async fn main() -> Result<()> {
         transport_tasks.spawn(async move {
             tracing::info!("Starting gRPC transport on {}:{}", host, port);
             let transport = GrpcTransport::new(&host, port);
-            transport.start(limiter_handle).await
-        });
-    }
-
-    // Start MessagePack transport if enabled
-    if let Some(msgpack_config) = &config.transports.msgpack {
-        let limiter_handle = limiter.clone();
-        let host = msgpack_config.host.clone();
-        let port = msgpack_config.port;
-
-        transport_tasks.spawn(async move {
-            tracing::info!("Starting MessagePack transport on {}:{}", host, port);
-            let transport = MsgPackTransport::new(&host, port);
             transport.start(limiter_handle).await
         });
     }

@@ -21,7 +21,7 @@ Run specific benchmark suite:
 ## Benchmark Suites
 
 ### 1. Transport Benchmarks
-Tests the performance of each transport protocol (HTTP, gRPC, MessagePack, Native) under steady load.
+Tests the performance of each transport protocol (HTTP, gRPC, Native) under steady load.
 
 ```bash
 ./run-benchmarks.sh -d 60 -r 50000 transports
@@ -126,7 +126,6 @@ Each benchmark reports:
 
 ### Transport Performance
 - **Native**: Lowest latency, highest throughput
-- **MessagePack**: Good balance of performance and compatibility
 - **gRPC**: Best for service-to-service communication
 - **HTTP**: Most compatible, easiest to integrate
 
@@ -139,7 +138,7 @@ Each benchmark reports:
 On modern hardware (M1/M2 Mac, recent Intel/AMD):
 - Single transport: 100k-500k RPS
 - All transports concurrent: 200k-1M RPS total
-- P99 latency: <1ms for Native/MessagePack, <5ms for HTTP/gRPC
+- P99 latency: <1ms for Native, <5ms for HTTP/gRPC
 
 ## Troubleshooting
 

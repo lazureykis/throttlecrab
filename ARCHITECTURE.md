@@ -12,7 +12,7 @@
 ┌─────────────────▼───────────────▼───────────────▼───────┐
 │                    Transport Layer                       │
 │  ┌─────────────┐ ┌─────────────┐ ┌─────────────┐      │
-│  │TCP+MsgPack  │ │    HTTP     │ │Redis Protocol│ ...  │
+│  │   HTTP      │ │    gRPC     │ │Native Binary │ ...  │
 │  └──────┬──────┘ └──────┬──────┘ └──────┬──────┘      │
 └─────────┴───────────────┴───────────────┴──────────────┘
                           │
@@ -140,75 +140,61 @@ pub trait Transport {
 }
 ```
 
-### 4. MessagePack Transport (`src/transport/msgpack.rs`)
+### 4. HTTP Transport (`src/transport/http.rs`)
 
 ```rust
-pub struct MsgPackTransport {
+pub struct HttpTransport {
     host: String,
     port: u16,
 }
 
-impl MsgPackTransport {
-    async fn handle_connection(
-        mut socket: TcpStream,
+impl HttpTransport {
+    async fn handle_request(
+        req: Request<Body>,
         limiter: RateLimiterHandle,
-    ) -> Result<()> {
-        let mut buffer = BytesMut::with_capacity(8192);
-        
-        loop {
-            // Read length prefix (4 bytes)
-            socket.read_exact(&mut buffer[..4]).await?;
-            let len = u32::from_be_bytes([buffer[0], buffer[1], buffer[2], buffer[3]]);
-            
-            // Read message
-            buffer.resize(len as usize, 0);
-            socket.read_exact(&mut buffer).await?;
-            
-            // Decode request
-            let request: MsgPackRequest = rmp_serde::from_slice(&buffer)?;
-            
-            // Send to actor via channel
-            let response = limiter.throttle(request.into()).await?;
-            
-            // Encode and send response
-            let response_bytes = rmp_serde::to_vec(&MsgPackResponse::from(response))?;
-            let len_bytes = (response_bytes.len() as u32).to_be_bytes();
-            
-            socket.write_all(&len_bytes).await?;
-            socket.write_all(&response_bytes).await?;
+    ) -> Result<Response<Body>> {
+        match (req.method(), req.uri().path()) {
+            (&Method::POST, "/throttle") => {
+                // Parse JSON request body
+                let body_bytes = hyper::body::to_bytes(req.into_body()).await?;
+                let request: HttpRequest = serde_json::from_slice(&body_bytes)?;
+                
+                // Send to actor via channel
+                let response = limiter.throttle(request.into()).await?;
+                
+                // Return JSON response
+                let response_json = serde_json::to_string(&HttpResponse::from(response))?;
+                Ok(Response::builder()
+                    .status(200)
+                    .header("content-type", "application/json")
+                    .body(Body::from(response_json))?)
+            }
+            _ => Ok(Response::builder().status(404).body(Body::empty())?)
         }
     }
 }
 ```
 
-#### Wire Format
+#### JSON Format
 ```rust
-// Request (MessagePack encoded)
-struct MsgPackRequest {
-    cmd: u8,  // 1 = throttle
+// Request (JSON)
+struct HttpRequest {
     key: String,
-    burst: u32,
-    rate: u32,
+    max_burst: u32,
+    count_per_period: u32,
     period: u32,
     quantity: Option<u32>,  // default: 1
 }
 
-// Response (MessagePack encoded)
-struct MsgPackResponse {
-    ok: bool,
-    allowed: u8,  // 0 or 1
+// Response (JSON)
+struct HttpResponse {
+    allowed: bool,
     limit: u32,
     remaining: u32,
     retry_after: u32,
     reset_after: u32,
 }
 ```
-
-#### TCP Protocol
-- Fixed header: 4 bytes (message length, big-endian)
-- Payload: MessagePack encoded request/response
-- Keep-alive: TCP SO_KEEPALIVE
-- Connection pooling supported
 
 ### 4. Project Structure
 
@@ -224,9 +210,9 @@ src/
 │       └── memory.rs    # In-memory storage
 ├── transport/
 │   ├── mod.rs           # Transport trait
-│   ├── msgpack.rs       # TCP + MessagePack
-│   ├── http.rs          # HTTP/REST (future)
-│   └── redis.rs         # Redis protocol (future)
+│   ├── http.rs          # HTTP/JSON
+│   ├── grpc.rs          # gRPC
+│   └── native.rs        # Native binary protocol
 └── config.rs            # Configuration structs
 ```
 
@@ -240,9 +226,10 @@ async-trait = "0.1"
 # No dependencies - pure Rust implementation
 anyhow = "1"
 
-# MessagePack
-rmp-serde = "1"
+# HTTP/JSON
+hyper = { version = "0.14", features = ["full"] }
 serde = { version = "1", features = ["derive"] }
+serde_json = "1"
 
 # Utilities
 tracing = "0.1"
@@ -265,10 +252,10 @@ tokio-test = "0.4"
 [server]
 log_level = "info"
 
-[transports.msgpack]
+[transports.http]
 enabled = true
 host = "0.0.0.0"
-port = 9090
+port = 8080
 max_connections = 10000
 buffer_size = 8192
 

@@ -64,11 +64,10 @@ Real-world test results with 32 threads, 10K requests per thread (320K total):
 | Native | 183,879 req/s | 170 μs | 207 μs | 263 μs | 584 μs |
 | HTTP/JSON | 173,940 req/s | 177 μs | 226 μs | 309 μs | 622 μs |
 | gRPC | 163,814 req/s | 186 μs | 265 μs | 370 μs | 539 μs |
-| MessagePack | 146,532 req/s | 214 μs | 252 μs | 301 μs | 550 μs |
 
 ### Performance Insights
 
-1. **Throughput**: All protocols achieve excellent throughput (146K-183K req/s)
+1. **Throughput**: All protocols achieve excellent throughput (163K-183K req/s)
 2. **Latency**: Sub-millisecond P99 latency across all protocols (263-370 μs)
 3. **Native vs HTTP**: Only ~6% performance difference (183K vs 173K req/s)
 4. **Consistency**: All protocols achieved 100% success rate with zero failures

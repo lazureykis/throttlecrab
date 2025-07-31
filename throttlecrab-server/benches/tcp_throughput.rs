@@ -1,6 +1,4 @@
 use criterion::{BenchmarkId, Criterion, Throughput, criterion_group, criterion_main};
-use rmp_serde::Serializer;
-use serde::{Deserialize, Serialize};
 use std::hint::black_box;
 use std::io::{Read, Write};
 use std::net::TcpStream;
@@ -9,7 +7,7 @@ use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::thread;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
-#[derive(Debug, Serialize, Deserialize)]
+/// Native protocol request format
 struct Request {
     cmd: u8, // 1 = throttle
     key: String,
@@ -18,16 +16,6 @@ struct Request {
     period: i64,
     quantity: i64,
     timestamp: i64,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-struct Response {
-    ok: bool,
-    allowed: u8, // 0 or 1
-    limit: i64,
-    remaining: i64,
-    retry_after: i64,
-    reset_after: i64,
 }
 
 fn make_request(stream: &mut TcpStream, key: &str) -> bool {
@@ -44,26 +32,35 @@ fn make_request(stream: &mut TcpStream, key: &str) -> bool {
             .as_nanos() as i64,
     };
 
-    // Serialize request
-    let mut buf = Vec::new();
-    request.serialize(&mut Serializer::new(&mut buf)).unwrap();
+    // Send native protocol request
+    let key_bytes = request.key.as_bytes();
+    let key_len = key_bytes.len().min(255) as u8;
 
-    // Send length prefix
-    let len = (buf.len() as u32).to_be_bytes();
-    stream.write_all(&len).unwrap();
-    stream.write_all(&buf).unwrap();
+    // Write fixed header (42 bytes)
+    stream.write_all(&[request.cmd]).unwrap(); // cmd: u8
+    stream.write_all(&[key_len]).unwrap(); // key_len: u8
+    stream.write_all(&request.burst.to_le_bytes()).unwrap(); // burst: i64
+    stream.write_all(&request.rate.to_le_bytes()).unwrap(); // rate: i64
+    stream.write_all(&request.period.to_le_bytes()).unwrap(); // period: i64
+    stream.write_all(&request.quantity.to_le_bytes()).unwrap(); // quantity: i64
+    stream.write_all(&request.timestamp.to_le_bytes()).unwrap(); // timestamp: i64
 
-    // Read response length
-    let mut len_buf = [0u8; 4];
-    stream.read_exact(&mut len_buf).unwrap();
-    let len = u32::from_be_bytes(len_buf) as usize;
+    // Write key
+    stream.write_all(&key_bytes[..key_len as usize]).unwrap();
 
-    // Read response
-    let mut response_buf = vec![0u8; len];
+    // Read response (34 bytes fixed)
+    let mut response_buf = [0u8; 34];
     stream.read_exact(&mut response_buf).unwrap();
 
-    let response: Response = rmp_serde::from_slice(&response_buf).unwrap();
-    response.allowed == 1
+    // Parse response
+    let ok = response_buf[0];
+    let allowed = response_buf[1];
+    let _limit = i64::from_le_bytes(response_buf[2..10].try_into().unwrap());
+    let _remaining = i64::from_le_bytes(response_buf[10..18].try_into().unwrap());
+    let _retry_after = i64::from_le_bytes(response_buf[18..26].try_into().unwrap());
+    let _reset_after = i64::from_le_bytes(response_buf[26..34].try_into().unwrap());
+
+    ok == 1 && allowed == 1
 }
 
 fn bench_single_thread(c: &mut Criterion) {
@@ -74,7 +71,7 @@ fn bench_single_thread(c: &mut Criterion) {
     group.throughput(Throughput::Elements(1000));
 
     // Create connection once before benchmarking
-    let mut stream = TcpStream::connect("127.0.0.1:9090").expect(
+    let mut stream = TcpStream::connect("127.0.0.1:9092").expect(
         "Failed to connect. Is the server running? Run: cargo run --features bin -- --server",
     );
 
@@ -117,7 +114,7 @@ fn bench_multi_thread(c: &mut Criterion) {
                         let counter = counter.clone();
 
                         let handle = thread::spawn(move || {
-                            let mut stream = TcpStream::connect("127.0.0.1:9090").unwrap();
+                            let mut stream = TcpStream::connect("127.0.0.1:9092").unwrap();
                             stream.set_nodelay(true).unwrap();
 
                             for _ in 0..requests_per_thread {
@@ -151,7 +148,7 @@ fn bench_burst_pattern(c: &mut Criterion) {
     let mut group = c.benchmark_group("burst_pattern");
 
     // Create connection once
-    let mut stream = TcpStream::connect("127.0.0.1:9090").unwrap();
+    let mut stream = TcpStream::connect("127.0.0.1:9092").unwrap();
     stream.set_nodelay(true).unwrap();
 
     group.bench_function("burst_then_wait", |b| {
@@ -177,7 +174,7 @@ fn bench_mixed_keys(c: &mut Criterion) {
     let mut group = c.benchmark_group("mixed_keys");
 
     // Create connection once
-    let mut stream = TcpStream::connect("127.0.0.1:9090").unwrap();
+    let mut stream = TcpStream::connect("127.0.0.1:9092").unwrap();
     stream.set_nodelay(true).unwrap();
 
     group.bench_function("rotating_keys", |b| {
