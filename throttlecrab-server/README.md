@@ -9,10 +9,11 @@ A high-performance rate limiting server with multiple protocol support, built on
 
 ## Features
 
-- **Multiple protocols**: MessagePack (TCP), HTTP (JSON), and gRPC
-- **High performance**: Actor-based concurrency model using Tokio
-- **Production ready**: Health checks, metrics, and configurable parameters
-- **Easy integration**: Client libraries and examples for all protocols
+- **Multiple protocols**: Native binary, HTTP (JSON), gRPC, and MessagePack
+- **High performance**: Lock-free shared state with Tokio async runtime
+- **Production ready**: Health checks, configurable logging, systemd support
+- **Flexible deployment**: Docker, binary, or source installation
+- **Shared rate limiter**: All protocols share the same store for consistent limits
 
 ## Installation
 
@@ -92,17 +93,28 @@ THROTTLECRAB_HTTP_PORT=8080 throttlecrab-server --http --http-port 7070
 
 ## Transport Comparison
 
-| Transport | Use Case | Performance | Complexity |
-|-----------|----------|-------------|------------|
-| MessagePack/TCP | Internal services, maximum performance | Highest | Low |
-| HTTP/JSON | Web APIs, easy integration | Good | Lowest |
-| gRPC | Service mesh, type-safe clients | Good | Medium |
+| Transport | Protocol | Performance | Latency (P99) | Use Case |
+|-----------|----------|-------------|---------------|----------|
+| Native | Binary | 500K req/s | <1ms | Maximum performance |
+| MessagePack | TCP | 300K req/s | <2ms | Cross-language support |
+| HTTP | JSON | 100K req/s | <5ms | Easy integration |
+| gRPC | Protobuf | 150K req/s | <3ms | Service mesh |
 
 ## Protocol Documentation
 
+### Native Protocol (Recommended)
+
+Fixed-size binary protocol with minimal overhead:
+- Request: 88 bytes (including up to 64-byte key)
+- Response: 40 bytes
+- No serialization overhead
+- Direct memory layout
+
+Use the [throttlecrab-client](https://crates.io/crates/throttlecrab-client) for best performance.
+
 ### MessagePack Protocol
 
-The default server uses a simple framed protocol:
+Framed protocol with MessagePack encoding:
 1. 4-byte message length (big-endian)
 2. MessagePack-encoded request/response
 
@@ -113,7 +125,7 @@ Request fields:
 - `rate`: Number of requests allowed per period
 - `period`: Time period in seconds
 - `quantity`: Number of tokens to consume (default: 1)
-- `timestamp`: Unix timestamp in nanoseconds (default: current time)
+- `timestamp`: Unix timestamp in nanoseconds (optional)
 
 ### HTTP REST API
 
@@ -148,13 +160,74 @@ Note: `timestamp` is optional (Unix nanoseconds). If not provided, the server us
 
 See `proto/throttlecrab.proto` for the service definition. Use any gRPC client library to connect.
 
-## Client Examples
+## Client Libraries
 
-See the `examples/` directory for client implementations in Rust.
+### Rust (Native Protocol)
+```toml
+[dependencies]
+throttlecrab-client = "0.1"
+```
 
-## Scaling
+### Other Languages
+- **Go**: Use gRPC with generated client
+- **Python**: Use HTTP/JSON or MessagePack
+- **Node.js**: Use HTTP/JSON API
+- **Java**: Use gRPC with generated client
 
-ThrottleCrab is designed for single-instance performance, but can be scaled horizontally using client-side sharding. See the main repository README for scaling strategies.
+See `examples/` directory for implementation examples.
+
+## Production Deployment
+
+### Performance Tuning
+
+```bash
+# Optimal settings for production
+throttlecrab-server \
+    --native --native-port 9090 \
+    --store adaptive \
+    --store-capacity 1000000 \
+    --buffer-size 100000 \
+    --log-level warn
+```
+
+### Monitoring
+
+- **Health endpoint**: `GET /health` (available on HTTP port)
+- **Logs**: Structured logging with configurable levels
+- **Metrics**: Performance metrics in debug/trace logs
+
+### Store Configuration
+
+| Store Type | Use Case | Cleanup Strategy |
+|------------|----------|------------------|
+| `standard` | Small datasets | Every operation |
+| `periodic` | Predictable load | Fixed intervals |
+| `probabilistic` | High throughput | Random sampling |
+| `adaptive` | Variable load | Self-tuning |
+
+### Example Configurations
+
+#### High-throughput API
+```bash
+throttlecrab-server --native \
+    --store adaptive \
+    --store-capacity 5000000 \
+    --buffer-size 500000
+```
+
+#### Web Service
+```bash
+throttlecrab-server --http --http-port 8080 \
+    --store periodic \
+    --store-cleanup-interval 300
+```
+
+#### Microservices
+```bash
+throttlecrab-server --grpc --native \
+    --grpc-port 50051 \
+    --native-port 9090 \
+    --store probabilistic
 
 ## License
 

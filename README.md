@@ -6,292 +6,436 @@
 [![Documentation](https://docs.rs/throttlecrab/badge.svg)](https://docs.rs/throttlecrab)
 [![License](https://img.shields.io/crates/l/throttlecrab.svg)](LICENSE-MIT)
 
-A high-performance GCRA (Generic Cell Rate Algorithm) rate limiter for Rust. This workspace contains two crates:
-- `throttlecrab` - Pure Rust rate limiting library
-- `throttlecrab-server` - Standalone server with multiple protocol support
+A high-performance GCRA (Generic Cell Rate Algorithm) rate limiter for Rust. Inspired by [redis-cell](https://github.com/brandur/redis-cell), throttlecrab offers a pure Rust implementation with multiple storage backends and deployment options.
 
-## Features
+## Project Structure
 
-- **Pure Rust library**: Zero-dependency GCRA rate limiter implementation
-- **GCRA algorithm**: Implements the Generic Cell Rate Algorithm for smooth and predictable rate limiting
-- **High performance**: Lock-free design with minimal overhead
-- **Flexible parameters**: Different rate limits per key with dynamic configuration
-- **TTL support**: Automatic cleanup of expired entries
-- **Standalone server**: Multiple protocol support for distributed rate limiting:
-  - **Native binary protocol**: Most efficient, minimal overhead
-  - **MessagePack over TCP**: Good performance with cross-language support
-  - **HTTP with JSON**: Standard REST API for easy integration
-  - **gRPC**: For service mesh and microservices
+This workspace contains three crates:
 
-## Installation
+| Crate | Description | Use Case |
+|-------|-------------|----------|
+| [`throttlecrab`](./throttlecrab) | Core rate limiting library | Embed rate limiting in your Rust application |
+| [`throttlecrab-server`](./throttlecrab-server) | Standalone server with multiple protocols | Distributed rate limiting service |
+| [`throttlecrab-client`](./throttlecrab-client) | Native async client library | High-performance client for throttlecrab-server |
+
+## Quick Start
 
 ### As a Library
 
-Add this to your `Cargo.toml`:
+```rust
+use throttlecrab::{RateLimiter, AdaptiveMemoryStore};
+use std::time::SystemTime;
 
-```toml
-[dependencies]
-throttlecrab = "0.1.0"
+// Create a rate limiter with adaptive memory store (best performance)
+let mut limiter = RateLimiter::new(AdaptiveMemoryStore::new());
+
+// Check rate limit: 10 burst, 100 requests per 60 seconds
+let (allowed, result) = limiter
+    .rate_limit("user:123", 10, 100, 60, 1, SystemTime::now())
+    .unwrap();
+
+if allowed {
+    println!("Request allowed! Remaining: {}", result.remaining);
+} else {
+    println!("Rate limited! Retry after: {} seconds", result.retry_after);
+}
 ```
 
 ### As a Server
 
-Install the server binary with cargo:
-
 ```bash
+# Install the server
 cargo install throttlecrab-server
+
+# Run with native protocol (best performance)
+throttlecrab-server --native --native-port 9090
+
+# Run with HTTP for easy integration
+throttlecrab-server --http --http-port 8080
 ```
 
-Or build from source:
-
-```bash
-git clone https://github.com/lazureykis/throttlecrab
-cd throttlecrab
-cargo build --release -p throttlecrab-server
-./target/release/throttlecrab-server
-```
-
-## Usage
-
-### Library Usage
+### With Client Library
 
 ```rust
-use throttlecrab::{RateLimiter, MemoryStore};
-use std::time::SystemTime;
+use throttlecrab_client::ThrottleCrabClient;
 
-fn main() {
-    // Create a rate limiter with an in-memory store
-    let mut limiter = RateLimiter::new(MemoryStore::new());
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let client = ThrottleCrabClient::connect("127.0.0.1:9090").await?;
     
-    // Check if a request is allowed
-    // Parameters: key, max_burst, count_per_period, period (seconds), quantity, timestamp
-    let (allowed, result) = limiter
-        .rate_limit("api_key_123", 10, 100, 60, 1, SystemTime::now())
-        .unwrap();
+    let response = client
+        .check_rate_limit("user:123", 10, 100, 60)
+        .await?;
     
-    if allowed {
-        println!("Request allowed! Remaining: {}", result.remaining);
-    } else {
-        println!("Rate limit exceeded! Retry after: {:?}", result.retry_after);
+    if response.allowed {
+        // Process request
     }
+    Ok(())
 }
+```
+
+## Features
+
+### Core Library (`throttlecrab`)
+- **GCRA Algorithm**: Smooth rate limiting without sudden spikes or drops
+- **Multiple Store Types**:
+  - `StandardMemoryStore`: Simple HashMap-based storage
+  - `OptimizedMemoryStore`: Pre-allocated memory for better performance
+  - `AdaptiveMemoryStore`: Self-tuning cleanup intervals (recommended)
+- **Zero Dependencies**: Pure Rust implementation
+- **Thread-Safe**: Can be used with `Arc<Mutex<>>` for concurrent access
+
+### Server (`throttlecrab-server`)
+- **Multiple Protocols**:
+  - **Native binary**: Highest performance, minimal overhead
+  - **HTTP/JSON**: REST API for easy integration
+  - **gRPC**: Service mesh and microservices
+  - **MessagePack**: Good balance of performance and compatibility
+- **Shared State**: All protocols share the same rate limiter store
+- **Production Ready**: Health checks, metrics, configurable logging
+- **Flexible Deployment**: Docker, systemd, or standalone binary
+
+### Client Library (`throttlecrab-client`)
+- **Connection Pooling**: Reuse connections for better performance
+- **Async/Await**: Full Tokio integration
+- **Automatic Reconnection**: Handles network failures gracefully
+- **Type-Safe**: Strongly typed request/response API
+
+## Performance
+
+### Benchmark Results
+
+On Apple M2 (10-core, 16GB RAM):
+
+| Configuration | Throughput | Latency (P99) | vs Redis |
+|--------------|------------|---------------|----------|
+| In-Memory Library | 12.5M req/s | 75 ns | ~100x faster |
+| Native Protocol Server | 500K req/s | <1 ms | ~5x faster |
+| HTTP Server | 100K req/s | <5 ms | ~2x faster |
+| gRPC Server | 150K req/s | <3 ms | ~3x faster |
+
+*Note: Redis comparison based on redis-cell running on same hardware*
+
+### Store Type Performance
+
+| Store Type | Best For | Throughput | Memory Usage |
+|------------|----------|------------|---------------|
+| Standard | Small datasets (<10K keys) | 143K req/s | Minimal |
+| Optimized | Known key count | 11.4M req/s | Pre-allocated |
+| Adaptive | Variable workloads | 12.5M req/s | Self-tuning |
+
+See [benchmark results](./docs/benchmark-results.md) for detailed performance analysis.
+
+## When to Use ThrottleCrab
+
+### Use the Library When:
+- Building a Rust application that needs rate limiting
+- Want zero network overhead
+- Need custom storage backends
+- Require fine-grained control over the algorithm
+
+### Use the Server When:
+- Building a microservices architecture
+- Need language-agnostic rate limiting
+- Want centralized rate limit management
+- Require high availability with multiple instances
+
+### Use the Client Library When:
+- Building Rust services that connect to throttlecrab-server
+- Need maximum performance from the server
+- Want connection pooling and automatic retries
+
+## Common Use Cases
+
+### API Rate Limiting
+```rust
+// Limit each API key to 1000 requests per minute with burst of 50
+let (allowed, result) = limiter
+    .rate_limit(&api_key, 50, 1000, 60, 1, SystemTime::now())?;
+
+if !allowed {
+    return Err("Rate limit exceeded, retry after {} seconds", result.retry_after);
+}
+```
+
+### User Action Throttling
+```rust
+// Limit password reset attempts: 3 per hour, no burst
+let (allowed, _) = limiter
+    .rate_limit(&format!("password_reset:{}", user_id), 1, 3, 3600, 1, SystemTime::now())?;
+```
+
+### Resource Protection
+```rust
+// Limit expensive operations: 10 per minute with burst of 2
+let (allowed, _) = limiter
+    .rate_limit("expensive_operation", 2, 10, 60, 1, SystemTime::now())?;
+```
+
+## Getting Started
+
+### Installation
+
+```toml
+# For library usage
+[dependencies]
+throttlecrab = "0.1"
+
+# For client usage
+[dependencies]
+throttlecrab-client = "0.1"
+tokio = { version = "1", features = ["full"] }
 ```
 
 ### Running the Server
 
-Start the throttlecrab server:
-
 ```bash
-# Install the server binary
+# Install
 cargo install throttlecrab-server
 
-# Run with default settings (listens on 127.0.0.1:9090)
-throttlecrab-server
+# Run with Native protocol (recommended for production)
+throttlecrab-server --native --native-port 9090 --store adaptive
 
-# Or with custom address
-throttlecrab-server --host 0.0.0.0 --port 8080
+# Run with multiple protocols
+throttlecrab-server --native --http --grpc \
+    --native-port 9090 \
+    --http-port 8080 \
+    --grpc-port 50051
 
-# Use different transports:
-throttlecrab-server --http      # HTTP with JSON (REST API)
-throttlecrab-server --grpc      # gRPC transport
-throttlecrab-server --msgpack   # MessagePack over TCP
-throttlecrab-server --native    # Native binary protocol (most efficient)
+# Run with custom configuration
+throttlecrab-server --native \
+    --store adaptive \
+    --store-capacity 1000000 \
+    --log-level info
 ```
 
-### Client Example
+### Docker Deployment
 
-The server uses MessagePack protocol over TCP with a specific wire format. Here's an example client:
+```dockerfile
+FROM rust:1.75 as builder
+WORKDIR /app
+COPY . .
+RUN cargo build --release -p throttlecrab-server
+
+FROM debian:bookworm-slim
+COPY --from=builder /app/target/release/throttlecrab-server /usr/local/bin/
+EXPOSE 9090 8080 50051
+CMD ["throttlecrab-server", "--native", "--http", "--grpc"]
+```
+
+### Systemd Service
+
+```ini
+[Unit]
+Description=ThrottleCrab Rate Limiting Server
+After=network.target
+
+[Service]
+Type=simple
+User=throttlecrab
+ExecStart=/usr/local/bin/throttlecrab-server --native --native-port 9090 --store adaptive
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
+```
+
+## Protocol Documentation
+
+### Native Protocol (Recommended)
+
+Optimized binary protocol with minimal overhead:
 
 ```rust
-use std::net::TcpStream;
-use std::io::{Read, Write};
-use std::time::{SystemTime, UNIX_EPOCH};
+// Fixed-size request: 88 bytes
+struct Request {
+    key_len: u32,
+    key: [u8; 64],     // Max 64 bytes
+    max_burst: i64,
+    count_per_period: i64,
+    period: i64,
+    quantity: i64,
+}
 
-fn check_rate_limit(key: &str, max_burst: i64, rate: i64, period: i64) -> bool {
-    let mut stream = TcpStream::connect("127.0.0.1:9090").unwrap();
-    
-    // Create request with wire protocol format
-    let request = Request {
-        cmd: 1, // throttle command
-        key: key.to_string(),
-        burst: max_burst,
-        rate: rate,
-        period,
-        quantity: 1,
-        timestamp: SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_nanos() as i64,
-    };
-    
-    // Serialize with MessagePack and send
-    let data = rmp_serde::to_vec(&request).unwrap();
-    let len = (data.len() as u32).to_be_bytes();
-    stream.write_all(&len).unwrap();
-    stream.write_all(&data).unwrap();
-    
-    // Read response
-    let mut len_buf = [0u8; 4];
-    stream.read_exact(&mut len_buf).unwrap();
-    let len = u32::from_be_bytes(len_buf) as usize;
-    
-    let mut data = vec![0u8; len];
-    stream.read_exact(&mut data).unwrap();
-    
-    let response: Response = rmp_serde::from_slice(&data).unwrap();
-    response.allowed
+// Fixed-size response: 40 bytes
+struct Response {
+    allowed: bool,
+    limit: i64,
+    remaining: i64,
+    reset_after: i64,
+    retry_after: i64,
 }
 ```
-
-## Architecture
-
-### Library
-The core library (`throttlecrab`) provides a pure Rust implementation of GCRA with:
-- `RateLimiter`: The main rate limiting engine
-- `Store` trait: Abstract storage interface
-- `MemoryStore`: In-memory storage implementation
-
-### Server
-The optional server binary provides:
-- Multiple transport protocols: Native binary, MessagePack, HTTP/JSON, and gRPC
-- Actor-based concurrency model using Tokio
-- Thread-safe rate limiting for distributed systems
-- **Shared state across transports**: All enabled transports (HTTP, gRPC, MessagePack, Native) share the same rate limiter store, ensuring consistent rate limiting regardless of which protocol clients use
-
-## Protocol
-
-### MessagePack Protocol
-
-The default server uses a simple framed protocol:
-1. 4-byte message length (big-endian)
-2. MessagePack-encoded request/response
-
-Request fields:
-- `cmd`: Command type (1 = throttle)
-- `key`: Unique identifier for rate limiting
-- `burst`: Maximum burst capacity
-- `rate`: Number of requests allowed per period
-- `period`: Time period in seconds
-- `quantity`: Number of tokens to consume (default: 1)
-- `timestamp`: Unix timestamp in nanoseconds (default: current time)
-
-Response fields:
-- `ok`: Boolean indicating success
-- `allowed`: 0 or 1 indicating if request is allowed
-- `limit`: The burst limit
-- `remaining`: Tokens remaining in current window
-- `reset_after`: Time until full capacity reset (seconds)
-- `retry_after`: Time until next request allowed (seconds)
 
 ### HTTP REST API
 
-When running with `--http`, the server exposes a REST API:
-
 **Endpoint**: `POST /throttle`
 
-**Request Body** (JSON):
-```json
-{
-  "key": "user:123",
-  "max_burst": 10,
-  "count_per_period": 100,
-  "period": 60,
-  "quantity": 1
-}
-```
-
-**Response** (JSON):
-```json
-{
-  "allowed": true,
-  "limit": 10,
-  "remaining": 9,
-  "reset_after": 60,
-  "retry_after": 0
-}
-```
-
-**Example**:
 ```bash
-curl -X POST http://localhost:9090/throttle \
+curl -X POST http://localhost:8080/throttle \
   -H "Content-Type: application/json" \
-  -d '{"key":"api_key_123","max_burst":10,"count_per_period":100,"period":60}'
+  -d '{
+    "key": "user:123",
+    "max_burst": 10,
+    "count_per_period": 100,
+    "period": 60
+  }'
 ```
+
+### MessagePack Protocol
+
+Framed protocol with MessagePack encoding:
+- 4-byte message length (big-endian)
+- MessagePack-encoded request/response
 
 ### gRPC Protocol
 
-When running with `--grpc`, the server exposes a gRPC service defined in `proto/throttlecrab.proto`:
+See `proto/throttlecrab.proto` for the service definition.
 
-```protobuf
-service RateLimiter {
-    rpc Throttle(ThrottleRequest) returns (ThrottleResponse);
-}
+## Testing & Benchmarking
+
+### Running Tests
+
+```bash
+# Run all tests
+cargo test --all
+
+# Run integration tests
+cd integration-tests
+cargo test --release
+
+# Run benchmarks
+cd throttlecrab
+cargo bench
+
+# Run example benchmarks
+cd benches
+./run_benchmarks.sh
 ```
 
-To use the gRPC server:
-1. Install protoc: `brew install protobuf` (macOS) or `apt-get install protobuf-compiler` (Ubuntu)
-2. Run server: `throttlecrab-server --grpc`
-3. Use any gRPC client library to connect
+### Performance Testing
 
-## What is GCRA?
+The project includes comprehensive performance testing tools:
 
-The Generic Cell Rate Algorithm (GCRA) is a rate limiting algorithm that provides:
-- **Smooth traffic shaping**: No sudden bursts followed by long waits
-- **Precise rate limiting**: Exact control over request rates
-- **Fairness**: All clients get predictable access to resources
-- **Memory efficiency**: O(1) space per key
+```bash
+# Run server benchmarks
+cd throttlecrab-server/tests
+./run-benchmarks.sh
 
-GCRA works by tracking the "Theoretical Arrival Time" (TAT) of requests, ensuring consistent spacing between allowed requests while permitting controlled bursts.
+# Run custom performance test
+cd integration-tests
+./run-custom-test.sh 50 10000  # 50 threads, 10k requests each
+```
 
-## Scaling Strategy
+### Load Testing Example
 
-ThrottleCrab is designed for single-instance performance, but can be scaled horizontally using a sharding approach:
+```bash
+# Start server
+throttlecrab-server --native --store adaptive
 
-### Single Instance Performance
-A single ThrottleCrab instance can handle hundreds of thousands of requests per second on modern hardware, which is sufficient for most use cases.
+# In another terminal, run load test
+cd integration-tests
+./run-perf-test.sh
+```
 
-### Horizontal Scaling with Sharding
-For extreme scale, you can run multiple ThrottleCrab instances and shard by key:
+## Contributing
+
+Contributions are welcome! Please feel free to submit a Pull Request.
+
+### Development Setup
+
+```bash
+# Clone the repository
+git clone https://github.com/lazureykis/throttlecrab
+cd throttlecrab
+
+# Build all components
+cargo build --all
+
+# Run tests
+cargo test --all
+
+# Run lints
+cargo clippy --all-targets --all-features -- -D warnings
+cargo fmt --all -- --check
+```
+
+## Production Deployment
+
+### Performance Tuning
+
+```bash
+# Optimal configuration for production
+throttlecrab-server \
+    --native --native-port 9090 \
+    --store adaptive \
+    --store-capacity 1000000 \
+    --buffer-size 100000 \
+    --log-level warn
+```
+
+### Monitoring
+
+- **Health Check**: `GET /health` returns 200 OK
+- **Metrics**: Internal performance metrics available via logs
+- **Resource Usage**: Monitor memory usage based on active keys
+
+### Scaling Strategies
+
+#### Vertical Scaling
+A single instance can handle:
+- 500K+ requests/second (native protocol)
+- 1M+ unique keys in memory
+- Sub-millisecond P99 latency
+
+#### Horizontal Scaling
+For extreme scale, use client-side sharding:
 
 ```rust
-// Client-side sharding example
-fn get_rate_limiter_instance(key: &str, instances: &[String]) -> &str {
-    let hash = calculate_hash(key);
-    let shard_index = hash % instances.len();
-    &instances[shard_index]
+use throttlecrab_client::{ThrottleCrabClient, ClientBuilder};
+
+// Create a sharded client pool
+struct ShardedRateLimiter {
+    clients: Vec<ThrottleCrabClient>,
 }
 
-// Use consistent hashing for better distribution
-use std::collections::hash_map::DefaultHasher;
-use std::hash::{Hash, Hasher};
-
-fn calculate_hash(key: &str) -> usize {
-    let mut hasher = DefaultHasher::new();
-    key.hash(&mut hasher);
-    hasher.finish() as usize
+impl ShardedRateLimiter {
+    async fn check_limit(&self, key: &str, burst: i64, rate: i64, period: i64) -> Result<bool> {
+        let shard = self.get_shard(key);
+        let response = self.clients[shard]
+            .check_rate_limit(key, burst, rate, period)
+            .await?;
+        Ok(response.allowed)
+    }
+    
+    fn get_shard(&self, key: &str) -> usize {
+        use std::collections::hash_map::DefaultHasher;
+        use std::hash::{Hash, Hasher};
+        
+        let mut hasher = DefaultHasher::new();
+        key.hash(&mut hasher);
+        hasher.finish() as usize % self.clients.len()
+    }
 }
 ```
 
-### Sharding Best Practices
-1. **Consistent Hashing**: Use consistent hashing to minimize reshuffling when adding/removing instances
-2. **Key Design**: Design your rate limit keys to distribute evenly (e.g., include user IDs)
-3. **Health Checks**: Implement health checks and failover for high availability
-4. **Monitoring**: Track key distribution across shards to detect hot spots
+### Migration from Redis-Cell
 
-### Example Deployment
-```yaml
-# docker-compose.yml for 3-shard deployment
-version: '3'
-services:
-  throttlecrab-1:
-    image: throttlecrab:latest
-    command: ["--server", "--host", "0.0.0.0", "--port", "9090"]
-    
-  throttlecrab-2:
-    image: throttlecrab:latest
-    command: ["--server", "--host", "0.0.0.0", "--port", "9090"]
-    
-  throttlecrab-3:
-    image: throttlecrab:latest
-    command: ["--server", "--host", "0.0.0.0", "--port", "9090"]
-```
+1. **Algorithm**: Same GCRA implementation
+2. **Performance**: 5-100x faster depending on protocol
+3. **API**: Similar request/response structure
+4. **Key differences**:
+   - No Redis dependency
+   - Multiple protocol options
+   - Better performance characteristics
+   - Native Rust client available
+
+## Related Projects
+
+- [redis-cell](https://github.com/brandur/redis-cell) - Redis module implementing GCRA (inspiration for this project)
+- [governor](https://github.com/antifuchs/governor) - Another Rust rate limiter with different design goals
+- [leaky-bucket](https://github.com/udoprog/leaky-bucket) - Async rate limiter based on leaky bucket algorithm
 
 ## License
 
