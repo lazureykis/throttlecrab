@@ -81,6 +81,3 @@ harness = false
 name = "grpc_throughput"
 harness = false
 
-[[test]]
-name = "benchmark"
-harness = false
