@@ -96,9 +96,9 @@ For production applications, use your language's HTTP client with connection poo
 
 ### Server (`throttlecrab-server`)
 - **Multiple Protocols**:
-  - **Native binary**: Highest performance (183K req/s), minimal overhead
-  - **HTTP/JSON**: REST API for easy integration (173K req/s - only 6% slower)
-  - **gRPC**: Service mesh and microservices (163K req/s)
+  - **HTTP/JSON**: REST API for easy integration
+  - **gRPC**: Service mesh and microservices
+  - **Native binary**: Highest performance, minimal overhead
 - **Shared State**: All protocols share the same rate limiter store
 - **Production Ready**: Health checks, metrics, configurable logging
 - **Flexible Deployment**: Docker, systemd, or standalone binary
@@ -306,4 +306,3 @@ For extreme scale, deploy multiple instances and use client-side sharding based 
 ## License
 
 Licensed under the MIT license ([LICENSE](LICENSE)).
-

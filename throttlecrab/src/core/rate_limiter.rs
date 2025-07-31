@@ -211,18 +211,17 @@ impl<S: Store> RateLimiter<S> {
             // Remaining = how many more tokens we can use before hitting the limit
             // When TAT = now + tolerance, we've used all burst capacity
             // When TAT = now - tolerance, we have full burst capacity
-            let tat_from_now = current_tat.saturating_sub(now_ns);
 
-            // Calculate how many tokens we can still use
-            let remaining = if tat_from_now >= delay_variation_tolerance_ns {
-                // TAT is at or beyond the limit
-                0
+            // Calculate the distance from TAT to the burst limit
+            // The burst limit is at now + delay_variation_tolerance
+            let burst_limit = now_ns + delay_variation_tolerance_ns;
+            let room_until_limit = burst_limit.saturating_sub(current_tat);
+
+            // Convert room to number of tokens
+            let remaining = if emission_interval_ns > 0 {
+                (room_until_limit / emission_interval_ns).max(0)
             } else {
-                // How much room we have until we hit the limit
-                let room_ns = delay_variation_tolerance_ns.saturating_sub(tat_from_now);
-                // This gives us how many more emission intervals we can fit
-                let remaining_exact = room_ns / emission_interval_ns;
-                remaining_exact.max(0)
+                0
             };
 
             let reset_after = Duration::from_nanos(
