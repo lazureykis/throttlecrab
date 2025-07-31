@@ -34,7 +34,7 @@ trap cleanup EXIT
 
 # Build the server in release mode
 echo -e "${BLUE}Building server in release mode...${NC}"
-cargo build --release --bin throttlecrab-server
+cargo build --release -p throttlecrab-server
 
 # Start servers required for benchmarks
 echo -e "\n${BLUE}Starting servers for benchmarks...${NC}"

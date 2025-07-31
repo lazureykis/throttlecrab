@@ -25,7 +25,7 @@ impl ServerInstance {
         let mut cmd = Command::new("cargo");
         cmd.arg("run")
             .arg("--release")
-            .arg("--bin")
+            .arg("-p")
             .arg("throttlecrab-server")
             .arg("--")
             .arg(format!("--{}", transport.flag_name()))

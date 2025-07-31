@@ -91,7 +91,7 @@ done
 cd "$(dirname "$0")"
 
 echo -e "${BLUE}Building release version...${NC}"
-cargo build --release --bin throttlecrab-server
+cargo build --release -p throttlecrab-server
 
 echo -e "${BLUE}Running benchmark suite: ${YELLOW}$SUITE${NC}"
 echo -e "${BLUE}Duration: ${YELLOW}${DURATION}s${NC}, Target RPS: ${YELLOW}${RPS}${NC}"

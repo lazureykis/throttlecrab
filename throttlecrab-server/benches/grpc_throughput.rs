@@ -49,7 +49,7 @@ fn grpc_throughput(c: &mut Criterion) {
         Err(e) => {
             eprintln!("Failed to connect to gRPC server: {e}");
             eprintln!(
-                "Please start the server with: cargo run --features bin -- --server --port 9093 --grpc"
+                "Please start the server with: cargo run -p throttlecrab-server -- --grpc --grpc-port 9093"
             );
             return;
         }
