@@ -411,7 +411,7 @@ throttlecrab-server \
 
 ## Time Handling
 
-ThrottleCrab uses server-side timestamps for all rate limiting decisions. Client clock synchronization is not required.
+ThrottleCrab uses server-side timestamps for all rate limiting decisions.
 
 ### Scaling Strategies
 
