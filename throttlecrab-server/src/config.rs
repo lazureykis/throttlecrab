@@ -1,57 +1,134 @@
+//! Server configuration and CLI argument parsing
+//!
+//! This module handles all server configuration through a flexible system that supports:
+//! - Command-line arguments
+//! - Environment variables (with THROTTLECRAB_ prefix)
+//! - Configuration file (future enhancement)
+//!
+//! # Configuration Priority
+//!
+//! The configuration system follows this precedence order:
+//! 1. CLI arguments (highest priority)
+//! 2. Environment variables
+//! 3. Default values (lowest priority)
+//!
+//! # Example Usage
+//!
+//! ```bash
+//! # Using CLI arguments
+//! throttlecrab-server --native --native-port 9090
+//!
+//! # Using environment variables
+//! export THROTTLECRAB_HTTP=true
+//! export THROTTLECRAB_HTTP_PORT=8080
+//! export THROTTLECRAB_STORE=adaptive
+//! throttlecrab-server
+//!
+//! # Mixed (CLI overrides env)
+//! export THROTTLECRAB_HTTP_PORT=8080
+//! throttlecrab-server --http --http-port 9090  # Uses port 9090
+//! ```
+
 use anyhow::{Result, anyhow};
 use clap::Parser;
 use serde::Deserialize;
 
+/// Main configuration structure for the server
+///
+/// This structure is built from CLI arguments and environment variables,
+/// and contains all settings needed to run the server.
 #[derive(Debug, Clone, Deserialize)]
 pub struct Config {
+    /// Transport layer configuration
     pub transports: TransportConfig,
+    /// Rate limiter store configuration
     pub store: StoreConfig,
+    /// Channel buffer size for actor communication
     pub buffer_size: usize,
+    /// Logging level (error, warn, info, debug, trace)
     pub log_level: String,
 }
 
+/// Transport layer configuration
+///
+/// At least one transport must be enabled for the server to function.
+/// Multiple transports can be enabled simultaneously.
 #[derive(Debug, Clone, Deserialize)]
 pub struct TransportConfig {
+    /// HTTP/JSON transport configuration
     pub http: Option<HttpConfig>,
+    /// gRPC transport configuration
     pub grpc: Option<GrpcConfig>,
+    /// Native binary protocol transport configuration
     pub native: Option<NativeConfig>,
 }
 
+/// HTTP transport configuration
 #[derive(Debug, Clone, Deserialize)]
 pub struct HttpConfig {
+    /// Host address to bind to (e.g., "0.0.0.0")
     pub host: String,
+    /// Port number to listen on
     pub port: u16,
 }
 
+/// gRPC transport configuration
 #[derive(Debug, Clone, Deserialize)]
 pub struct GrpcConfig {
+    /// Host address to bind to (e.g., "0.0.0.0")
     pub host: String,
+    /// Port number to listen on
     pub port: u16,
 }
 
+/// Native binary protocol transport configuration
 #[derive(Debug, Clone, Deserialize)]
 pub struct NativeConfig {
+    /// Host address to bind to (e.g., "0.0.0.0")
     pub host: String,
+    /// Port number to listen on
     pub port: u16,
 }
 
+/// Rate limiter store configuration
+///
+/// Different store types have different performance characteristics:
+/// - **Periodic**: Cleanups at fixed intervals, predictable memory usage
+/// - **Probabilistic**: Random cleanups, lower overhead but less predictable
+/// - **Adaptive**: Adjusts cleanup frequency based on load
 #[derive(Debug, Clone, Deserialize)]
 pub struct StoreConfig {
+    /// Type of store to use
     pub store_type: StoreType,
+    /// Initial capacity of the store
     pub capacity: usize,
     // Store-specific parameters
-    pub cleanup_interval: u64,    // For periodic store (seconds)
-    pub cleanup_probability: u64, // For probabilistic store (1 in N)
-    pub min_interval: u64,        // For adaptive store (seconds)
-    pub max_interval: u64,        // For adaptive store (seconds)
-    pub max_operations: usize,    // For adaptive store
+    /// Cleanup interval for periodic store (seconds)
+    pub cleanup_interval: u64,
+    /// Cleanup probability for probabilistic store (1 in N)
+    pub cleanup_probability: u64,
+    /// Minimum cleanup interval for adaptive store (seconds)
+    pub min_interval: u64,
+    /// Maximum cleanup interval for adaptive store (seconds)
+    pub max_interval: u64,
+    /// Maximum operations before cleanup for adaptive store
+    pub max_operations: usize,
 }
 
+/// Available store types for the rate limiter
+///
+/// Each store type offers different trade-offs:
+/// - **Periodic**: Best for consistent workloads
+/// - **Probabilistic**: Best for unpredictable workloads
+/// - **Adaptive**: Best for variable workloads
 #[derive(Debug, Clone, Copy, Deserialize, PartialEq)]
 #[serde(rename_all = "lowercase")]
 pub enum StoreType {
+    /// Fixed interval cleanup
     Periodic,
+    /// Random cleanup based on probability
     Probabilistic,
+    /// Dynamic cleanup interval based on load
     Adaptive,
 }
 
@@ -71,6 +148,27 @@ impl std::str::FromStr for StoreType {
     }
 }
 
+/// Command-line arguments for the server
+///
+/// All arguments can also be set via environment variables with the
+/// THROTTLECRAB_ prefix. CLI arguments take precedence over environment variables.
+///
+/// # Examples
+///
+/// Basic usage with native protocol:
+/// ```bash
+/// throttlecrab-server --native
+/// ```
+///
+/// Multiple transports with custom ports:
+/// ```bash
+/// throttlecrab-server --http --http-port 8080 --grpc --grpc-port 50051
+/// ```
+///
+/// Using adaptive store with debug logging:
+/// ```bash
+/// throttlecrab-server --native --store adaptive --log-level debug
+/// ```
 #[derive(Parser, Debug)]
 #[command(
     name = "throttlecrab-server",
@@ -226,6 +324,19 @@ pub struct Args {
 }
 
 impl Config {
+    /// Build configuration from environment variables and CLI arguments
+    ///
+    /// This method:
+    /// 1. Parses CLI arguments (with env var fallback via clap)
+    /// 2. Handles special flags like --list-env-vars
+    /// 3. Builds the configuration structure
+    /// 4. Validates the configuration
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - No transport is specified
+    /// - Invalid configuration values are provided
     pub fn from_env_and_args() -> Result<Self> {
         // Clap automatically handles environment variables with the precedence:
         // 1. CLI arguments (highest priority)
@@ -287,12 +398,23 @@ impl Config {
         Ok(config)
     }
 
+    /// Check if at least one transport is configured
+    ///
+    /// The server requires at least one transport to be functional.
     pub fn has_any_transport(&self) -> bool {
         self.transports.http.is_some()
             || self.transports.grpc.is_some()
             || self.transports.native.is_some()
     }
 
+    /// Validate the configuration
+    ///
+    /// Currently checks that at least one transport is enabled.
+    /// Additional validation can be added here in the future.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the configuration is invalid.
     fn validate(&self) -> Result<()> {
         if !self.has_any_transport() {
             return Err(anyhow!(
@@ -314,6 +436,11 @@ impl Config {
         Ok(())
     }
 
+    /// Print all available environment variables and their descriptions
+    ///
+    /// This is called when the --list-env-vars flag is used.
+    /// It provides a comprehensive reference for all environment variables
+    /// that can be used to configure the server.
     fn print_env_vars() {
         println!("ThrottleCrab Environment Variables");
         println!("==================================");

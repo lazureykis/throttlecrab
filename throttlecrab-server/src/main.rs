@@ -1,3 +1,30 @@
+//! ThrottleCrab Server - High-performance rate limiting service
+//!
+//! This binary provides a standalone rate limiting server with support for
+//! multiple transport protocols. All transports share the same rate limiter
+//! state, ensuring consistent rate limiting across different client types.
+//!
+//! # Configuration
+//!
+//! The server can be configured via command-line arguments or environment variables.
+//! See [`config::Config`] for all available options.
+//!
+//! # Example
+//!
+//! ```bash
+//! # Start with HTTP and native protocols
+//! throttlecrab-server --http --native --store adaptive
+//!
+//! # Start with all protocols and custom configuration
+//! throttlecrab-server \
+//!     --native --native-port 9090 \
+//!     --http --http-port 8080 \
+//!     --grpc --grpc-port 50051 \
+//!     --store adaptive \
+//!     --buffer-size 100000 \
+//!     --log-level info
+//! ```
+
 mod actor;
 mod config;
 mod store;

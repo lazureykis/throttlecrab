@@ -1,3 +1,48 @@
+//! Native binary protocol transport
+//!
+//! This transport provides the highest performance by using a compact binary
+//! protocol with fixed-size fields and minimal parsing overhead.
+//!
+//! # Protocol Specification
+//!
+//! ## Request Format (42 bytes + variable key)
+//!
+//! ```text
+//! ┌─────┬─────────┬─────────┬──────┬────────┬──────────┬───────────┬─────┐
+//! │ cmd │ key_len │  burst  │ rate │ period │ quantity │ timestamp │ key │
+//! ├─────┼─────────┼─────────┼──────┼────────┼──────────┼───────────┼─────┤
+//! │ u8  │   u8    │   i64   │ i64  │  i64   │   i64    │    i64    │ var │
+//! └─────┴─────────┴─────────┴──────┴────────┴──────────┴───────────┴─────┘
+//! ```
+//!
+//! Fields:
+//!  - `cmd`: Command type (currently only 1 for rate_limit)
+//!  - `key_len`: Length of the key in bytes (max 255)
+//!  - `burst`: Maximum burst capacity
+//!  - `rate`: Requests per period
+//!  - `period`: Time period in seconds
+//!  - `quantity`: Number of tokens to consume
+//!  - `timestamp`: Nanoseconds since UNIX epoch
+//!  - `key`: UTF-8 encoded key string
+//!
+//! ## Response Format (34 bytes)
+//!
+//! ```text
+//! ┌────┬─────────┬───────┬───────────┬─────────────┬─────────────┐
+//! │ ok │ allowed │ limit │ remaining │ retry_after │ reset_after │
+//! ├────┼─────────┼───────┼───────────┼─────────────┼─────────────┤
+//! │ u8 │   u8    │  i64  │    i64    │     i64     │     i64     │
+//! └────┴─────────┴───────┴───────────┴─────────────┴─────────────┘
+//! ```
+//!
+//! Fields:
+//!  - `ok`: Success indicator (1 = success, 0 = error)
+//!  - `allowed`: Request allowed (1) or denied (0)
+//!  - `limit`: Maximum burst capacity
+//!  - `remaining`: Tokens remaining
+//!  - `retry_after`: Seconds until next request allowed
+//!  - `reset_after`: Seconds until full capacity restored
+
 use super::Transport;
 use crate::actor::RateLimiterHandle;
 use crate::types::ThrottleRequest;
@@ -9,35 +54,26 @@ use std::time::UNIX_EPOCH;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::{TcpListener, TcpStream};
 
-/// Native binary protocol for minimal overhead
-///
-/// Request format (fixed size: 32 bytes + variable key length):
-/// - cmd: u8 (1 byte)
-/// - key_len: u8 (1 byte)
-/// - burst: i64 (8 bytes)
-/// - rate: i64 (8 bytes)
-/// - period: i64 (8 bytes, seconds)
-/// - quantity: i64 (8 bytes)
-/// - timestamp: i64 (8 bytes, nanoseconds since UNIX epoch)
-/// - key: [u8; key_len] (variable)
-///
-/// Response format (fixed size: 34 bytes):
-/// - ok: u8 (1 byte)
-/// - allowed: u8 (1 byte)
-/// - limit: i64 (8 bytes)
-/// - remaining: i64 (8 bytes)
-/// - retry_after: i64 (8 bytes)
-/// - reset_after: i64 (8 bytes)
 const READ_BUFFER_SIZE: usize = 256;
 const WRITE_BUFFER_SIZE: usize = 64;
 const MAX_KEY_LENGTH: usize = 255;
 
+/// Native binary protocol transport implementation
+///
+/// Provides the highest throughput and lowest latency by using a
+/// compact binary format with minimal overhead.
 pub struct NativeTransport {
     host: String,
     port: u16,
 }
 
 impl NativeTransport {
+    /// Create a new native transport instance
+    ///
+    /// # Parameters
+    ///
+    /// - `host`: The host address to bind to (e.g., "0.0.0.0")
+    /// - `port`: The port number to listen on
     pub fn new(host: &str, port: u16) -> Self {
         NativeTransport {
             host: host.to_string(),
@@ -45,6 +81,10 @@ impl NativeTransport {
         }
     }
 
+    /// Handle a single client connection
+    ///
+    /// Processes rate limit requests from the client until the connection
+    /// is closed or an error occurs.
     async fn handle_connection(mut socket: TcpStream, limiter: RateLimiterHandle) -> Result<()> {
         // Pre-allocate buffers
         let mut read_buffer = BytesMut::with_capacity(READ_BUFFER_SIZE);

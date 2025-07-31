@@ -1,18 +1,50 @@
+//! Actor-based rate limiter for shared state management
+//!
+//! This module implements an actor pattern to ensure thread-safe access to the
+//! rate limiter state. All transports communicate with a single actor instance,
+//! guaranteeing consistent rate limiting across protocols.
+//!
+//! # Architecture
+//!
+//! The actor pattern provides:
+//! - **Thread Safety**: Single-threaded access to mutable state
+//! - **Async Communication**: Non-blocking message passing via channels
+//! - **Protocol Independence**: All transports use the same interface
+//!
+//! # Example
+//!
+//! ```ignore
+//! // Spawn an actor with an adaptive store
+//! let limiter = RateLimiterActor::spawn_adaptive(10000, AdaptiveStore::new());
+//!
+//! // Use the handle from any transport
+//! let response = limiter.throttle(request).await?;
+//! ```
+
 use crate::types::{ThrottleRequest, ThrottleResponse};
 use anyhow::Result;
 use throttlecrab::{AdaptiveStore, CellError, PeriodicStore, ProbabilisticStore, RateLimiter};
 use tokio::sync::{mpsc, oneshot};
 
 /// Message types for the rate limiter actor
+///
+/// Currently supports throttle requests, but can be extended with
+/// additional message types like statistics queries or cache clearing.
 pub enum RateLimiterMessage {
+    /// Check rate limit for a key
     Throttle {
+        /// The rate limit request
         request: ThrottleRequest,
+        /// Channel to send the response back
         response_tx: oneshot::Sender<Result<ThrottleResponse>>,
     },
     // Future: Stats, Clear, Shutdown, etc.
 }
 
 /// Handle to communicate with the rate limiter actor
+///
+/// This handle can be cloned and shared across multiple tasks/threads.
+/// All operations are async and non-blocking.
 #[derive(Clone)]
 pub struct RateLimiterHandle {
     tx: mpsc::Sender<RateLimiterMessage>,
@@ -20,6 +52,15 @@ pub struct RateLimiterHandle {
 
 impl RateLimiterHandle {
     /// Check rate limit for a key
+    ///
+    /// Sends a throttle request to the actor and waits for the response.
+    /// This method is cancel-safe and can be used in select! expressions.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - The actor has shut down
+    /// - The response channel was dropped
     pub async fn throttle(&self, request: ThrottleRequest) -> Result<ThrottleResponse> {
         let (response_tx, response_rx) = oneshot::channel();
 
@@ -37,11 +78,23 @@ impl RateLimiterHandle {
     }
 }
 
-/// The rate limiter actor
+/// The rate limiter actor factory
+///
+/// Provides static methods to spawn rate limiter actors with different store types.
+/// Each actor runs in its own Tokio task and processes messages sequentially.
 pub struct RateLimiterActor;
 
 impl RateLimiterActor {
     /// Spawn a new rate limiter actor with a periodic store
+    ///
+    /// # Parameters
+    ///
+    /// - `buffer_size`: Channel buffer size for backpressure control
+    /// - `store`: The periodic store instance to use
+    ///
+    /// # Returns
+    ///
+    /// A [`RateLimiterHandle`] for communicating with the actor
     pub fn spawn_periodic(buffer_size: usize, store: PeriodicStore) -> RateLimiterHandle {
         let (tx, rx) = mpsc::channel(buffer_size);
 
@@ -54,6 +107,15 @@ impl RateLimiterActor {
     }
 
     /// Spawn a new rate limiter actor with a probabilistic store
+    ///
+    /// # Parameters
+    ///
+    /// - `buffer_size`: Channel buffer size for backpressure control
+    /// - `store`: The probabilistic store instance to use
+    ///
+    /// # Returns
+    ///
+    /// A [`RateLimiterHandle`] for communicating with the actor
     pub fn spawn_probabilistic(buffer_size: usize, store: ProbabilisticStore) -> RateLimiterHandle {
         let (tx, rx) = mpsc::channel(buffer_size);
 
@@ -66,6 +128,15 @@ impl RateLimiterActor {
     }
 
     /// Spawn a new rate limiter actor with an adaptive store
+    ///
+    /// # Parameters
+    ///
+    /// - `buffer_size`: Channel buffer size for backpressure control
+    /// - `store`: The adaptive store instance to use
+    ///
+    /// # Returns
+    ///
+    /// A [`RateLimiterHandle`] for communicating with the actor
     pub fn spawn_adaptive(buffer_size: usize, store: AdaptiveStore) -> RateLimiterHandle {
         let (tx, rx) = mpsc::channel(buffer_size);
 
