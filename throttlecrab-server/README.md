@@ -161,6 +161,31 @@ reqwest = { version = "0.12", features = ["json"] }
 
 See `examples/` directory for implementation examples.
 
+## Running Benchmarks
+
+### Criterion Benchmarks
+
+The project includes several Criterion benchmarks that require running servers. Use the provided script:
+
+```bash
+# Run all benchmarks
+./run-criterion-benchmarks.sh
+
+# Run specific benchmark
+./run-criterion-benchmarks.sh tcp_throughput
+./run-criterion-benchmarks.sh connection_pool
+./run-criterion-benchmarks.sh protocol_comparison
+./run-criterion-benchmarks.sh grpc_throughput
+```
+
+The script will:
+1. Build the server in release mode
+2. Start required servers (native on port 9092, gRPC on port 9093)
+3. Run the benchmarks
+4. Clean up servers on exit
+
+Results are saved in `target/criterion/`.
+
 ## Production Deployment
 
 ### Performance Tuning

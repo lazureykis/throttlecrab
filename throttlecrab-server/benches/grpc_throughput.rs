@@ -33,7 +33,7 @@ async fn make_grpc_request(
 
 fn grpc_throughput(c: &mut Criterion) {
     println!("Make sure to run the gRPC server:");
-    println!("  cargo run --features bin -- --server --port 9093 --grpc");
+    println!("  Run: ./run-criterion-benchmarks.sh grpc_throughput");
     println!("Waiting for server to start...");
     std::thread::sleep(Duration::from_secs(2));
 

@@ -65,14 +65,14 @@ fn make_request(stream: &mut TcpStream, key: &str) -> bool {
 
 fn bench_single_thread(c: &mut Criterion) {
     // Note: Server must be running before benchmarks
-    // Run: cargo run --features bin -- --server
+    // Run: ./run-criterion-benchmarks.sh tcp_throughput
 
     let mut group = c.benchmark_group("single_thread");
     group.throughput(Throughput::Elements(1000));
 
     // Create connection once before benchmarking
     let mut stream = TcpStream::connect("127.0.0.1:9092").expect(
-        "Failed to connect. Is the server running? Run: cargo run --features bin -- --server",
+        "Failed to connect to native server on port 9092. Run: ./run-criterion-benchmarks.sh",
     );
 
     // Set TCP_NODELAY for lower latency
