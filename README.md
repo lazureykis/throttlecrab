@@ -23,11 +23,11 @@ This workspace contains three crates:
 ### As a Library
 
 ```rust
-use throttlecrab::{RateLimiter, AdaptiveMemoryStore};
+use throttlecrab::{RateLimiter, AdaptiveStore};
 use std::time::SystemTime;
 
-// Create a rate limiter with adaptive memory store (best performance)
-let mut limiter = RateLimiter::new(AdaptiveMemoryStore::new());
+// Create a rate limiter with adaptive store (best performance)
+let mut limiter = RateLimiter::new(AdaptiveStore::new());
 
 // Check rate limit: 10 burst, 100 requests per 60 seconds
 let (allowed, result) = limiter
@@ -62,11 +62,11 @@ use throttlecrab_client::ThrottleCrabClient;
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let client = ThrottleCrabClient::connect("127.0.0.1:9090").await?;
-    
+
     let response = client
         .check_rate_limit("user:123", 10, 100, 60)
         .await?;
-    
+
     if response.allowed {
         // Process request
     }
@@ -79,9 +79,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 ### Core Library (`throttlecrab`)
 - **GCRA Algorithm**: Smooth rate limiting without sudden spikes or drops
 - **Multiple Store Types**:
-  - `StandardMemoryStore`: Simple HashMap-based storage
-  - `OptimizedMemoryStore`: Pre-allocated memory for better performance
-  - `AdaptiveMemoryStore`: Self-tuning cleanup intervals (recommended)
+  - `AdaptiveStore`: Self-tuning cleanup intervals (recommended)
+  - `PeriodicStore`: Fixed interval cleanup
+  - `ProbabilisticStore`: Random sampling cleanup
 - **Zero Dependencies**: Pure Rust implementation
 - **Thread-Safe**: Can be used with `Arc<Mutex<>>` for concurrent access
 
@@ -105,7 +105,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 ### Benchmark Results
 
-On Apple M2 (10-core, 16GB RAM):
+On Apple M3 (16-core, 64GB RAM):
 
 | Configuration | Throughput | Latency (P99) | vs Redis |
 |--------------|------------|---------------|----------|
@@ -118,11 +118,11 @@ On Apple M2 (10-core, 16GB RAM):
 
 ### Store Type Performance
 
-| Store Type | Best For | Throughput | Memory Usage |
-|------------|----------|------------|---------------|
-| Standard | Small datasets (<10K keys) | 143K req/s | Minimal |
-| Optimized | Known key count | 11.4M req/s | Pre-allocated |
-| Adaptive | Variable workloads | 12.5M req/s | Self-tuning |
+| Store Type | Best For | Cleanup Strategy | Memory Usage |
+|------------|----------|------------------|---------------|
+| Adaptive | Variable workloads | Self-tuning intervals | Dynamic |
+| Periodic | Predictable load | Fixed intervals | Predictable |
+| Probabilistic | High throughput | Random sampling | Efficient |
 
 See [benchmark results](./docs/benchmark-results.md) for detailed performance analysis.
 
@@ -248,24 +248,23 @@ WantedBy=multi-user.target
 Optimized binary protocol with minimal overhead:
 
 ```rust
-// Fixed-size request: 88 bytes
-struct Request {
-    key_len: u32,
-    key: [u8; 64],     // Max 64 bytes
-    max_burst: i64,
-    count_per_period: i64,
-    period: i64,
-    quantity: i64,
-}
+// Request format (42 bytes + variable key):
+// - cmd: u8 (1 byte)
+// - key_len: u8 (1 byte) 
+// - burst: i64 (8 bytes)
+// - rate: i64 (8 bytes)
+// - period: i64 (8 bytes)
+// - quantity: i64 (8 bytes)
+// - timestamp: i64 (8 bytes)
+// - key: [u8; key_len] (variable, max 255)
 
-// Fixed-size response: 40 bytes
-struct Response {
-    allowed: bool,
-    limit: i64,
-    remaining: i64,
-    reset_after: i64,
-    retry_after: i64,
-}
+// Response format (34 bytes):
+// - ok: u8 (1 byte)
+// - allowed: u8 (1 byte)
+// - limit: i64 (8 bytes)
+// - remaining: i64 (8 bytes)
+// - retry_after: i64 (8 bytes)
+// - reset_after: i64 (8 bytes)
 ```
 
 ### HTTP REST API
@@ -404,11 +403,11 @@ impl ShardedRateLimiter {
             .await?;
         Ok(response.allowed)
     }
-    
+
     fn get_shard(&self, key: &str) -> usize {
         use std::collections::hash_map::DefaultHasher;
         use std::hash::{Hash, Hasher};
-        
+
         let mut hasher = DefaultHasher::new();
         key.hash(&mut hasher);
         hasher.finish() as usize % self.clients.len()

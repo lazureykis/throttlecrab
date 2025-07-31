@@ -85,12 +85,10 @@ let client = ClientBuilder::new()
    - Medium load: 20-50 connections
    - Heavy load: 50-100 connections
 
-3. **Monitor pool metrics**
-   ```rust
-   let stats = client.pool_stats();
-   println!("Active connections: {}", stats.active);
-   println!("Idle connections: {}", stats.idle);
-   ```
+3. **Use connection pooling effectively**
+   - The client automatically manages a connection pool
+   - Connections are reused across requests
+   - Failed connections are automatically replaced
 
 ### Performance Optimization
 

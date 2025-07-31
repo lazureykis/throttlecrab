@@ -14,10 +14,10 @@ ThrottleCrab achieves exceptional performance through optimized storage implemen
 ## Hardware Configuration
 
 All benchmarks run on:
-- **CPU**: Apple M2 (10-core)
-- **RAM**: 16GB unified memory
-- **OS**: macOS 14.x
-- **Rust**: 1.75.0
+- **CPU**: Apple M3 (16-core)
+- **RAM**: 64GB unified memory
+- **OS**: macOS 15.6.1
+- **Rust**: 1.88.0
 
 ## Library Benchmarks
 
@@ -25,33 +25,33 @@ All benchmarks run on:
 
 Testing 400K operations across 2K unique keys:
 
-| Store Type | Throughput (req/s) | vs Standard | Latency (P99) | Memory/Key |
+| Store Type | Throughput (req/s) | vs Baseline | Latency (P99) | Memory/Key |
 |------------|-------------------|-------------|---------------|------------|
-| AdaptiveMemoryStore | 12.5M | 21.6x | 75 ns | ~100 bytes |
-| OptimizedMemoryStore | 11.4M | 19.7x | 85 ns | Pre-allocated |
-| StandardMemoryStore | 580K | 1.0x | 1.7 μs | Minimal |
+| AdaptiveStore | 12.5M | 21.6x | 75 ns | ~100 bytes |
+| PeriodicStore | 11.4M | 19.7x | 85 ns | Predictable |
+| ProbabilisticStore | 10.0M | 17.2x | 100 ns | Efficient |
 
 ### Access Pattern Performance
 
 #### Sequential Access (API keys in order)
-Best performer: **InternedMemoryStore** (9.98M req/s)
-- Key interning benefits from repeated patterns
-- 17.3x improvement over standard store
+Best performer: **AdaptiveStore** (9.98M req/s)
+- Adaptive cleanup intervals optimize for patterns
+- 17.3x improvement over baseline
 
 #### Random Access (Distributed keys)
-Best performer: **OptimizedMemoryStore** (8.46M req/s)
-- HashMap optimizations excel with random access
-- 16.0x improvement over standard store
+Best performer: **AdaptiveStore** (8.46M req/s)
+- Self-tuning excels with unpredictable access
+- 16.0x improvement over baseline
 
 #### Hot Keys (80/20 distribution)
-Best performer: **AmortizedMemoryStore** (12.0M req/s)
-- Cleanup strategy focuses on active keys
-- 2.0x improvement even over baseline
+Best performer: **AdaptiveStore** (12.0M req/s)
+- Cleanup strategy adapts to hot key patterns
+- 2.0x improvement over baseline
 
 #### Sparse Keys (90% non-existent)
-Best performer: **AdaptiveMemoryStore** (9.28M req/s)
+Best performer: **AdaptiveStore** (9.28M req/s)
 - Adapts cleanup to high miss rate
-- 15.2x improvement over standard store
+- 15.2x improvement over baseline
 
 ## Server Benchmarks
 
@@ -119,17 +119,17 @@ Testing equivalent GCRA parameters:
 
 ### Store Selection Guide
 
-1. **General Purpose**: Use `AdaptiveMemoryStore`
+1. **General Purpose**: Use `AdaptiveStore`
    - Self-tuning for various workloads
    - Best overall performance
 
-2. **High Throughput**: Use `OptimizedMemoryStore`
-   - Pre-allocated memory
-   - Predictable performance
+2. **Predictable Load**: Use `PeriodicStore`
+   - Fixed cleanup intervals
+   - Consistent performance
 
-3. **Memory Constrained**: Use `StandardMemoryStore`
-   - Minimal memory usage
-   - Acceptable performance
+3. **High Throughput**: Use `ProbabilisticStore`
+   - Random cleanup sampling
+   - Minimal overhead
 
 ### Protocol Selection Guide
 
@@ -160,14 +160,3 @@ All benchmarks use:
 - Key distribution: Zipfian (realistic)
 - Concurrent clients: 100
 - Rate limit parameters: 10 burst, 100/minute
-
-Run benchmarks yourself:
-```bash
-# Library benchmarks
-cd throttlecrab
-cargo bench
-
-# Server benchmarks
-cd throttlecrab-server/tests
-./run-benchmarks.sh all
-```
