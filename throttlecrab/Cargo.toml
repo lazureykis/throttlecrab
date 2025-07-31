@@ -1,6 +1,6 @@
 [package]
 name = "throttlecrab"
-version = "0.2.0"
+version = "0.2.1"
 authors.workspace = true
 edition.workspace = true
 description = "A high-performance GCRA (Generic Cell Rate Algorithm) rate limiter library"
