@@ -1,3 +1,13 @@
+//! Storage backends for rate limiter state
+//!
+//! This module provides different storage strategies for managing rate limit data:
+//!
+//! - [`AdaptiveStore`]: Self-tuning cleanup intervals based on usage patterns
+//! - [`PeriodicStore`]: Fixed interval cleanup for predictable workloads
+//! - [`ProbabilisticStore`]: Random sampling cleanup for high-throughput scenarios
+//!
+//! All stores implement the [`Store`] trait, allowing them to be used interchangeably.
+
 use std::time::{Duration, SystemTime};
 
 #[cfg(test)]

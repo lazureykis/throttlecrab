@@ -1,3 +1,8 @@
+//! GCRA (Generic Cell Rate Algorithm) rate limiter implementation
+//!
+//! This module provides the main [`RateLimiter`] struct which implements
+//! the GCRA algorithm for smooth, fair rate limiting with burst support.
+
 use super::{CellError, Rate, store::Store};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
