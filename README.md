@@ -415,9 +415,9 @@ throttlecrab-server \
 
 ThrottleCrab uses system time for rate limiting calculations. When deploying in distributed environments:
 
-1. **Client-Server Time Sync**: Ensure all clients and servers have synchronized clocks (use NTP)
-   - Time drift between systems can affect rate limiting accuracy
-   - Consider using server-provided timestamps for consistency
+1. **Server Time Consistency**: The server uses its own clock for all rate limiting decisions
+   - Client clock synchronization is not required
+   - All rate limiting calculations use server-side timestamps
 
 2. **Time Adjustments**: ThrottleCrab handles system time changes gracefully:
    - If time goes backwards, it starts a fresh rate limiting window
@@ -425,15 +425,14 @@ ThrottleCrab uses system time for rate limiting calculations. When deploying in 
    - Uses saturating arithmetic to prevent overflow issues
 
 3. **Best Practices**:
-   - Use NTP to keep all systems synchronized within 1-2 seconds
-   - For critical applications, use the server's timestamp in requests
-   - Monitor clock drift between your systems
-   - Consider using monotonic clocks for interval measurements
+   - Use NTP to keep server clocks accurate
+   - Monitor server clock stability
+   - Consider using monotonic clocks for interval measurements where applicable
 
 4. **Protocol Support**:
-   - Native protocol includes timestamp in requests
-   - HTTP clients can include timestamp in request body
-   - Server can optionally use its own time if client timestamps are unreliable
+   - All protocols use server-side timestamps for consistency
+   - No client timestamp synchronization required
+   - Eliminates clock drift issues between clients and servers
 
 ### Scaling Strategies
 
