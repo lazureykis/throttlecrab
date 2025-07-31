@@ -22,7 +22,7 @@ Add this to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-throttlecrab = "0.1.0"
+throttlecrab = "0.2"
 ```
 
 ## Usage
