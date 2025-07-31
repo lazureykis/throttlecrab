@@ -151,6 +151,7 @@ The optional server binary provides:
 - TCP server with MessagePack or gRPC protocol
 - Actor-based concurrency model using Tokio
 - Thread-safe rate limiting for distributed systems
+- **Shared state across transports**: All enabled transports (HTTP, gRPC, MessagePack, Native) share the same rate limiter store, ensuring consistent rate limiting regardless of which protocol clients use
 
 ## Protocol
 
