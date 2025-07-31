@@ -172,8 +172,7 @@ pub async fn run_high_performance_benchmark(config: BenchmarkConfig) -> Result<(
     // Step 4: Create worker threads
     let mut tasks = JoinSet::new();
 
-    for thread_id in 0..config.num_threads {
-        let payloads = thread_payloads[thread_id].clone();
+    for (thread_id, payloads) in thread_payloads.into_iter().enumerate() {
         let stats = stats.clone();
         let barrier = barrier.clone();
         let start_flag = start_flag.clone();
