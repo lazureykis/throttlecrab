@@ -196,6 +196,8 @@ throttlecrab-server --native \
 
 #### Using Pre-built Image
 
+The Docker image is automatically built on Docker Hub when new versions are released.
+
 ```bash
 # Pull the latest image
 docker pull lazureykis/throttlecrab:latest

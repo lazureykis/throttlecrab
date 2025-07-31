@@ -1,0 +1,15 @@
+#!/bin/bash
+
+# Docker Hub automated build hook
+# This allows us to pass custom build arguments and enable BuildKit
+
+# Enable BuildKit for better caching
+export DOCKER_BUILDKIT=1
+
+# Build the image with custom arguments
+docker build \
+  --build-arg BUILDKIT_INLINE_CACHE=1 \
+  --cache-from $IMAGE_NAME \
+  -f $DOCKERFILE_PATH \
+  -t $IMAGE_NAME \
+  .
