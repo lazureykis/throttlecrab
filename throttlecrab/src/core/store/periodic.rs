@@ -130,10 +130,6 @@ impl Store for PeriodicStore {
         }
     }
 
-    fn log_debug(&self, _message: &str) {
-        // No-op in library
-    }
-
     fn set_if_not_exists_with_ttl(
         &mut self,
         key: &str,
