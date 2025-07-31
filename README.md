@@ -46,11 +46,11 @@ if allowed {
 # Install the server
 cargo install throttlecrab-server
 
-# Run with native protocol (best performance - up to 183K req/s)
-throttlecrab-server --native --native-port 9090
-
-# Run with HTTP for easy integration (173K req/s with minimal overhead)
+# Run with HTTP for easy integration
 throttlecrab-server --http --http-port 8080
+
+# Or use native protocol for best performance (up to 183K req/s)
+throttlecrab-server --native --native-port 9090
 ```
 
 ### Client Integration
@@ -88,7 +88,7 @@ For production applications, use your language's HTTP client with connection poo
 ### Core Library (`throttlecrab`)
 - **GCRA Algorithm**: Smooth rate limiting without sudden spikes or drops
 - **Multiple Store Types**:
-  - `AdaptiveStore`: Self-tuning cleanup intervals (recommended)
+  - `AdaptiveStore`: Self-tuning cleanup intervals
   - `PeriodicStore`: Fixed interval cleanup
   - `ProbabilisticStore`: Random sampling cleanup
 - **Zero Dependencies**: Pure Rust implementation
@@ -167,7 +167,7 @@ let (allowed, _) = limiter
 ```toml
 # For library usage
 [dependencies]
-throttlecrab = "0.1"
+throttlecrab = "0.2"
 ```
 
 ### Running the Server
@@ -176,8 +176,8 @@ throttlecrab = "0.1"
 # Install
 cargo install throttlecrab-server
 
-# Run with Native protocol (recommended for production)
-throttlecrab-server --native --native-port 9090 --store adaptive
+# Run with HTTP protocol
+throttlecrab-server --http --http-port 8080 --store adaptive
 
 # Run with multiple protocols
 throttlecrab-server --native --http --grpc \
@@ -282,9 +282,9 @@ WantedBy=multi-user.target
 
 ## Protocol Documentation
 
-### Native Protocol (Recommended)
+### Native Protocol
 
-Optimized binary protocol with minimal overhead:
+Optimized binary protocol for maximum performance:
 
 ```rust
 // Request format (42 bytes + variable key):
@@ -361,7 +361,7 @@ cd integration-tests
 
 ```bash
 # Start server
-throttlecrab-server --native --store adaptive
+throttlecrab-server --http --store adaptive
 
 # In another terminal, run load test
 cd integration-tests
@@ -395,13 +395,16 @@ cargo fmt --all -- --check
 ### Performance Tuning
 
 ```bash
-# Optimal configuration for production
+# Example production configuration
 throttlecrab-server \
-    --native --native-port 9090 \
+    --http --http-port 8080 \
     --store adaptive \
     --store-capacity 1000000 \
     --buffer-size 100000 \
     --log-level warn
+
+# For maximum performance, use native protocol:
+# throttlecrab-server --native --native-port 9090 --store adaptive
 ```
 
 ### Monitoring

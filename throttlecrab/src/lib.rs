@@ -16,7 +16,7 @@
 //! use throttlecrab::{RateLimiter, AdaptiveStore};
 //! use std::time::SystemTime;
 //!
-//! // Create a rate limiter with adaptive store (recommended for production)
+//! // Create a rate limiter with adaptive store
 //! let mut limiter = RateLimiter::new(AdaptiveStore::new());
 //!
 //! // Check rate limit: 10 burst, 100 requests per 60 seconds

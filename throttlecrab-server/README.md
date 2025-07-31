@@ -100,7 +100,7 @@ THROTTLECRAB_HTTP_PORT=8080 throttlecrab-server --http --http-port 7070
 
 ## Protocol Documentation
 
-### Native Protocol (Recommended)
+### Native Protocol
 
 Fixed-size binary protocol with minimal overhead:
 - Request: 88 bytes (including up to 64-byte key)
