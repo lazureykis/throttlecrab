@@ -32,6 +32,9 @@ const READ_BUFFER_SIZE: usize = 256;
 const WRITE_BUFFER_SIZE: usize = 64;
 const MAX_KEY_LENGTH: usize = 255;
 
+/// Number of acceptor threads for the native protocol server
+const ACCEPTOR_THREADS: usize = 16;
+
 pub struct NativeTransport {
     host: String,
     port: u16,
@@ -159,23 +162,59 @@ impl Transport for NativeTransport {
         let addr = format!("{}:{}", self.host, self.port);
         let listener = TcpListener::bind(&addr).await?;
 
-        tracing::info!("Native protocol transport listening on {}", addr);
+        tracing::info!(
+            "Native protocol transport listening on {} with {} acceptor threads",
+            addr,
+            ACCEPTOR_THREADS
+        );
 
+        let listener = Arc::new(listener);
         let limiter = Arc::new(limiter);
 
-        loop {
-            let (socket, peer_addr) = listener.accept().await?;
-            let limiter = Arc::clone(&limiter);
+        // Spawn multiple acceptor threads
+        let mut acceptor_tasks = Vec::new();
 
-            tracing::debug!("New connection from {}", peer_addr);
+        for thread_id in 0..ACCEPTOR_THREADS {
+            let listener_clone = Arc::clone(&listener);
+            let limiter_clone = Arc::clone(&limiter);
 
-            // Spawn a task to handle this connection
-            tokio::spawn(async move {
-                if let Err(e) = Self::handle_connection(socket, (*limiter).clone()).await {
-                    tracing::error!("Connection error from {}: {}", peer_addr, e);
+            let acceptor = tokio::spawn(async move {
+                tracing::info!("Acceptor thread {} started", thread_id);
+
+                loop {
+                    match listener_clone.accept().await {
+                        Ok((socket, peer_addr)) => {
+                            let limiter = (*limiter_clone).clone();
+
+                            tracing::debug!(
+                                "Thread {} accepted connection from {}",
+                                thread_id,
+                                peer_addr
+                            );
+
+                            // Spawn a task to handle this connection
+                            tokio::spawn(async move {
+                                if let Err(e) = Self::handle_connection(socket, limiter).await {
+                                    tracing::error!("Connection error from {}: {}", peer_addr, e);
+                                }
+                                tracing::debug!("Connection closed from {}", peer_addr);
+                            });
+                        }
+                        Err(e) => {
+                            tracing::error!("Accept error in thread {}: {}", thread_id, e);
+                            // Brief pause before retrying
+                            tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+                        }
+                    }
                 }
-                tracing::debug!("Connection closed from {}", peer_addr);
             });
+
+            acceptor_tasks.push(acceptor);
         }
+
+        // Wait for all acceptor threads (they run forever)
+        futures::future::join_all(acceptor_tasks).await;
+
+        Ok(())
     }
 }

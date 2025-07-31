@@ -48,6 +48,9 @@ prost = { workspace = true }
 axum = { workspace = true }
 tower = { workspace = true }
 
+# Async utilities
+futures = { workspace = true }
+
 [build-dependencies]
 tonic-build = "0.14.0"
 tonic-prost-build = "0.14.0"

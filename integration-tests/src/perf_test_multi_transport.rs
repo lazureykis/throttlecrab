@@ -8,6 +8,15 @@ use tokio::net::TcpStream;
 use tokio::sync::Barrier;
 use tokio::task::JoinSet;
 
+#[derive(Debug, Default)]
+pub struct ThreadLocalStats {
+    pub total_requests: u64,
+    pub successful: u64,
+    pub rate_limited: u64,
+    pub failed: u64,
+    pub total_latency_us: u64,
+}
+
 #[derive(Debug)]
 pub struct Stats {
     pub total_requests: AtomicU64,
@@ -26,6 +35,19 @@ impl Stats {
             failed: AtomicU64::new(0),
             total_latency_us: AtomicU64::new(0),
         }
+    }
+
+    pub fn add_thread_stats(&self, thread_stats: &ThreadLocalStats) {
+        self.total_requests
+            .fetch_add(thread_stats.total_requests, Ordering::Relaxed);
+        self.successful
+            .fetch_add(thread_stats.successful, Ordering::Relaxed);
+        self.rate_limited
+            .fetch_add(thread_stats.rate_limited, Ordering::Relaxed);
+        self.failed
+            .fetch_add(thread_stats.failed, Ordering::Relaxed);
+        self.total_latency_us
+            .fetch_add(thread_stats.total_latency_us, Ordering::Relaxed);
     }
 }
 
@@ -56,10 +78,9 @@ async fn http_worker(
     thread_id: usize,
     requests_per_thread: usize,
     port: u16,
-    stats: Arc<Stats>,
     barrier: Arc<Barrier>,
     start_flag: Arc<AtomicU64>,
-) -> Result<Vec<Duration>> {
+) -> Result<(Vec<Duration>, ThreadLocalStats)> {
     // Create HTTP client with connection pooling
     let client = reqwest::Client::builder()
         .pool_max_idle_per_host(10)
@@ -90,6 +111,7 @@ async fn http_worker(
     }
 
     let mut latencies = Vec::with_capacity(requests_per_thread);
+    let mut thread_stats = ThreadLocalStats::default();
 
     // Send all requests
     for payload in payloads {
@@ -99,39 +121,36 @@ async fn http_worker(
             Ok(response) => {
                 let latency = start.elapsed();
                 latencies.push(latency);
-                stats.total_requests.fetch_add(1, Ordering::Relaxed);
-                stats
-                    .total_latency_us
-                    .fetch_add(latency.as_micros() as u64, Ordering::Relaxed);
+                thread_stats.total_requests += 1;
+                thread_stats.total_latency_us += latency.as_micros() as u64;
 
                 if let Ok(body) = response.json::<serde_json::Value>().await {
                     if body["allowed"].as_bool().unwrap_or(true) {
-                        stats.successful.fetch_add(1, Ordering::Relaxed);
+                        thread_stats.successful += 1;
                     } else {
-                        stats.rate_limited.fetch_add(1, Ordering::Relaxed);
+                        thread_stats.rate_limited += 1;
                     }
                 } else {
-                    stats.failed.fetch_add(1, Ordering::Relaxed);
+                    thread_stats.failed += 1;
                 }
             }
             Err(_) => {
-                stats.failed.fetch_add(1, Ordering::Relaxed);
-                stats.total_requests.fetch_add(1, Ordering::Relaxed);
+                thread_stats.failed += 1;
+                thread_stats.total_requests += 1;
             }
         }
     }
 
-    Ok(latencies)
+    Ok((latencies, thread_stats))
 }
 
 async fn grpc_worker(
     thread_id: usize,
     requests_per_thread: usize,
     port: u16,
-    stats: Arc<Stats>,
     barrier: Arc<Barrier>,
     start_flag: Arc<AtomicU64>,
-) -> Result<Vec<Duration>> {
+) -> Result<(Vec<Duration>, ThreadLocalStats)> {
     use throttlecrab_server::grpc::ThrottleRequest;
     use throttlecrab_server::grpc::rate_limiter_client::RateLimiterClient;
 
@@ -161,6 +180,7 @@ async fn grpc_worker(
     }
 
     let mut latencies = Vec::with_capacity(requests_per_thread);
+    let mut thread_stats = ThreadLocalStats::default();
 
     // Send all requests
     for request in requests {
@@ -170,35 +190,32 @@ async fn grpc_worker(
             Ok(response) => {
                 let latency = start.elapsed();
                 latencies.push(latency);
-                stats.total_requests.fetch_add(1, Ordering::Relaxed);
-                stats
-                    .total_latency_us
-                    .fetch_add(latency.as_micros() as u64, Ordering::Relaxed);
+                thread_stats.total_requests += 1;
+                thread_stats.total_latency_us += latency.as_micros() as u64;
 
                 if response.into_inner().allowed {
-                    stats.successful.fetch_add(1, Ordering::Relaxed);
+                    thread_stats.successful += 1;
                 } else {
-                    stats.rate_limited.fetch_add(1, Ordering::Relaxed);
+                    thread_stats.rate_limited += 1;
                 }
             }
             Err(_) => {
-                stats.failed.fetch_add(1, Ordering::Relaxed);
-                stats.total_requests.fetch_add(1, Ordering::Relaxed);
+                thread_stats.failed += 1;
+                thread_stats.total_requests += 1;
             }
         }
     }
 
-    Ok(latencies)
+    Ok((latencies, thread_stats))
 }
 
 async fn msgpack_worker(
     thread_id: usize,
     requests_per_thread: usize,
     port: u16,
-    stats: Arc<Stats>,
     barrier: Arc<Barrier>,
     start_flag: Arc<AtomicU64>,
-) -> Result<Vec<Duration>> {
+) -> Result<(Vec<Duration>, ThreadLocalStats)> {
     use rmp_serde::{Deserializer, Serializer};
     use serde::{Deserialize, Serialize};
 
@@ -262,6 +279,7 @@ async fn msgpack_worker(
     }
 
     let mut latencies = Vec::with_capacity(requests_per_thread);
+    let mut thread_stats = ThreadLocalStats::default();
 
     // Send all requests
     for request in requests {
@@ -305,15 +323,13 @@ async fn msgpack_worker(
             Ok((response, stream)) => {
                 let latency = start.elapsed();
                 latencies.push(latency);
-                stats.total_requests.fetch_add(1, Ordering::Relaxed);
-                stats
-                    .total_latency_us
-                    .fetch_add(latency.as_micros() as u64, Ordering::Relaxed);
+                thread_stats.total_requests += 1;
+                thread_stats.total_latency_us += latency.as_micros() as u64;
 
                 if response.ok && response.allowed == 1 {
-                    stats.successful.fetch_add(1, Ordering::Relaxed);
+                    thread_stats.successful += 1;
                 } else {
-                    stats.rate_limited.fetch_add(1, Ordering::Relaxed);
+                    thread_stats.rate_limited += 1;
                 }
 
                 // Return connection to pool
@@ -321,23 +337,22 @@ async fn msgpack_worker(
                 pool.push(stream);
             }
             Err(_) => {
-                stats.failed.fetch_add(1, Ordering::Relaxed);
-                stats.total_requests.fetch_add(1, Ordering::Relaxed);
+                thread_stats.failed += 1;
+                thread_stats.total_requests += 1;
             }
         }
     }
 
-    Ok(latencies)
+    Ok((latencies, thread_stats))
 }
 
 async fn native_worker(
     thread_id: usize,
     requests_per_thread: usize,
     port: u16,
-    stats: Arc<Stats>,
     barrier: Arc<Barrier>,
     start_flag: Arc<AtomicU64>,
-) -> Result<Vec<Duration>> {
+) -> Result<(Vec<Duration>, ThreadLocalStats)> {
     use bytes::{BufMut, BytesMut};
     use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -361,6 +376,7 @@ async fn native_worker(
     }
 
     let mut latencies = Vec::with_capacity(requests_per_thread);
+    let mut thread_stats = ThreadLocalStats::default();
     let mut request_buffer = BytesMut::with_capacity(256);
 
     // Send all requests on the same connection
@@ -403,22 +419,20 @@ async fn native_worker(
             Ok((ok, allowed)) => {
                 let latency = start.elapsed();
                 latencies.push(latency);
-                stats.total_requests.fetch_add(1, Ordering::Relaxed);
-                stats
-                    .total_latency_us
-                    .fetch_add(latency.as_micros() as u64, Ordering::Relaxed);
+                thread_stats.total_requests += 1;
+                thread_stats.total_latency_us += latency.as_micros() as u64;
 
                 if ok && allowed {
-                    stats.successful.fetch_add(1, Ordering::Relaxed);
+                    thread_stats.successful += 1;
                 } else {
-                    stats.rate_limited.fetch_add(1, Ordering::Relaxed);
+                    thread_stats.rate_limited += 1;
                 }
             }
             Err(e) => {
                 // Connection failed, try to reconnect for next request
                 eprintln!("Native protocol error: {e}");
-                stats.failed.fetch_add(1, Ordering::Relaxed);
-                stats.total_requests.fetch_add(1, Ordering::Relaxed);
+                thread_stats.failed += 1;
+                thread_stats.total_requests += 1;
 
                 // Try to reconnect
                 match TcpStream::connect(format!("127.0.0.1:{port}")).await {
@@ -432,7 +446,7 @@ async fn native_worker(
         }
     }
 
-    Ok(latencies)
+    Ok((latencies, thread_stats))
 }
 
 pub async fn run_performance_test(
@@ -492,7 +506,6 @@ pub async fn run_performance_test(
     // Spawn worker threads
     let mut tasks = JoinSet::new();
     for thread_id in 0..num_threads {
-        let stats = stats.clone();
         let barrier = barrier.clone();
         let start_flag = start_flag.clone();
         let transport = transport.clone();
@@ -500,48 +513,16 @@ pub async fn run_performance_test(
         tasks.spawn(async move {
             match transport {
                 Transport::Http => {
-                    http_worker(
-                        thread_id,
-                        requests_per_thread,
-                        port,
-                        stats,
-                        barrier,
-                        start_flag,
-                    )
-                    .await
+                    http_worker(thread_id, requests_per_thread, port, barrier, start_flag).await
                 }
                 Transport::Grpc => {
-                    grpc_worker(
-                        thread_id,
-                        requests_per_thread,
-                        port,
-                        stats,
-                        barrier,
-                        start_flag,
-                    )
-                    .await
+                    grpc_worker(thread_id, requests_per_thread, port, barrier, start_flag).await
                 }
                 Transport::MsgPack => {
-                    msgpack_worker(
-                        thread_id,
-                        requests_per_thread,
-                        port,
-                        stats,
-                        barrier,
-                        start_flag,
-                    )
-                    .await
+                    msgpack_worker(thread_id, requests_per_thread, port, barrier, start_flag).await
                 }
                 Transport::Native => {
-                    native_worker(
-                        thread_id,
-                        requests_per_thread,
-                        port,
-                        stats,
-                        barrier,
-                        start_flag,
-                    )
-                    .await
+                    native_worker(thread_id, requests_per_thread, port, barrier, start_flag).await
                 }
             }
         });
@@ -556,11 +537,14 @@ pub async fn run_performance_test(
     let bench_start = Instant::now();
     start_flag.store(1, Ordering::Release);
 
-    // Collect all latencies
+    // Collect all latencies and aggregate thread-local stats
     let mut all_latencies = Vec::new();
     while let Some(result) = tasks.join_next().await {
         match result {
-            Ok(Ok(latencies)) => all_latencies.extend(latencies),
+            Ok(Ok((latencies, thread_stats))) => {
+                all_latencies.extend(latencies);
+                stats.add_thread_stats(&thread_stats);
+            }
             Ok(Err(e)) => eprintln!("Worker error: {e}"),
             Err(e) => eprintln!("Task error: {e}"),
         }
