@@ -103,28 +103,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 ## Performance
 
-### Benchmark Results
-
-On Apple M3 (16-core, 64GB RAM):
-
-| Configuration | Throughput | Latency (P99) | vs Redis |
-|--------------|------------|---------------|----------|
-| In-Memory Library | 12.5M req/s | 75 ns | ~100x faster |
-| Native Protocol Server | 500K req/s | <1 ms | ~5x faster |
-| HTTP Server | 100K req/s | <5 ms | ~2x faster |
-| gRPC Server | 150K req/s | <3 ms | ~3x faster |
-
-*Note: Redis comparison based on redis-cell running on same hardware*
-
 ### Store Type Performance
+
+`cd integration-tests && ./run-transport-test.sh -t all -T 32 -r 10000`
 
 | Store Type | Best For | Cleanup Strategy | Memory Usage |
 |------------|----------|------------------|---------------|
 | Adaptive | Variable workloads | Self-tuning intervals | Dynamic |
 | Periodic | Predictable load | Fixed intervals | Predictable |
 | Probabilistic | High throughput | Random sampling | Efficient |
-
-See [benchmark results](./docs/benchmark-results.md) for detailed performance analysis.
 
 ## When to Use ThrottleCrab
 
@@ -250,7 +237,7 @@ Optimized binary protocol with minimal overhead:
 ```rust
 // Request format (42 bytes + variable key):
 // - cmd: u8 (1 byte)
-// - key_len: u8 (1 byte) 
+// - key_len: u8 (1 byte)
 // - burst: i64 (8 bytes)
 // - rate: i64 (8 bytes)
 // - period: i64 (8 bytes)

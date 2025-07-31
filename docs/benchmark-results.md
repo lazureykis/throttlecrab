@@ -7,14 +7,14 @@ Last Updated: 2024-12-19
 ThrottleCrab achieves exceptional performance through optimized storage implementations and efficient protocol design:
 
 - **Library Performance**: Up to 12.5M requests/second (21.6x faster than baseline)
-- **Server Performance**: 500K+ requests/second with native protocol
-- **Latency**: Sub-millisecond P99 latency for most operations
+- **Server Performance**: 183K requests/second with native protocol
+- **Latency**: Sub-millisecond P99 latency across all protocols (263-370 μs)
 - **Memory Efficiency**: ~100 bytes per active rate limit key
 
 ## Hardware Configuration
 
 All benchmarks run on:
-- **CPU**: Apple M3 (16-core)
+- **CPU**: Apple M3 Max (16-core)
 - **RAM**: 64GB unified memory
 - **OS**: macOS 15.6.1
 - **Rust**: 1.88.0
@@ -57,63 +57,44 @@ Best performer: **AdaptiveStore** (9.28M req/s)
 
 ### Transport Protocol Comparison
 
-Testing with 100 concurrent connections, 1M requests total:
+Real-world test results with 32 threads, 10K requests per thread (320K total):
 
-| Protocol | Throughput | Latency P50 | Latency P99 | CPU Usage |
-|----------|------------|-------------|-------------|-----------|
-| Native | 500K req/s | 0.2 ms | 0.9 ms | 85% |
-| MessagePack | 300K req/s | 0.3 ms | 1.5 ms | 75% |
-| gRPC | 150K req/s | 0.6 ms | 2.8 ms | 90% |
-| HTTP/JSON | 100K req/s | 0.9 ms | 4.5 ms | 95% |
+| Protocol | Throughput | Latency P50 | Latency P90 | Latency P99 | Latency P99.9 |
+|----------|------------|-------------|-------------|-------------|---------------|
+| Native | 183,879 req/s | 170 μs | 207 μs | 263 μs | 584 μs |
+| HTTP/JSON | 173,940 req/s | 177 μs | 226 μs | 309 μs | 622 μs |
+| gRPC | 163,814 req/s | 186 μs | 265 μs | 370 μs | 539 μs |
+| MessagePack | 146,532 req/s | 214 μs | 252 μs | 301 μs | 550 μs |
 
-### Concurrent Load Test
+### Performance Insights
 
-Testing all protocols simultaneously sharing the same store:
+1. **Throughput**: All protocols achieve excellent throughput (146K-183K req/s)
+2. **Latency**: Sub-millisecond P99 latency across all protocols (263-370 μs)
+3. **Native vs HTTP**: Only ~6% performance difference (183K vs 173K req/s)
+4. **Consistency**: All protocols achieved 100% success rate with zero failures
 
-- **Combined Throughput**: 800K req/s
-- **Store Contention**: <5% performance impact
-- **Memory Usage**: 150MB for 1M active keys
-- **CPU Distribution**: Even across cores
+### Test Configuration
 
-### Stress Test Results
+#### Server Setup
+- **Store Type**: AdaptiveStore
+- **Log Level**: warn
+- **Platform**: macOS on Apple M3 Max
+- **Test isolation**: Each transport tested separately
 
-Maximum sustainable load before degradation:
+#### Client Setup  
+- **Threads**: 32 concurrent
+- **Requests/thread**: 10,000
+- **Total requests**: 320,000 per test
+- **Connection pooling**: Enabled
 
-| Metric | Native | HTTP | gRPC | MessagePack |
-|--------|--------|------|------|-------------|
-| Max RPS | 650K | 120K | 180K | 380K |
-| Connections | 10K | 5K | 5K | 8K |
-| Memory | 500MB | 800MB | 1GB | 600MB |
+## Native Protocol Efficiency
 
-## Client Library Benchmarks
+The native protocol achieves the best performance through:
 
-### Connection Pool Performance
-
-| Pool Size | Throughput | vs Single | Latency P99 |
-|-----------|------------|-----------|-------------|
-| 1 | 25K req/s | 1.0x | 40 ms |
-| 10 | 250K req/s | 10x | 4 ms |
-| 50 | 450K req/s | 18x | 2 ms |
-| 100 | 500K req/s | 20x | 2 ms |
-
-### Protocol Overhead
-
-Native protocol efficiency:
-- **Request Size**: 88 bytes fixed
-- **Response Size**: 40 bytes fixed
-- **Serialization**: Zero-copy
-- **Network RTT**: ~0.1ms localhost
-
-## Comparison with Redis-Cell
-
-Testing equivalent GCRA parameters:
-
-| Metric | ThrottleCrab | Redis-Cell | Improvement |
-|--------|--------------|------------|-------------|
-| Single-threaded RPS | 500K | 100K | 5x |
-| Multi-threaded RPS | 500K | 50K | 10x |
-| Latency P99 | <1ms | 5ms | 5x |
-| Memory per key | 100B | 200B | 2x |
+- **Request format**: 42 bytes fixed + variable key (max 255 bytes)
+- **Response format**: 34 bytes fixed
+- **Zero serialization overhead**: Direct memory layout
+- **TCP_NODELAY**: Enabled for minimal latency
 
 ## Recommendations
 
@@ -135,28 +116,42 @@ Testing equivalent GCRA parameters:
 
 1. **Maximum Performance**: Native protocol
    - Use with throttlecrab-client
-   - 500K+ requests/second
+   - 183K requests/second
 
 2. **Easy Integration**: HTTP/JSON
    - Standard REST API
-   - 100K requests/second
+   - 173K requests/second (only 6% slower than native)
 
 3. **Service Mesh**: gRPC
    - Type-safe clients
-   - 150K requests/second
+   - 163K requests/second
 
 ### Scaling Recommendations
 
-- **Single Instance**: Sufficient for up to 500K req/s
-- **Horizontal Scaling**: Use client-side sharding above 500K req/s
-- **Connection Pooling**: 20-50 connections optimal for most workloads
+- **Single Instance**: Handles 150-180K req/s comfortably
+- **Horizontal Scaling**: Use client-side sharding for higher throughput
+- **Connection Pooling**: 32 connections work well for high concurrency
 - **Store Capacity**: Plan for 100 bytes per active key
 
 ## Testing Methodology
 
 All benchmarks use:
-- Warm-up period: 10 seconds
-- Test duration: 60 seconds
-- Key distribution: Zipfian (realistic)
-- Concurrent clients: 100
-- Rate limit parameters: 10 burst, 100/minute
+- Test script: `./run-transport-test.sh -t all -T 32 -r 10000`
+- Each transport tested in isolation
+- Average latency calculated across all requests
+- 100% success rate achieved in all tests
+- No rate limiting triggered (sufficient burst/rate parameters)
+
+## Running Benchmarks
+
+Reproduce these results:
+
+```bash
+# Library benchmarks
+cd throttlecrab
+cargo bench
+
+# Server benchmarks  
+cd integration-tests
+./run-transport-test.sh -t all -T 32 -r 10000
+```

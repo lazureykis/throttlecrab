@@ -20,15 +20,3 @@ ahash = ["dep:ahash"]
 
 [dev-dependencies]
 criterion = { workspace = true }
-
-[[bench]]
-name = "core_performance"
-harness = false
-
-[[bench]]
-name = "store_shootout"
-harness = false
-
-[[bench]]
-name = "cleanup_strategies"
-harness = false

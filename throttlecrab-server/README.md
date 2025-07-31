@@ -93,12 +93,12 @@ THROTTLECRAB_HTTP_PORT=8080 throttlecrab-server --http --http-port 7070
 
 ## Transport Comparison
 
-| Transport | Protocol | Performance | Latency (P99) | Use Case |
-|-----------|----------|-------------|---------------|----------|
-| Native | Binary | 500K req/s | <1ms | Maximum performance |
-| MessagePack | TCP | 300K req/s | <2ms | Cross-language support |
-| HTTP | JSON | 100K req/s | <5ms | Easy integration |
-| gRPC | Protobuf | 150K req/s | <3ms | Service mesh |
+| Transport | Protocol | Throughput | Latency (P99) | Latency (P50) | Use Case |
+|-----------|----------|------------|---------------|---------------|----------|
+| Native | Binary | 183K req/s | 263 μs | 170 μs | Maximum performance |
+| HTTP | JSON | 173K req/s | 309 μs | 177 μs | Easy integration |
+| gRPC | Protobuf | 163K req/s | 370 μs | 186 μs | Service mesh |
+| MessagePack | TCP | 146K req/s | 301 μs | 214 μs | Cross-language support |
 
 ## Protocol Documentation
 
