@@ -48,7 +48,7 @@ pub async fn run_client_performance_test(
         .max_connections(pool_size)
         .min_idle_connections(pool_size / 2)
         .connect_timeout(Duration::from_secs(5))
-        .request_timeout(Duration::from_secs(30))
+        .request_timeout(Duration::from_secs(2))
         .tcp_nodelay(true)
         .build(format!("127.0.0.1:{port}"))
         .await?;
@@ -82,7 +82,8 @@ pub async fn run_client_performance_test(
 
             // Send requests
             for i in 0..requests_per_thread {
-                let key = format!("thread_{thread_id}_request_{i}");
+                // Use modulo to limit unique keys per thread (same as transport tests)
+                let key = format!("key_{}_{}", thread_id, i % 1000);
                 let start = Instant::now();
 
                 match client.check_rate_limit(&key, 10000, 100000, 60).await {
