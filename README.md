@@ -46,10 +46,10 @@ if allowed {
 # Install the server
 cargo install throttlecrab-server
 
-# Run with native protocol (best performance)
+# Run with native protocol (best performance - up to 183K req/s)
 throttlecrab-server --native --native-port 9090
 
-# Run with HTTP for easy integration
+# Run with HTTP for easy integration (173K req/s with minimal overhead)
 throttlecrab-server --http --http-port 8080
 ```
 
@@ -118,10 +118,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 ### Server (`throttlecrab-server`)
 - **Multiple Protocols**:
-  - **Native binary**: Highest performance, minimal overhead
-  - **HTTP/JSON**: REST API for easy integration
-  - **gRPC**: Service mesh and microservices
-  - **MessagePack**: Good balance of performance and compatibility
+  - **Native binary**: Highest performance (183K req/s), minimal overhead
+  - **HTTP/JSON**: REST API for easy integration (173K req/s - only 6% slower)
+  - **gRPC**: Service mesh and microservices (163K req/s)
+  - **MessagePack**: Good balance of performance and compatibility (146K req/s)
 - **Shared State**: All protocols share the same rate limiter store
 - **Production Ready**: Health checks, metrics, configurable logging
 - **Flexible Deployment**: Docker, systemd, or standalone binary

@@ -110,7 +110,7 @@ Fixed-size binary protocol with minimal overhead:
 - No serialization overhead
 - Direct memory layout
 
-Use the [throttlecrab-client](https://crates.io/crates/throttlecrab-client) for best performance.
+For best performance, implement the native protocol in your application or use established HTTP clients with connection pooling.
 
 ### MessagePack Protocol
 
@@ -160,12 +160,13 @@ Note: `timestamp` is optional (Unix nanoseconds). If not provided, the server us
 
 See `proto/throttlecrab.proto` for the service definition. Use any gRPC client library to connect.
 
-## Client Libraries
+## Client Integration
 
-### Rust (Native Protocol)
+### Rust
+Use established HTTP clients like `reqwest` for reliable production deployments:
 ```toml
 [dependencies]
-throttlecrab-client = "0.1"
+reqwest = { version = "0.12", features = ["json"] }
 ```
 
 ### Other Languages

@@ -115,7 +115,7 @@ The native protocol achieves the best performance through:
 ### Protocol Selection Guide
 
 1. **Maximum Performance**: Native protocol
-   - Use with throttlecrab-client
+   - Implement directly or use HTTP with connection pooling
    - 183K requests/second
 
 2. **Easy Integration**: HTTP/JSON
