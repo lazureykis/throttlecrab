@@ -61,7 +61,10 @@ fn benchmark_native_protocol(c: &mut Criterion, port: u16) {
     group.measurement_time(Duration::from_secs(10));
     group.warm_up_time(Duration::from_secs(2));
 
+    // For single_request benchmark, we need a persistent connection
+    // but Criterion's b.iter() requires FnMut, so we'll use setup/teardown approach
     group.bench_function("single_request", |b| {
+        // Setup: Create a single persistent connection
         let mut stream = TcpStream::connect(format!("127.0.0.1:{port}")).unwrap();
         stream.set_nodelay(true).unwrap();
         let mut counter = 0u64;
@@ -74,6 +77,7 @@ fn benchmark_native_protocol(c: &mut Criterion, port: u16) {
     });
 
     group.bench_function("batch_100", |b| {
+        // Setup: Create a single persistent connection
         let mut stream = TcpStream::connect(format!("127.0.0.1:{port}")).unwrap();
         stream.set_nodelay(true).unwrap();
         let mut counter = 0u64;

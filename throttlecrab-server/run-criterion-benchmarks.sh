@@ -41,13 +41,13 @@ echo -e "\n${BLUE}Starting servers for benchmarks...${NC}"
 
 # Start native server on port 9092
 echo -e "${YELLOW}Starting native server on port 9092...${NC}"
-../target/release/throttlecrab-server --native --native-port 9092 --store adaptive --log-level error &
+../target/release/throttlecrab-server --native --native-port 9092 --store adaptive --log-level error 2>/dev/null &
 NATIVE_PID=$!
 echo "Native server PID: $NATIVE_PID"
 
 # Start gRPC server on port 9093
 echo -e "${YELLOW}Starting gRPC server on port 9093...${NC}"
-../target/release/throttlecrab-server --grpc --grpc-port 9093 --store adaptive --log-level error &
+../target/release/throttlecrab-server --grpc --grpc-port 9093 --store adaptive --log-level error 2>/dev/null &
 GRPC_PID=$!
 echo "gRPC server PID: $GRPC_PID"
 
