@@ -1,0 +1,43 @@
+version: '3.8'
+
+services:
+  throttlecrab:
+    image: lazureykis/throttlecrab:latest
+    container_name: throttlecrab-server
+    ports:
+      - "8080:8080"   # HTTP
+      - "50051:50051" # gRPC
+      - "8072:8072"   # Native
+    environment:
+      # Transport configuration
+      THROTTLECRAB_HTTP: "true"
+      THROTTLECRAB_GRPC: "true"
+      THROTTLECRAB_NATIVE: "true"
+      
+      # Store configuration
+      THROTTLECRAB_STORE: "adaptive"
+      THROTTLECRAB_STORE_CAPACITY: "100000"
+      
+      # Logging
+      THROTTLECRAB_LOG_LEVEL: "info"
+      
+    # Resource limits
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 512M
+        reservations:
+          cpus: '0.5'
+          memory: 128M
+    
+    # Health check
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 10s
+    
+    # Restart policy
+    restart: unless-stopped

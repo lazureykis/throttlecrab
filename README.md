@@ -2,6 +2,7 @@
 
 [![CI](https://github.com/lazureykis/throttlecrab/actions/workflows/ci.yml/badge.svg)](https://github.com/lazureykis/throttlecrab/actions/workflows/ci.yml)
 [![Crates.io](https://img.shields.io/crates/v/throttlecrab.svg)](https://crates.io/crates/throttlecrab)
+[![Docker](https://img.shields.io/docker/v/lazureykis/throttlecrab?label=docker)](https://hub.docker.com/r/lazureykis/throttlecrab)
 [![Documentation](https://docs.rs/throttlecrab/badge.svg)](https://docs.rs/throttlecrab)
 [![License](https://img.shields.io/crates/l/throttlecrab.svg)](LICENSE-MIT)
 
@@ -193,16 +194,72 @@ throttlecrab-server --native \
 
 ### Docker Deployment
 
-```dockerfile
-FROM rust:1.75 as builder
-WORKDIR /app
-COPY . .
-RUN cargo build --release -p throttlecrab-server
+#### Using Pre-built Image
 
-FROM debian:bookworm-slim
-COPY --from=builder /app/target/release/throttlecrab-server /usr/local/bin/
-EXPOSE 9090 8080 50051
-CMD ["throttlecrab-server", "--native", "--http", "--grpc"]
+Docker images are automatically built and pushed to Docker Hub via GitHub Actions for every release.
+
+```bash
+# Pull the latest image
+docker pull lazureykis/throttlecrab:latest
+
+# Run with default settings (all protocols enabled)
+docker run -d \
+  --name throttlecrab \
+  -p 8080:8080 \
+  -p 50051:50051 \
+  -p 8072:8072 \
+  lazureykis/throttlecrab:latest
+
+# Run with custom configuration
+docker run -d \
+  --name throttlecrab \
+  -p 8080:8080 \
+  -e THROTTLECRAB_HTTP=true \
+  -e THROTTLECRAB_GRPC=false \
+  -e THROTTLECRAB_NATIVE=false \
+  -e THROTTLECRAB_STORE=adaptive \
+  -e THROTTLECRAB_STORE_CAPACITY=1000000 \
+  -e THROTTLECRAB_LOG_LEVEL=info \
+  lazureykis/throttlecrab:latest
+```
+
+#### Using Docker Compose
+
+```yaml
+# docker-compose.yml
+version: '3.8'
+
+services:
+  throttlecrab:
+    image: lazureykis/throttlecrab:latest
+    container_name: throttlecrab-server
+    ports:
+      - "8080:8080"   # HTTP
+      - "50051:50051" # gRPC
+      - "8072:8072"   # Native
+    environment:
+      THROTTLECRAB_STORE: "adaptive"
+      THROTTLECRAB_STORE_CAPACITY: "100000"
+      THROTTLECRAB_LOG_LEVEL: "info"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+```
+
+Then run:
+```bash
+docker-compose up -d
+```
+
+#### Building Your Own Image
+
+```dockerfile
+# Use the provided Dockerfile in the repository
+docker build -t my-throttlecrab .
+docker run -d -p 8080:8080 my-throttlecrab
 ```
 
 ### Systemd Service

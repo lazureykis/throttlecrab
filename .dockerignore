@@ -1,0 +1,44 @@
+# Git
+.git
+.gitignore
+
+# Build artifacts
+target/
+**/*.rs.bk
+*.pdb
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Documentation
+*.md
+docs/
+
+# CI/CD
+.github/
+.gitlab-ci.yml
+.travis.yml
+
+# Development files
+docker-compose*.yml
+Dockerfile*
+.dockerignore
+
+# Benchmarks and tests
+benches/
+tests/
+integration-tests/
+examples/
+
+# Misc
+.env
+.env.*
+*.log
