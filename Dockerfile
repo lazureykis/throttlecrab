@@ -1,5 +1,5 @@
 # Build stage
-FROM rust:1.83-slim AS builder
+FROM rust:1-slim AS builder
 
 # Install dependencies
 RUN apt-get update && apt-get install -y \
@@ -12,22 +12,25 @@ RUN apt-get update && apt-get install -y \
 WORKDIR /usr/src/app
 
 # Copy workspace files
-COPY Cargo.toml Cargo.lock ./
+COPY Cargo.docker.toml ./Cargo.toml
+COPY Cargo.lock ./
 COPY throttlecrab/Cargo.toml ./throttlecrab/
 COPY throttlecrab-server/Cargo.toml ./throttlecrab-server/
-COPY integration-tests/Cargo.toml ./integration-tests/
 
 # Create dummy source files to cache dependencies
-RUN mkdir -p throttlecrab/src throttlecrab-server/src integration-tests/src && \
+RUN mkdir -p throttlecrab/src throttlecrab-server/src throttlecrab-server/benches && \
     echo "fn main() {}" > throttlecrab/src/lib.rs && \
     echo "fn main() {}" > throttlecrab-server/src/main.rs && \
-    echo "fn main() {}" > integration-tests/src/lib.rs
+    echo "fn main() {}" > throttlecrab-server/benches/tcp_throughput.rs && \
+    echo "fn main() {}" > throttlecrab-server/benches/connection_pool.rs && \
+    echo "fn main() {}" > throttlecrab-server/benches/protocol_comparison.rs && \
+    echo "fn main() {}" > throttlecrab-server/benches/grpc_throughput.rs
 
 # Build dependencies
 RUN cargo build --release -p throttlecrab-server
 
 # Remove dummy source files
-RUN rm -rf throttlecrab/src throttlecrab-server/src integration-tests/src
+RUN rm -rf throttlecrab/src throttlecrab-server/src
 
 # Copy actual source code
 COPY throttlecrab/src ./throttlecrab/src
