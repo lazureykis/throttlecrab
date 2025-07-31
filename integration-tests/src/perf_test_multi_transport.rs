@@ -68,7 +68,7 @@ async fn http_worker(
     // Pre-generate payloads
     let mut payloads = Vec::with_capacity(requests_per_thread);
     for i in 0..requests_per_thread {
-        let key = format!("key_{}_{}", thread_id, i % 1000);
+        let key = format!("key_{}_req_{}", thread_id, i);
         payloads.push(json!({
             "key": key,
             "max_burst": 100,
@@ -337,35 +337,15 @@ async fn native_worker(
     use bytes::{BufMut, BytesMut};
     use std::time::{SystemTime, UNIX_EPOCH};
 
-    // Create connection pool
-    let mut connections = Vec::new();
-    for _ in 0..5 {
-        let stream = TcpStream::connect(format!("127.0.0.1:{}", port)).await?;
-        connections.push(stream);
-    }
-    let connections = Arc::new(tokio::sync::Mutex::new(connections));
+    // Create a dedicated connection for this worker (no sharing between threads)
+    let mut stream = TcpStream::connect(format!("127.0.0.1:{}", port)).await?;
+    stream.set_nodelay(true)?;
 
-    // Pre-generate requests
-    let mut requests = Vec::with_capacity(requests_per_thread);
+    // Pre-generate key names only (not the full requests with timestamps)
+    let mut keys = Vec::with_capacity(requests_per_thread);
     for i in 0..requests_per_thread {
-        let key = format!("key_{}_{}", thread_id, i % 1000);
-        
-        let mut request = BytesMut::new();
-        request.put_u8(1); // cmd
-        request.put_u8(key.len() as u8); // key_len
-        request.put_i64_le(100); // burst
-        request.put_i64_le(10); // rate
-        request.put_i64_le(60_000_000_000); // period in nanoseconds
-        request.put_i64_le(1); // quantity
-
-        let now = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap()
-            .as_nanos() as i64;
-        request.put_i64_le(now);
-        request.put_slice(key.as_bytes());
-        
-        requests.push(request.freeze());
+        // Use unique keys to avoid rate limiting during performance tests
+        keys.push(format!("key_{}_req_{}", thread_id, i));
     }
 
     // Wait for all threads to be ready
@@ -377,34 +357,46 @@ async fn native_worker(
     }
 
     let mut latencies = Vec::with_capacity(requests_per_thread);
+    let mut request_buffer = BytesMut::with_capacity(256);
 
-    // Send all requests
-    for request in requests {
+    // Send all requests on the same connection
+    for key in keys {
         let start = Instant::now();
 
-        // Get connection from pool
-        let mut stream = {
-            let mut pool = connections.lock().await;
-            pool.pop().ok_or_else(|| anyhow::anyhow!("No available connections"))?
-        };
+        // Build request with fresh timestamp
+        request_buffer.clear();
+        request_buffer.put_u8(1); // cmd
+        request_buffer.put_u8(key.len() as u8); // key_len
+        request_buffer.put_i64_le(100); // burst
+        request_buffer.put_i64_le(10); // rate
+        request_buffer.put_i64_le(60_000_000_000); // period in nanoseconds
+        request_buffer.put_i64_le(1); // quantity
+
+        // Use current timestamp
+        let now = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_nanos() as i64;
+        request_buffer.put_i64_le(now);
+        request_buffer.put_slice(key.as_bytes());
 
         match async {
             // Send request
-            stream.write_all(&request).await?;
+            stream.write_all(&request_buffer).await?;
             stream.flush().await?;
 
-            // Read response (33 bytes fixed)
-            let mut response = vec![0u8; 33];
+            // Read response (34 bytes fixed: 1 + 1 + 8*4)
+            let mut response = [0u8; 34];
             stream.read_exact(&mut response).await?;
 
             let ok = response[0];
             let allowed = response[1];
 
-            Ok::<(bool, bool, TcpStream), anyhow::Error>((ok == 1, allowed == 1, stream))
+            Ok::<(bool, bool), anyhow::Error>((ok == 1, allowed == 1))
         }
         .await
         {
-            Ok((ok, allowed, stream)) => {
+            Ok((ok, allowed)) => {
                 let latency = start.elapsed();
                 latencies.push(latency);
                 stats.total_requests.fetch_add(1, Ordering::Relaxed);
@@ -417,14 +409,21 @@ async fn native_worker(
                 } else {
                     stats.rate_limited.fetch_add(1, Ordering::Relaxed);
                 }
-
-                // Return connection to pool
-                let mut pool = connections.lock().await;
-                pool.push(stream);
             }
-            Err(_) => {
+            Err(e) => {
+                // Connection failed, try to reconnect for next request
+                eprintln!("Native protocol error: {}", e);
                 stats.failed.fetch_add(1, Ordering::Relaxed);
                 stats.total_requests.fetch_add(1, Ordering::Relaxed);
+                
+                // Try to reconnect
+                match TcpStream::connect(format!("127.0.0.1:{}", port)).await {
+                    Ok(new_stream) => {
+                        stream = new_stream;
+                        let _ = stream.set_nodelay(true);
+                    }
+                    Err(_) => break, // Can't reconnect, stop this worker
+                }
             }
         }
     }

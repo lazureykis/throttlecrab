@@ -35,5 +35,9 @@ parking_lot = "0.12"
 # For importing proto definitions
 throttlecrab-server = { path = "../throttlecrab-server" }
 
+[[bin]]
+name = "native-test-simple"
+path = "src/native_test_simple.rs"
+
 [dev-dependencies]
 criterion = { workspace = true }

@@ -385,12 +385,12 @@ impl NativeConnectionPool {
             stream.write_all(&request).await?;
             stream.flush().await?;
 
-            // Read response (33 bytes fixed)
-            let mut response = vec![0u8; 33];
+            // Read response (34 bytes fixed)
+            let mut response = vec![0u8; 34];
             stream.read_exact(&mut response).await?;
 
             // Validate response
-            if response.len() != 33 {
+            if response.len() != 34 {
                 return Err(anyhow::anyhow!(
                     "Invalid response size: {} bytes",
                     response.len()
