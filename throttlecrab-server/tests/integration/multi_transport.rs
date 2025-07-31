@@ -14,7 +14,7 @@ pub async fn run_multi_transport_test(workload_config: WorkloadConfig) -> Result
     let mut cmd = tokio::process::Command::new("cargo");
     cmd.arg("run")
         .arg("--release")
-        .arg("--bin")
+        .arg("-p")
         .arg("throttlecrab-server")
         .arg("--")
         .arg("--http")
@@ -177,7 +177,7 @@ pub async fn run_transport_isolation_test() -> Result<()> {
     let mut cmd = tokio::process::Command::new("cargo");
     cmd.arg("run")
         .arg("--release")
-        .arg("--bin")
+        .arg("-p")
         .arg("throttlecrab-server")
         .arg("--")
         .arg("--http")

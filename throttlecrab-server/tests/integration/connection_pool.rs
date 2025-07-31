@@ -244,7 +244,7 @@ impl NativeConnectionPool {
         request.put_u8(key.len() as u8); // key_len
         request.put_i64_le(100); // burst
         request.put_i64_le(10); // rate
-        request.put_i64_le(60_000_000_000); // period in nanoseconds
+        request.put_i64_le(60); // period in seconds
         request.put_i64_le(1); // quantity
 
         let now = SystemTime::now()

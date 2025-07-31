@@ -1,3 +1,46 @@
+//! HTTP/JSON transport for easy integration
+//!
+//! This transport provides a REST API with JSON payloads, making it easy
+//! to integrate with any programming language or tool that supports HTTP.
+//!
+//! # API Endpoints
+//!
+//! ## POST /throttle
+//!
+//! Check rate limit for a key.
+//!
+//! ### Request Body
+//!
+//! ```json
+//! {
+//!   "key": "user:123",
+//!   "max_burst": 10,
+//!   "count_per_period": 100,
+//!   "period": 60,
+//!   "quantity": 1,
+//!   "timestamp": 1234567890123456789
+//! }
+//! ```
+//!
+//! - `quantity` is optional (defaults to 1)
+//! - `timestamp` is optional (defaults to current time, in nanoseconds)
+//!
+//! ### Response
+//!
+//! ```json
+//! {
+//!   "allowed": true,
+//!   "limit": 10,
+//!   "remaining": 9,
+//!   "reset_after": 60,
+//!   "retry_after": 0
+//! }
+//! ```
+//!
+//! ## GET /health
+//!
+//! Health check endpoint. Returns "OK" with 200 status.
+
 use super::Transport;
 use crate::actor::RateLimiterHandle;
 use crate::types::{ThrottleRequest as InternalRequest, ThrottleResponse};
@@ -9,21 +52,33 @@ use std::net::SocketAddr;
 use std::sync::Arc;
 use std::time::SystemTime;
 
+/// HTTP request format for rate limiting
 #[derive(Debug, Serialize, Deserialize)]
 pub struct HttpThrottleRequest {
+    /// The key to rate limit
     pub key: String,
+    /// Maximum burst capacity
     pub max_burst: i64,
+    /// Total requests allowed per period
     pub count_per_period: i64,
+    /// Time period in seconds
     pub period: i64,
+    /// Number of tokens to consume (optional, defaults to 1)
     pub quantity: Option<i64>,
-    pub timestamp: Option<i64>, // Optional timestamp in nanoseconds
+    /// Unix timestamp in nanoseconds (optional, defaults to current time)
+    pub timestamp: Option<i64>,
 }
 
+/// Error response format
 #[derive(Debug, Serialize, Deserialize)]
 pub struct HttpErrorResponse {
+    /// Error message
     pub error: String,
 }
 
+/// HTTP transport implementation
+///
+/// Provides a REST API with JSON payloads for easy integration.
 pub struct HttpTransport {
     addr: SocketAddr,
 }

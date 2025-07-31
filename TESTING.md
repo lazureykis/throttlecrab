@@ -139,7 +139,7 @@ perf report
 cargo install flamegraph
 
 # Generate flamegraph
-cargo flamegraph --bin throttlecrab-server -- --native
+cargo flamegraph -p throttlecrab-server -- --native
 ```
 
 ## Load Testing
