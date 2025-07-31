@@ -10,7 +10,7 @@ pub struct RateLimitResult {
     pub retry_after: Duration,
 }
 
-/// GCRA Rate Limiter implementation (similar to redis-cell)
+/// GCRA Rate Limiter implementation
 pub struct RateLimiter<S: Store> {
     store: S,
 }

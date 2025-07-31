@@ -1,4 +1,4 @@
-# throttlecrab
+# ThrottleCrab
 
 [![CI](https://github.com/lazureykis/throttlecrab/actions/workflows/ci.yml/badge.svg)](https://github.com/lazureykis/throttlecrab/actions/workflows/ci.yml)
 [![Coverage Status](https://codecov.io/gh/lazureykis/throttlecrab/branch/master/graph/badge.svg)](https://codecov.io/gh/lazureykis/throttlecrab)
@@ -6,7 +6,7 @@
 [![Documentation](https://docs.rs/throttlecrab/badge.svg)](https://docs.rs/throttlecrab)
 [![License](https://img.shields.io/crates/l/throttlecrab.svg)](LICENSE-MIT)
 
-A high-performance GCRA (Generic Cell Rate Algorithm) rate limiter for Rust. Inspired by [redis-cell](https://github.com/brandur/redis-cell), throttlecrab offers a pure Rust implementation with multiple storage backends and deployment options.
+A high-performance GCRA (Generic Cell Rate Algorithm) rate limiter for Rust. ThrottleCrab offers a pure Rust implementation with multiple storage backends and deployment options.
 
 ## Project Structure
 
@@ -84,7 +84,7 @@ struct RateLimitResponse {
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let client = Client::new();
-    
+
     let response: RateLimitResponse = client
         .post("http://localhost:8080/check_rate_limit")
         .json(&RateLimitRequest {
@@ -441,20 +441,9 @@ impl ShardedRateLimiter {
 }
 ```
 
-### Migration from Redis-Cell
-
-1. **Algorithm**: Same GCRA implementation
-2. **Performance**: 5-100x faster depending on protocol
-3. **API**: Similar request/response structure
-4. **Key differences**:
-   - No Redis dependency
-   - Multiple protocol options
-   - Better performance characteristics
-   - Native Rust client available
-
 ## Related Projects
 
-- [redis-cell](https://github.com/brandur/redis-cell) - Redis module implementing GCRA (inspiration for this project)
+- [redis-cell](https://github.com/brandur/redis-cell) - Redis module implementing GCRA
 - [governor](https://github.com/antifuchs/governor) - Another Rust rate limiter with different design goals
 - [leaky-bucket](https://github.com/udoprog/leaky-bucket) - Async rate limiter based on leaky bucket algorithm
 

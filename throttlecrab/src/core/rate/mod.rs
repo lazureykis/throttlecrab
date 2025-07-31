@@ -43,7 +43,7 @@ impl Rate {
         }
     }
 
-    /// Creates a rate from count and period (matching redis-cell API)
+    /// Creates a rate from count and period
     pub fn from_count_and_period(count: i64, period_seconds: i64) -> Self {
         if count <= 0 || period_seconds <= 0 {
             // Return a very slow rate if invalid

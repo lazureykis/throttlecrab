@@ -21,7 +21,7 @@ mod store_test_suite;
 #[cfg(test)]
 mod tests_builders;
 
-/// Store trait for rate limiter state storage (similar to redis-cell)
+/// Store trait for rate limiter state storage
 pub trait Store {
     /// Compare and swap with TTL
     fn compare_and_swap_with_ttl(
