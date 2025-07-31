@@ -325,7 +325,7 @@ async fn msgpack_worker(
                 eprintln!("MessagePack protocol error: {e}");
                 thread_stats.failed += 1;
                 thread_stats.total_requests += 1;
-                
+
                 // Try to reconnect
                 match TcpStream::connect(format!("127.0.0.1:{port}")).await {
                     Ok(new_stream) => {
