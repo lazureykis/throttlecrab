@@ -15,8 +15,8 @@ async fn main() -> Result<()> {
 
     // Send a few test requests
     for i in 0..5 {
-        let key = format!("test_key_{}", i);
-        println!("\nSending request {} with key: {}", i, key);
+        let key = format!("test_key_{i}");
+        println!("\nSending request {i} with key: {key}");
 
         // Build request
         let mut request = BytesMut::new();
@@ -48,7 +48,7 @@ async fn main() -> Result<()> {
             Ok(_) => {
                 println!("Response received");
                 println!("Response hex: {:02x?}", &response[0..10]); // First 10 bytes
-                
+
                 let ok = response[0];
                 let allowed = response[1];
                 let limit = i64::from_le_bytes(response[2..10].try_into().unwrap());
@@ -57,18 +57,22 @@ async fn main() -> Result<()> {
                 // Note: We only have 33 bytes total, so reset_after ends at byte 33
                 // Byte 33 would be index 32, but we can't access it with ..33
                 // This is likely the bug - trying to read past the buffer!
-                
-                println!("  ok: {}", ok);
-                println!("  allowed: {}", allowed);
-                println!("  limit: {}", limit);
-                println!("  remaining: {}", remaining);
-                println!("  retry_after: {}", retry_after);
-                
+
+                println!("  ok: {ok}");
+                println!("  allowed: {allowed}");
+                println!("  limit: {limit}");
+                println!("  remaining: {remaining}");
+                println!("  retry_after: {retry_after}");
+
                 // Let's also check if we really read 33 bytes
-                println!("  Full response ({} bytes): {:02x?}", response.len(), &response);
+                println!(
+                    "  Full response ({} bytes): {:02x?}",
+                    response.len(),
+                    &response
+                );
             }
             Err(e) => {
-                println!("Error reading response: {}", e);
+                println!("Error reading response: {e}");
                 break;
             }
         }

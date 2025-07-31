@@ -3,10 +3,10 @@ use serde_json::json;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{Duration, Instant};
-use tokio::sync::Barrier;
-use tokio::task::JoinSet;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpStream;
+use tokio::sync::Barrier;
+use tokio::task::JoinSet;
 
 #[derive(Debug)]
 pub struct Stats {
@@ -44,7 +44,10 @@ impl Transport {
             "grpc" => Ok(Transport::Grpc),
             "msgpack" => Ok(Transport::MsgPack),
             "native" => Ok(Transport::Native),
-            _ => anyhow::bail!("Invalid transport: {}. Valid options: http, grpc, msgpack, native", s),
+            _ => anyhow::bail!(
+                "Invalid transport: {}. Valid options: http, grpc, msgpack, native",
+                s
+            ),
         }
     }
 }
@@ -68,7 +71,7 @@ async fn http_worker(
     // Pre-generate payloads
     let mut payloads = Vec::with_capacity(requests_per_thread);
     for i in 0..requests_per_thread {
-        let key = format!("key_{}_req_{}", thread_id, i);
+        let key = format!("key_{thread_id}_req_{i}");
         payloads.push(json!({
             "key": key,
             "max_burst": 100,
@@ -129,8 +132,8 @@ async fn grpc_worker(
     barrier: Arc<Barrier>,
     start_flag: Arc<AtomicU64>,
 ) -> Result<Vec<Duration>> {
-    use throttlecrab_server::grpc::rate_limiter_client::RateLimiterClient;
     use throttlecrab_server::grpc::ThrottleRequest;
+    use throttlecrab_server::grpc::rate_limiter_client::RateLimiterClient;
 
     // Create gRPC client
     let mut client = RateLimiterClient::connect(format!("http://127.0.0.1:{port}")).await?;
@@ -227,7 +230,7 @@ async fn msgpack_worker(
     // Create connection pool
     let mut connections = Vec::new();
     for _ in 0..5 {
-        let stream = TcpStream::connect(format!("127.0.0.1:{}", port)).await?;
+        let stream = TcpStream::connect(format!("127.0.0.1:{port}")).await?;
         connections.push(stream);
     }
     let connections = Arc::new(tokio::sync::Mutex::new(connections));
@@ -267,7 +270,8 @@ async fn msgpack_worker(
         // Get connection from pool
         let mut stream = {
             let mut pool = connections.lock().await;
-            pool.pop().ok_or_else(|| anyhow::anyhow!("No available connections"))?
+            pool.pop()
+                .ok_or_else(|| anyhow::anyhow!("No available connections"))?
         };
 
         // Serialize request
@@ -338,14 +342,14 @@ async fn native_worker(
     use std::time::{SystemTime, UNIX_EPOCH};
 
     // Create a dedicated connection for this worker (no sharing between threads)
-    let mut stream = TcpStream::connect(format!("127.0.0.1:{}", port)).await?;
+    let mut stream = TcpStream::connect(format!("127.0.0.1:{port}")).await?;
     stream.set_nodelay(true)?;
 
     // Pre-generate key names only (not the full requests with timestamps)
     let mut keys = Vec::with_capacity(requests_per_thread);
     for i in 0..requests_per_thread {
         // Use unique keys to avoid rate limiting during performance tests
-        keys.push(format!("key_{}_req_{}", thread_id, i));
+        keys.push(format!("key_{thread_id}_req_{i}"));
     }
 
     // Wait for all threads to be ready
@@ -412,12 +416,12 @@ async fn native_worker(
             }
             Err(e) => {
                 // Connection failed, try to reconnect for next request
-                eprintln!("Native protocol error: {}", e);
+                eprintln!("Native protocol error: {e}");
                 stats.failed.fetch_add(1, Ordering::Relaxed);
                 stats.total_requests.fetch_add(1, Ordering::Relaxed);
-                
+
                 // Try to reconnect
-                match TcpStream::connect(format!("127.0.0.1:{}", port)).await {
+                match TcpStream::connect(format!("127.0.0.1:{port}")).await {
                     Ok(new_stream) => {
                         stream = new_stream;
                         let _ = stream.set_nodelay(true);
@@ -438,9 +442,9 @@ pub async fn run_performance_test(
     transport_str: &str,
 ) -> Result<()> {
     let transport = Transport::from_str(transport_str)?;
-    
+
     println!("=== ThrottleCrab Performance Test ===");
-    println!("Transport: {}", transport_str);
+    println!("Transport: {transport_str}");
     println!("Threads: {num_threads}");
     println!("Requests per thread: {requests_per_thread}");
     println!("Total requests: {}", num_threads * requests_per_thread);
@@ -452,7 +456,7 @@ pub async fn run_performance_test(
         Transport::Http => {
             let test_client = reqwest::Client::new();
             let test_url = format!("http://127.0.0.1:{port}/throttle");
-            
+
             match test_client
                 .post(&test_url)
                 .json(&json!({
@@ -476,7 +480,7 @@ pub async fn run_performance_test(
         }
         _ => {
             // For non-HTTP transports, we'll assume the server is running
-            println!("Assuming server is running with {} transport", transport_str);
+            println!("Assuming server is running with {transport_str} transport");
         }
     }
 
