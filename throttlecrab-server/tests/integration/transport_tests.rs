@@ -2,7 +2,6 @@ use anyhow::Result;
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::process::{Child, Command};
-use tokio::sync::Mutex;
 use tokio::time::sleep;
 
 use super::connection_pool::{
@@ -114,7 +113,8 @@ pub async fn test_http_transport(port: u16, key: String) -> Result<bool> {
     client.test_request(key).await
 }
 
-// gRPC client with connection reuse
+// gRPC client - cloneable for per-thread usage
+#[derive(Clone)]
 pub struct GrpcClient {
     client: throttlecrab_server::grpc::rate_limiter_client::RateLimiterClient<
         tonic::transport::Channel,
@@ -209,14 +209,11 @@ pub async fn run_transport_benchmark(
                 .await?;
         }
         Transport::Grpc => {
-            let client = Arc::new(Mutex::new(GrpcClient::new(port).await?));
+            let client = GrpcClient::new(port).await?;
             generator
                 .run(move |key| {
-                    let client = client.clone();
-                    async move {
-                        let mut c = client.lock().await;
-                        c.test_request(key).await
-                    }
+                    let mut client = client.clone();
+                    async move { client.test_request(key).await }
                 })
                 .await?;
         }

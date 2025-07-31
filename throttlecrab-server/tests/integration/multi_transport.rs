@@ -7,7 +7,6 @@ use super::transport_tests::{
     GrpcClient, HttpClient, MsgPackConnectionPool, NativeClient, Transport,
 };
 use super::workload::{WorkloadConfig, WorkloadGenerator, WorkloadStats};
-use tokio::sync::Mutex;
 
 pub async fn run_multi_transport_test(workload_config: WorkloadConfig) -> Result<()> {
     println!("\n=== Multi-Transport Concurrent Test ===");
@@ -86,14 +85,10 @@ pub async fn run_multi_transport_test(workload_config: WorkloadConfig) -> Result
                 }
                 Transport::Grpc => match GrpcClient::new(port).await {
                     Ok(grpc_client) => {
-                        let client = Arc::new(Mutex::new(grpc_client));
                         generator
                             .run(move |key| {
-                                let client = client.clone();
-                                async move {
-                                    let mut c = client.lock().await;
-                                    c.test_request(key).await
-                                }
+                                let mut client = grpc_client.clone();
+                                async move { client.test_request(key).await }
                             })
                             .await
                     }
@@ -222,7 +217,7 @@ pub async fn run_transport_isolation_test() -> Result<()> {
 
     // Create pooled clients for all transports
     let http_client = Arc::new(HttpClient::new(38080));
-    let grpc_client = Arc::new(Mutex::new(GrpcClient::new(38070).await?));
+    let grpc_client = GrpcClient::new(38070).await?;
     let msgpack_pool = Arc::new(MsgPackConnectionPool::new(38071, 10));
     let native_client = Arc::new(NativeClient::new(38072, 10));
 
@@ -237,10 +232,7 @@ pub async fn run_transport_isolation_test() -> Result<()> {
         let transport_idx = i % 4;
         let limited = match transport_idx {
             0 => http_client.test_request(test_key.clone()).await?,
-            1 => {
-                let mut client = grpc_client.lock().await;
-                client.test_request(test_key.clone()).await?
-            }
+            1 => grpc_client.clone().test_request(test_key.clone()).await?,
             2 => msgpack_pool.test_request(test_key.clone()).await?,
             3 => native_client.test_request(test_key.clone()).await?,
             _ => unreachable!(),

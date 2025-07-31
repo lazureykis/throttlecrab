@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 pub mod benchmark_suite;
 pub mod connection_pool;
 pub mod high_performance_bench;
