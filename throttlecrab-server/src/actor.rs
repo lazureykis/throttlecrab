@@ -125,15 +125,34 @@ impl StoreType {
 }
 
 async fn run_actor(mut rx: mpsc::Receiver<RateLimiterMessage>, mut store_type: StoreType) {
-    while let Some(msg) = rx.recv().await {
-        match msg {
-            RateLimiterMessage::Throttle {
-                request,
-                response_tx,
-            } => {
-                let response = handle_throttle(&mut store_type, request);
-                // Ignore send errors - receiver may have timed out
-                let _ = response_tx.send(response);
+    // Buffer for batch processing
+    let mut batch_buffer = Vec::with_capacity(100);
+    const BATCH_SIZE: usize = 64; // Process up to 64 messages at once
+
+    loop {
+        // Clear the buffer for reuse
+        batch_buffer.clear();
+
+        // Receive up to BATCH_SIZE messages
+        let received = rx.recv_many(&mut batch_buffer, BATCH_SIZE).await;
+
+        if received == 0 {
+            // Channel is closed
+            break;
+        }
+
+        // Process all messages in the batch
+        // We need to drain the buffer to take ownership of the messages
+        for msg in batch_buffer.drain(..) {
+            match msg {
+                RateLimiterMessage::Throttle {
+                    request,
+                    response_tx,
+                } => {
+                    let response = handle_throttle(&mut store_type, &request);
+                    // Ignore send errors - receiver may have timed out
+                    let _ = response_tx.send(response);
+                }
             }
         }
     }
@@ -143,7 +162,7 @@ async fn run_actor(mut rx: mpsc::Receiver<RateLimiterMessage>, mut store_type: S
 
 fn handle_throttle(
     store_type: &mut StoreType,
-    request: ThrottleRequest,
+    request: &ThrottleRequest,
 ) -> Result<ThrottleResponse> {
     // Check the rate limit
     let (allowed, result) = store_type

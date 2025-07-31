@@ -3,7 +3,7 @@ use crate::actor::RateLimiterHandle;
 use crate::types::ThrottleRequest;
 use anyhow::Result;
 use async_trait::async_trait;
-use bytes::{BufMut, BytesMut};
+use bytes::BytesMut;
 use std::sync::Arc;
 use std::time::UNIX_EPOCH;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
@@ -29,7 +29,6 @@ use tokio::net::{TcpListener, TcpStream};
 /// - retry_after: i64 (8 bytes)
 /// - reset_after: i64 (8 bytes)
 const READ_BUFFER_SIZE: usize = 256;
-const WRITE_BUFFER_SIZE: usize = 64;
 const MAX_KEY_LENGTH: usize = 255;
 
 /// Number of acceptor threads for the native protocol server
@@ -51,13 +50,14 @@ impl NativeTransport {
     async fn handle_connection(mut socket: TcpStream, limiter: RateLimiterHandle) -> Result<()> {
         // Pre-allocate buffers
         let mut read_buffer = BytesMut::with_capacity(READ_BUFFER_SIZE);
-        let mut write_buffer = BytesMut::with_capacity(WRITE_BUFFER_SIZE);
 
         // Set TCP_NODELAY for lower latency
         socket.set_nodelay(true)?;
 
         // Fixed-size header buffer
         let mut header = [0u8; 42]; // Max size for fixed fields
+        // Fixed-size response buffer (34 bytes)
+        let mut response_buffer = [0u8; 34];
 
         loop {
             // Read fixed header (first 2 bytes: cmd + key_len)
@@ -125,31 +125,22 @@ impl NativeTransport {
                 Ok(resp) => resp,
                 Err(e) => {
                     tracing::error!("Rate limiter error: {}", e);
-                    // Send error response
-                    write_buffer.clear();
-                    write_buffer.put_u8(0); // ok = false
-                    write_buffer.put_u8(0); // allowed = 0
-                    write_buffer.put_i64_le(0); // limit
-                    write_buffer.put_i64_le(0); // remaining
-                    write_buffer.put_i64_le(0); // retry_after
-                    write_buffer.put_i64_le(0); // reset_after
-                    socket.write_all(&write_buffer).await?;
-                    socket.flush().await?;
+                    // Send error response using stack buffer
+                    response_buffer.fill(0); // All zeros for error response
+                    socket.write_all(&response_buffer).await?;
                     continue;
                 }
             };
 
-            // Write response (34 bytes)
-            write_buffer.clear();
-            write_buffer.put_u8(1); // ok = true
-            write_buffer.put_u8(if response.allowed { 1 } else { 0 });
-            write_buffer.put_i64_le(response.limit);
-            write_buffer.put_i64_le(response.remaining);
-            write_buffer.put_i64_le(response.retry_after);
-            write_buffer.put_i64_le(response.reset_after);
+            // Write response (34 bytes) using stack buffer
+            response_buffer[0] = 1; // ok = true
+            response_buffer[1] = if response.allowed { 1 } else { 0 };
+            response_buffer[2..10].copy_from_slice(&response.limit.to_le_bytes());
+            response_buffer[10..18].copy_from_slice(&response.remaining.to_le_bytes());
+            response_buffer[18..26].copy_from_slice(&response.retry_after.to_le_bytes());
+            response_buffer[26..34].copy_from_slice(&response.reset_after.to_le_bytes());
 
-            socket.write_all(&write_buffer).await?;
-            socket.flush().await?;
+            socket.write_all(&response_buffer).await?;
         }
 
         Ok(())
