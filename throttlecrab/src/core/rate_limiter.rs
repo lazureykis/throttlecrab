@@ -47,7 +47,10 @@ impl<S: Store> RateLimiter<S> {
 
         let tat_val = self.store.get(key, now).map_err(CellError::Internal)?;
 
-        let now_ns = now.duration_since(UNIX_EPOCH).unwrap().as_nanos() as i64;
+        let now_ns = now
+            .duration_since(UNIX_EPOCH)
+            .expect("Time went backwards")
+            .as_nanos() as i64;
 
         // Calculate the theoretical arrival time for this request
         let emission_interval_ns = emission_interval.as_nanos() as i64;

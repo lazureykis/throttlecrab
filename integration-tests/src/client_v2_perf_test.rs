@@ -1,62 +1,36 @@
-//! Performance test for throttlecrab native client
+//! Performance test for optimized throttlecrab client v2
 
 use anyhow::Result;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{Duration, Instant};
-use throttlecrab_client::ClientBuilder;
+use throttlecrab_client::{ThrottleCrabClientV2, ClientBuilderV2};
 use tokio::sync::Barrier;
 use tokio::task::JoinSet;
 
-#[derive(Debug)]
-pub struct ClientPerfStats {
-    pub total_requests: AtomicU64,
-    pub successful: AtomicU64,
-    pub rate_limited: AtomicU64,
-    pub failed: AtomicU64,
-    pub total_latency_us: AtomicU64,
-}
-
-impl ClientPerfStats {
-    pub fn new() -> Self {
-        Self {
-            total_requests: AtomicU64::new(0),
-            successful: AtomicU64::new(0),
-            rate_limited: AtomicU64::new(0),
-            failed: AtomicU64::new(0),
-            total_latency_us: AtomicU64::new(0),
-        }
-    }
-}
-
-pub async fn run_client_performance_test(
+pub async fn run_client_v2_performance_test(
     num_threads: usize,
     requests_per_thread: usize,
     port: u16,
-    pool_size: usize,
 ) -> Result<()> {
-    println!("=== Native Client Performance Test ===");
+    println!("=== Native Client V2 Performance Test ===");
     println!("Threads: {num_threads}");
     println!("Requests per thread: {requests_per_thread}");
     let total_expected = num_threads * requests_per_thread;
     println!("Total requests: {total_expected}");
-    println!("Connection pool size: {pool_size}");
     println!("Target port: {port}\n");
 
-    // Create shared client with connection pool
-    let client = ClientBuilder::new()
-        .max_connections(pool_size)
-        .min_idle_connections(pool_size)
+    // Create shared client with optimized pool
+    let client = ClientBuilderV2::new()
+        .max_idle_connections(num_threads * 2)  // Allow more idle connections
+        .idle_timeout(Duration::from_secs(60))
         .connect_timeout(Duration::from_secs(1))
         .request_timeout(Duration::from_secs(1))
-        // .tcp_nodelay(true)
+        .tcp_nodelay(true)
         .build(format!("127.0.0.1:{port}"))
         .await?;
 
-    println!(
-        "Client connected. Initial pool size: {}",
-        client.pool_size()
-    );
+    println!("Client connected with optimized pool");
 
     // Create shared resources
     let stats = Arc::new(ClientPerfStats::new());
@@ -152,10 +126,29 @@ pub async fn run_client_performance_test(
     println!("Average latency: {avg_latency_us} μs");
 
     println!("\nFinal pool status:");
-    let pool_size = client.pool_size();
-    println!("Pool size: {pool_size}");
-    let available = client.available_connections();
-    println!("Available connections: {available}");
+    let stats = client.pool_stats();
+    println!("Idle connections: {}", stats.idle_connections);
 
     Ok(())
+}
+
+#[derive(Debug)]
+pub struct ClientPerfStats {
+    pub total_requests: AtomicU64,
+    pub successful: AtomicU64,
+    pub rate_limited: AtomicU64,
+    pub failed: AtomicU64,
+    pub total_latency_us: AtomicU64,
+}
+
+impl ClientPerfStats {
+    pub fn new() -> Self {
+        Self {
+            total_requests: AtomicU64::new(0),
+            successful: AtomicU64::new(0),
+            rate_limited: AtomicU64::new(0),
+            failed: AtomicU64::new(0),
+            total_latency_us: AtomicU64::new(0),
+        }
+    }
 }
