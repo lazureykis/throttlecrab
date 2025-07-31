@@ -120,7 +120,7 @@ run_transport_test() {
     
     # Start server
     echo "Starting server with $transport transport..."
-    ../target/release/throttlecrab \
+    ../target/release/throttlecrab-server \
         $TRANSPORT_ARGS \
         --store $STORE \
         --store-capacity 1000000 \
@@ -159,7 +159,7 @@ run_transport_test() {
 
 # Build if needed
 echo "Building projects..."
-cd .. && cargo build --release -p throttlecrab-server --bin throttlecrab
+cd .. && cargo build --release -p throttlecrab-server
 cd integration-tests && cargo build --release
 
 # Run tests based on transport selection

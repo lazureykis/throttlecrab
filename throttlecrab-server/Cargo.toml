@@ -11,7 +11,7 @@ keywords = ["rate-limiter", "server", "grpc", "http", "messagepack"]
 categories = ["network-programming", "web-programming::http-server"]
 
 [[bin]]
-name = "throttlecrab"
+name = "throttlecrab-server"
 path = "src/main.rs"
 
 [dependencies]
@@ -80,4 +80,3 @@ harness = false
 [[bench]]
 name = "grpc_throughput"
 harness = false
-

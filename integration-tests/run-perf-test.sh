@@ -5,12 +5,12 @@
 set -e
 
 echo "Building projects..."
-cd .. && cargo build --release -p throttlecrab-server --bin throttlecrab
+cd .. && cargo build --release -p throttlecrab-server
 cd integration-tests && cargo build --release
 
 # Start server in background
 echo -e "\nStarting ThrottleCrab server..."
-../target/release/throttlecrab \
+../target/release/throttlecrab-server \
     --http --http-port 58080 \
     --store adaptive \
     --store-capacity 100000 \

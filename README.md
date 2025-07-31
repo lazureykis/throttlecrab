@@ -47,7 +47,7 @@ Or build from source:
 git clone https://github.com/lazureykis/throttlecrab
 cd throttlecrab
 cargo build --release -p throttlecrab-server
-./target/release/throttlecrab
+./target/release/throttlecrab-server
 ```
 
 ## Usage
@@ -82,18 +82,18 @@ Start the throttlecrab server:
 
 ```bash
 # Install the server binary
-cargo install throttlecrab --features bin
+cargo install throttlecrab-server
 
 # Run with default settings (listens on 127.0.0.1:9090)
-throttlecrab --server
+throttlecrab-server
 
 # Or with custom address
-throttlecrab --server --host 0.0.0.0 --port 8080
+throttlecrab-server --host 0.0.0.0 --port 8080
 
 # Use different transports:
-throttlecrab --server --http      # HTTP with JSON (REST API)
-throttlecrab --server --grpc      # gRPC transport
-throttlecrab --server             # MessagePack over TCP (default, most efficient)
+throttlecrab-server --http      # HTTP with JSON (REST API)
+throttlecrab-server --grpc      # gRPC transport
+throttlecrab-server --msgpack   # MessagePack over TCP (most efficient)
 ```
 
 ### Client Example
@@ -225,7 +225,7 @@ service RateLimiter {
 
 To use the gRPC server:
 1. Install protoc: `brew install protobuf` (macOS) or `apt-get install protobuf-compiler` (Ubuntu)
-2. Run server: `throttlecrab --server --grpc`
+2. Run server: `throttlecrab-server --grpc`
 3. Use any gRPC client library to connect
 
 ## What is GCRA?

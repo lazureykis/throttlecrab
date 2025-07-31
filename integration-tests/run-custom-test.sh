@@ -21,9 +21,9 @@ echo "Log level: $LOG_LEVEL"
 echo ""
 
 # Build if needed
-if [ ! -f "../target/release/throttlecrab" ] || [ ! -f "../target/release/throttlecrab-integration-tests" ]; then
+if [ ! -f "../target/release/throttlecrab-server" ] || [ ! -f "../target/release/throttlecrab-integration-tests" ]; then
     echo "Building projects..."
-    cd .. && cargo build --release -p throttlecrab-server --bin throttlecrab
+    cd .. && cargo build --release -p throttlecrab-server
     cd integration-tests && cargo build --release
 fi
 
@@ -32,7 +32,7 @@ lsof -ti:$PORT | xargs kill -9 2>/dev/null || true
 
 # Start server
 echo "Starting server..."
-../target/release/throttlecrab \
+../target/release/throttlecrab-server \
     --http --http-port $PORT \
     --store $STORE \
     --store-capacity 1000000 \

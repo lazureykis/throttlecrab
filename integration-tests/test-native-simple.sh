@@ -5,7 +5,7 @@ lsof -ti:58072 | xargs kill -9 2>/dev/null || true
 
 # Start server
 echo "Starting server..."
-../target/release/throttlecrab \
+../target/release/throttlecrab-server \
     --native --native-port 58072 \
     --store adaptive \
     --store-capacity 1000000 \

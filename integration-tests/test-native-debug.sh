@@ -9,7 +9,7 @@ lsof -ti:58072 | xargs kill -9 2>/dev/null || true
 
 # Start server with debug logging
 echo "Starting server with debug logging..."
-../target/release/throttlecrab \
+../target/release/throttlecrab-server \
     --native --native-port 58072 \
     --store adaptive \
     --store-capacity 1000000 \

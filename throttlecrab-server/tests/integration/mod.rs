@@ -26,7 +26,7 @@ pub struct TestConfig {
 impl Default for TestConfig {
     fn default() -> Self {
         Self {
-            server_binary: "target/release/throttlecrab".to_string(),
+            server_binary: "target/release/throttlecrab-server".to_string(),
             test_duration: DEFAULT_TEST_DURATION,
             warmup_duration: DEFAULT_WARMUP_DURATION,
             sample_interval: DEFAULT_SAMPLE_INTERVAL,

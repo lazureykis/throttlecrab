@@ -5,7 +5,7 @@
 set -e
 
 echo "Building projects..."
-cd .. && cargo build --release -p throttlecrab-server --bin throttlecrab
+cd .. && cargo build --release -p throttlecrab-server
 cd integration-tests && cargo build --release
 
 # Kill any existing server
@@ -13,7 +13,7 @@ lsof -ti:58080 | xargs kill -9 2>/dev/null || true
 
 # Start server in background
 echo -e "\nStarting ThrottleCrab server..."
-../target/release/throttlecrab \
+../target/release/throttlecrab-server \
     --http --http-port 58080 \
     --store adaptive \
     --store-capacity 1000000 \

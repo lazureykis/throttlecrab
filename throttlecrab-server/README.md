@@ -28,7 +28,7 @@ Or build from source:
 git clone https://github.com/lazureykis/throttlecrab
 cd throttlecrab/throttlecrab-server
 cargo build --release
-./target/release/throttlecrab
+./target/release/throttlecrab-server
 ```
 
 ## Usage
