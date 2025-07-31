@@ -103,14 +103,9 @@ For production applications, use your language's HTTP client with connection poo
 - **Production Ready**: Health checks, metrics, configurable logging
 - **Flexible Deployment**: Docker, systemd, or standalone binary
 
-- **Automatic Reconnection**: Handles network failures gracefully
-- **Type-Safe**: Strongly typed request/response API
-
 ## Performance
 
 ### Store Type Performance
-
-`cd integration-tests && ./run-transport-test.sh -t all -T 32 -r 10000`
 
 | Store Type | Best For | Cleanup Strategy | Memory Usage |
 |------------|----------|------------------|---------------|
@@ -118,47 +113,12 @@ For production applications, use your language's HTTP client with connection poo
 | Periodic | Predictable load | Fixed intervals | Predictable |
 | Probabilistic | High throughput | Random sampling | Efficient |
 
-## When to Use ThrottleCrab
+## When to Use
 
-### Use the Library When:
-- Building a Rust application that needs rate limiting
-- Want zero network overhead
-- Need custom storage backends
-- Require fine-grained control over the algorithm
-
-### Use the Server When:
-- Building a microservices architecture
-- Need language-agnostic rate limiting
-- Want centralized rate limit management
-- Require high availability with multiple instances
+- **Library**: For Rust applications with embedded rate limiting
+- **Server**: For distributed systems and microservices needing centralized rate limiting
 
 
-## Common Use Cases
-
-### API Rate Limiting
-```rust
-// Limit each API key to 1000 requests per minute with burst of 50
-let (allowed, result) = limiter
-    .rate_limit(&api_key, 50, 1000, 60, 1, SystemTime::now())?;
-
-if !allowed {
-    return Err("Rate limit exceeded, retry after {} seconds", result.retry_after);
-}
-```
-
-### User Action Throttling
-```rust
-// Limit password reset attempts: 3 per hour, no burst
-let (allowed, _) = limiter
-    .rate_limit(&format!("password_reset:{}", user_id), 1, 3, 3600, 1, SystemTime::now())?;
-```
-
-### Resource Protection
-```rust
-// Limit expensive operations: 10 per minute with burst of 2
-let (allowed, _) = limiter
-    .rate_limit("expensive_operation", 2, 10, 60, 1, SystemTime::now())?;
-```
 
 ## Getting Started
 
@@ -282,30 +242,7 @@ WantedBy=multi-user.target
 
 ## Protocol Documentation
 
-### Native Protocol
-
-Optimized binary protocol for maximum performance:
-
-```rust
-// Request format (34 bytes + variable key):
-// - cmd: u8 (1 byte)
-// - key_len: u8 (1 byte)
-// - burst: i64 (8 bytes)
-// - rate: i64 (8 bytes)
-// - period: i64 (8 bytes, seconds)
-// - quantity: i64 (8 bytes)
-// - key: [u8; key_len] (variable, max 255)
-
-// Response format (34 bytes):
-// - ok: u8 (1 byte)
-// - allowed: u8 (1 byte)
-// - limit: i64 (8 bytes)
-// - remaining: i64 (8 bytes)
-// - retry_after: i64 (8 bytes)
-// - reset_after: i64 (8 bytes)
-```
-
-### HTTP REST API
+### HTTP REST API (Recommended)
 
 **Endpoint**: `POST /throttle`
 
@@ -325,69 +262,10 @@ curl -X POST http://localhost:8080/throttle \
 
 See `proto/throttlecrab.proto` for the service definition.
 
-## Testing & Benchmarking
-
-### Running Tests
-
-```bash
-# Run all tests
-cargo test --all
-
-# Run integration tests
-cd integration-tests
-cargo test --release
-
-# Run benchmarks
-cd throttlecrab
-cargo bench
-```
-
-### Performance Testing
-
-The project includes comprehensive performance testing tools:
-
-```bash
-# Run server benchmarks
-cd throttlecrab-server/tests
-./run-benchmarks.sh
-
-# Run custom performance test
-cd integration-tests
-./run-custom-test.sh 50 10000  # 50 threads, 10k requests each
-```
-
-### Load Testing Example
-
-```bash
-# Start server
-throttlecrab-server --http --store adaptive
-
-# In another terminal, run load test
-cd integration-tests
-./run-perf-test.sh
-```
 
 ## Contributing
 
 Contributions are welcome! Please feel free to submit a Pull Request.
-
-### Development Setup
-
-```bash
-# Clone the repository
-git clone https://github.com/lazureykis/throttlecrab
-cd throttlecrab
-
-# Build all components
-cargo build --all
-
-# Run tests
-cargo test --all
-
-# Run lints
-cargo clippy --all-targets --all-features -- -D warnings
-cargo fmt --all -- --check
-```
 
 ## Production Deployment
 
@@ -422,53 +300,10 @@ A single instance can handle:
 - Sub-millisecond P99 latency
 
 #### Horizontal Scaling
-For extreme scale, use client-side sharding:
+For extreme scale, deploy multiple instances and use client-side sharding based on the rate limit key.
 
-```rust
-use throttlecrab_client::{ThrottleCrabClient, ClientBuilder};
-
-// Create a sharded client pool
-struct ShardedRateLimiter {
-    clients: Vec<ThrottleCrabClient>,
-}
-
-impl ShardedRateLimiter {
-    async fn check_limit(&self, key: &str, burst: i64, rate: i64, period: i64) -> Result<bool> {
-        let shard = self.get_shard(key);
-        let response = self.clients[shard]
-            .check_rate_limit(key, burst, rate, period)
-            .await?;
-        Ok(response.allowed)
-    }
-
-    fn get_shard(&self, key: &str) -> usize {
-        use std::collections::hash_map::DefaultHasher;
-        use std::hash::{Hash, Hasher};
-
-        let mut hasher = DefaultHasher::new();
-        key.hash(&mut hasher);
-        hasher.finish() as usize % self.clients.len()
-    }
-}
-```
-
-## Related Projects
-
-- [redis-cell](https://github.com/brandur/redis-cell) - Redis module implementing GCRA
-- [governor](https://github.com/antifuchs/governor) - Another Rust rate limiter with different design goals
-- [leaky-bucket](https://github.com/udoprog/leaky-bucket) - Async rate limiter based on leaky bucket algorithm
 
 ## License
 
-Licensed under either of:
+Licensed under the MIT license ([LICENSE](LICENSE)).
 
-- Apache License, Version 2.0 ([LICENSE-APACHE](LICENSE-APACHE) or http://www.apache.org/licenses/LICENSE-2.0)
-- MIT license ([LICENSE-MIT](LICENSE-MIT) or http://opensource.org/licenses/MIT)
-
-at your option.
-
-## Contribution
-
-Unless you explicitly state otherwise, any contribution intentionally submitted
-for inclusion in the work by you, as defined in the Apache-2.0 license, shall be
-dual licensed as above, without any additional terms or conditions.
