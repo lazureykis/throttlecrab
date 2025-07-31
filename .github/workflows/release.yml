@@ -1,0 +1,97 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  verify:
+    name: Verify Release
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+      
+      - name: Cache dependencies
+        uses: Swatinem/rust-cache@v2
+      
+      - name: Check version tags match Cargo.toml
+        run: |
+          TAG_VERSION=${GITHUB_REF#refs/tags/v}
+          CORE_VERSION=$(grep '^version' throttlecrab/Cargo.toml | head -1 | cut -d'"' -f2)
+          SERVER_VERSION=$(grep '^version' throttlecrab-server/Cargo.toml | head -1 | cut -d'"' -f2)
+          
+          if [ "$TAG_VERSION" != "$CORE_VERSION" ]; then
+            echo "Tag version ($TAG_VERSION) doesn't match throttlecrab version ($CORE_VERSION)"
+            exit 1
+          fi
+          
+          if [ "$TAG_VERSION" != "$SERVER_VERSION" ]; then
+            echo "Tag version ($TAG_VERSION) doesn't match throttlecrab-server version ($SERVER_VERSION)"
+            exit 1
+          fi
+          
+          echo "✓ Version check passed"
+      
+      - name: Run tests
+        run: cargo test --all --verbose
+      
+      - name: Run clippy
+        run: cargo clippy --all-targets --all-features -- -D warnings
+      
+      - name: Check formatting
+        run: cargo fmt --all -- --check
+      
+      - name: Build release
+        run: cargo build --all --release --verbose
+      
+      - name: Package verification
+        run: |
+          cd throttlecrab
+          cargo publish --dry-run
+          cd ../throttlecrab-server
+          cargo publish --dry-run
+
+  create-release:
+    name: Create GitHub Release
+    needs: verify
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          draft: true
+          generate_release_notes: true
+          name: ${{ github.ref_name }}
+          body: |
+            ## What's Changed
+            
+            <!-- Add notable changes here -->
+            
+            ## Installation
+            
+            ```bash
+            # Install the server
+            cargo install throttlecrab-server
+            
+            # Or add the library to your project
+            cargo add throttlecrab
+            ```
+            
+            ## Verifying the Release
+            
+            The release artifacts can be verified using the SHA256 checksums below.
+            
+            **Full Changelog**: https://github.com/${{ github.repository }}/compare/v0.1.0...${{ github.ref_name }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
