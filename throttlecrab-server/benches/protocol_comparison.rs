@@ -1,15 +1,10 @@
 use criterion::{Criterion, Throughput, criterion_group, criterion_main};
 use std::io::{Read, Write};
 use std::net::TcpStream;
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use std::time::Duration;
 use tokio::runtime::Runtime;
 
 fn make_native_request(stream: &mut TcpStream, key: &str) -> std::io::Result<bool> {
-    let timestamp = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap()
-        .as_nanos() as i64;
-
     // Write fixed header
     stream.write_all(&[1u8])?; // cmd
     stream.write_all(&[key.len() as u8])?; // key_len
@@ -17,11 +12,10 @@ fn make_native_request(stream: &mut TcpStream, key: &str) -> std::io::Result<boo
     stream.write_all(&1000i64.to_le_bytes())?; // rate
     stream.write_all(&60i64.to_le_bytes())?; // period
     stream.write_all(&1i64.to_le_bytes())?; // quantity
-    stream.write_all(&timestamp.to_le_bytes())?; // timestamp
     stream.write_all(key.as_bytes())?; // key
 
-    // Read response (33 bytes)
-    let mut response = [0u8; 33];
+    // Read response (34 bytes)
+    let mut response = [0u8; 34];
     stream.read_exact(&mut response)?;
 
     Ok(response[1] == 1) // allowed field
@@ -39,16 +33,12 @@ async fn make_grpc_request(
     client: &mut RateLimiterClient<tonic::transport::Channel>,
     key: &str,
 ) -> Result<bool, tonic::Status> {
-    let now = SystemTime::now();
-    let duration = now.duration_since(UNIX_EPOCH).unwrap();
-
     let request = tonic::Request::new(ThrottleRequest {
         key: key.to_string(),
         max_burst: 100,
         count_per_period: 1000,
         period: 60,
         quantity: 1,
-        timestamp: duration.as_nanos() as i64,
     });
 
     let response = client.throttle(request).await?;

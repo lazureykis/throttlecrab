@@ -1,4 +1,3 @@
-use std::time::{SystemTime, UNIX_EPOCH};
 
 // Include the generated protobuf code
 pub mod throttlecrab_proto {
@@ -18,16 +17,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Test with multiple requests
     for i in 1..=20 {
-        let now = SystemTime::now();
-        let duration = now.duration_since(UNIX_EPOCH)?;
-
         let request = tonic::Request::new(ThrottleRequest {
             key: "user:123".to_string(),
             max_burst: 15,
             count_per_period: 30,
             period: 60,
             quantity: 1,
-            timestamp: duration.as_nanos() as i64,
         });
 
         let response = client.throttle(request).await?;

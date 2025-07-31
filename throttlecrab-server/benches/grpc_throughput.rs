@@ -1,6 +1,6 @@
 use criterion::{BenchmarkId, Criterion, Throughput, criterion_group, criterion_main};
 use std::sync::Arc;
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use std::time::Duration;
 use tokio::runtime::Runtime;
 
 // Include the generated protobuf code
@@ -15,16 +15,12 @@ async fn make_grpc_request(
     client: &mut RateLimiterClient<tonic::transport::Channel>,
     key: &str,
 ) -> Result<bool, tonic::Status> {
-    let now = SystemTime::now();
-    let duration = now.duration_since(UNIX_EPOCH).unwrap();
-
     let request = tonic::Request::new(ThrottleRequest {
         key: key.to_string(),
         max_burst: 1000,
         count_per_period: 10000,
         period: 60,
         quantity: 1,
-        timestamp: duration.as_nanos() as i64,
     });
 
     let response = client.throttle(request).await?;

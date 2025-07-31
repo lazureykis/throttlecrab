@@ -287,14 +287,13 @@ WantedBy=multi-user.target
 Optimized binary protocol for maximum performance:
 
 ```rust
-// Request format (42 bytes + variable key):
+// Request format (34 bytes + variable key):
 // - cmd: u8 (1 byte)
 // - key_len: u8 (1 byte)
 // - burst: i64 (8 bytes)
 // - rate: i64 (8 bytes)
 // - period: i64 (8 bytes, seconds)
 // - quantity: i64 (8 bytes)
-// - timestamp: i64 (8 bytes, nanoseconds since UNIX epoch)
 // - key: [u8; key_len] (variable, max 255)
 
 // Response format (34 bytes):
@@ -402,9 +401,6 @@ throttlecrab-server \
     --store-capacity 1000000 \
     --buffer-size 100000 \
     --log-level warn
-
-# For maximum performance, use native protocol:
-# throttlecrab-server --native --native-port 9090 --store adaptive
 ```
 
 ### Monitoring

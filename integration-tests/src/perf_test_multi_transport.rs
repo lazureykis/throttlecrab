@@ -146,7 +146,6 @@ async fn grpc_worker(
             count_per_period: 10,
             period: 60,
             quantity: 1,
-            timestamp: 0,
         });
     }
 
@@ -198,13 +197,12 @@ async fn native_worker(
     start_flag: Arc<AtomicU64>,
 ) -> Result<Vec<Duration>> {
     use bytes::{BufMut, BytesMut};
-    use std::time::{SystemTime, UNIX_EPOCH};
 
     // Create a dedicated connection for this worker (no sharing between threads)
     let mut stream = TcpStream::connect(format!("127.0.0.1:{port}")).await?;
     stream.set_nodelay(true)?;
 
-    // Pre-generate key names only (not the full requests with timestamps)
+    // Pre-generate key names
     let mut keys = Vec::with_capacity(requests_per_thread);
     for i in 0..requests_per_thread {
         // Use unique keys to avoid rate limiting during performance tests
@@ -226,7 +224,7 @@ async fn native_worker(
     for key in keys {
         let start = Instant::now();
 
-        // Build request with fresh timestamp
+        // Build request
         request_buffer.clear();
         request_buffer.put_u8(1); // cmd
         request_buffer.put_u8(key.len() as u8); // key_len
@@ -234,13 +232,6 @@ async fn native_worker(
         request_buffer.put_i64_le(10); // rate
         request_buffer.put_i64_le(60); // period in seconds
         request_buffer.put_i64_le(1); // quantity
-
-        // Use current timestamp
-        let now = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap()
-            .as_nanos() as i64;
-        request_buffer.put_i64_le(now);
         request_buffer.put_slice(key.as_bytes());
 
         match async {

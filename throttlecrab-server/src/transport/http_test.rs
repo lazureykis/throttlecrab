@@ -14,7 +14,6 @@ mod tests {
             count_per_period: 20,
             period: 60,
             quantity: Some(1),
-            timestamp: None,
         };
 
         // Verify serialization works
@@ -48,21 +47,6 @@ mod tests {
 
         let request: HttpThrottleRequest = serde_json::from_str(request_json).unwrap();
         assert_eq!(request.quantity, None);
-        assert_eq!(request.timestamp, None);
     }
 
-    #[tokio::test]
-    async fn test_http_request_with_timestamp() {
-        // Test that timestamp is parsed correctly
-        let request_json = r#"{
-            "key": "test",
-            "max_burst": 5,
-            "count_per_period": 10,
-            "period": 60,
-            "timestamp": 1234567890123456789
-        }"#;
-
-        let request: HttpThrottleRequest = serde_json::from_str(request_json).unwrap();
-        assert_eq!(request.timestamp, Some(1234567890123456789));
-    }
 }

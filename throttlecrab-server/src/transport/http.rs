@@ -17,13 +17,11 @@
 //!   "max_burst": 10,
 //!   "count_per_period": 100,
 //!   "period": 60,
-//!   "quantity": 1,
-//!   "timestamp": 1234567890123456789
+//!   "quantity": 1
 //! }
 //! ```
 //!
 //! - `quantity` is optional (defaults to 1)
-//! - `timestamp` is optional (defaults to current time, in nanoseconds)
 //!
 //! ### Response
 //!
@@ -65,8 +63,6 @@ pub struct HttpThrottleRequest {
     pub period: i64,
     /// Number of tokens to consume (optional, defaults to 1)
     pub quantity: Option<i64>,
-    /// Unix timestamp in nanoseconds (optional, defaults to current time)
-    pub timestamp: Option<i64>,
 }
 
 /// Error response format
@@ -117,11 +113,8 @@ async fn handle_throttle(
     State(state): State<Arc<AppState>>,
     Json(req): Json<HttpThrottleRequest>,
 ) -> Result<Json<ThrottleResponse>, (StatusCode, Json<HttpErrorResponse>)> {
-    let timestamp = if let Some(nanos) = req.timestamp {
-        std::time::UNIX_EPOCH + std::time::Duration::from_nanos(nanos as u64)
-    } else {
-        SystemTime::now()
-    };
+    // Always use server timestamp
+    let timestamp = SystemTime::now();
 
     let internal_req = InternalRequest {
         key: req.key,

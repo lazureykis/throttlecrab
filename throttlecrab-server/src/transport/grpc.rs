@@ -23,7 +23,6 @@
 //!     int32 count_per_period = 3;  // Requests allowed per period
 //!     int32 period = 4;            // Period in seconds
 //!     int32 quantity = 5;          // Tokens to consume
-//!     int64 timestamp = 6;         // Unix timestamp in nanoseconds
 //! }
 //! ```
 //!
@@ -61,10 +60,6 @@
 //!     count_per_period: 100,
 //!     period: 60,
 //!     quantity: 1,
-//!     timestamp: SystemTime::now()
-//!         .duration_since(UNIX_EPOCH)
-//!         .unwrap()
-//!         .as_nanos() as i64,
 //! });
 //!
 //! let response = client.throttle(request).await?;
@@ -76,7 +71,7 @@ use crate::types::ThrottleRequest as ActorRequest;
 use anyhow::Result;
 use async_trait::async_trait;
 use std::net::SocketAddr;
-use std::time::{Duration, UNIX_EPOCH};
+use std::time::SystemTime;
 use tonic::{Request, Response, Status, transport::Server};
 
 // Include the generated protobuf code
@@ -148,8 +143,8 @@ impl RateLimiter for RateLimiterService {
     ) -> Result<Response<ThrottleResponse>, Status> {
         let req = request.into_inner();
 
-        // Convert timestamp from nanoseconds to SystemTime
-        let timestamp = UNIX_EPOCH + Duration::from_nanos(req.timestamp as u64);
+        // Use server timestamp
+        let timestamp = SystemTime::now();
 
         // Convert to actor request
         let actor_request = ActorRequest {
@@ -185,7 +180,6 @@ impl RateLimiter for RateLimiterService {
 mod tests {
     use super::*;
     use crate::actor::RateLimiterActor;
-    use std::time::{SystemTime, UNIX_EPOCH};
     use tokio::time::{Duration, sleep};
 
     #[tokio::test]
@@ -213,16 +207,12 @@ mod tests {
         .await
         .unwrap();
 
-        let now = SystemTime::now();
-        let duration = now.duration_since(UNIX_EPOCH).expect("Time went backwards");
-
         let request = tonic::Request::new(ThrottleRequest {
             key: "test_key".to_string(),
             max_burst: 10,
             count_per_period: 20,
             period: 60,
             quantity: 1,
-            timestamp: duration.as_nanos() as i64,
         });
 
         let response = client.throttle(request).await.unwrap();
@@ -261,16 +251,12 @@ mod tests {
         // Send requests until we hit the limit
         let mut allowed_count = 0;
         for _ in 0..15 {
-            let now = SystemTime::now();
-            let duration = now.duration_since(UNIX_EPOCH).unwrap();
-
             let request = tonic::Request::new(ThrottleRequest {
                 key: "rate_limit_test".to_string(),
                 max_burst: 5,
                 count_per_period: 10,
                 period: 60,
                 quantity: 1,
-                timestamp: duration.as_nanos() as i64,
             });
 
             let response = client.throttle(request).await.unwrap();
