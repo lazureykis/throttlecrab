@@ -2154,6 +2154,29 @@ dependencies = [
 ]
 
 [[package]]
+name = "throttlecrab-integration-tests"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "bytes",
+ "clap",
+ "criterion",
+ "parking_lot",
+ "prost",
+ "rand",
+ "reqwest",
+ "rmp-serde",
+ "serde",
+ "serde_json",
+ "throttlecrab-server",
+ "tokio",
+ "tonic",
+ "tracing",
+ "tracing-subscriber",
+]
+
+[[package]]
 name = "throttlecrab-server"
 version = "0.1.0"
 dependencies = [

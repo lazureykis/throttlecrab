@@ -1,4 +1,5 @@
 pub mod benchmark_suite;
+pub mod high_performance_bench;
 pub mod multi_transport;
 pub mod store_comparison;
 pub mod transport_tests;
