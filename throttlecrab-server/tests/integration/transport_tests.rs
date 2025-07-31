@@ -68,18 +68,19 @@ pub async fn test_http_transport(port: u16, key: String) -> Result<bool> {
     let client = reqwest::Client::new();
 
     let response = client
-        .post(format!("http://127.0.0.1:{}/check_rate", port))
+        .post(format!("http://127.0.0.1:{}/throttle", port))
         .json(&serde_json::json!({
             "key": key,
-            "capacity": 100,
-            "quantum": 10,
-            "window_seconds": 60,
+            "max_burst": 100,
+            "count_per_period": 10,
+            "period": 60,
+            "quantity": 1,
         }))
         .send()
         .await?;
 
     let json: serde_json::Value = response.json().await?;
-    Ok(json["limited"].as_bool().unwrap_or(false))
+    Ok(!json["allowed"].as_bool().unwrap_or(true))
 }
 
 pub async fn test_grpc_transport(port: u16, key: String) -> Result<bool> {
@@ -109,30 +110,42 @@ pub async fn test_msgpack_transport(port: u16, key: String) -> Result<bool> {
 
     #[derive(Serialize)]
     struct Request {
+        cmd: u8,
         key: String,
-        capacity: i64,
-        quantum: i64,
-        window_seconds: u64,
+        burst: i64,
+        rate: i64,
+        period: i64,
+        quantity: i64,
+        timestamp: i64,
     }
 
     #[derive(Deserialize)]
     struct Response {
-        limited: bool,
+        ok: bool,
+        allowed: u8,
+        #[allow(dead_code)]
+        limit: i64,
         #[allow(dead_code)]
         remaining: i64,
         #[allow(dead_code)]
-        retry_after: Option<u64>,
+        retry_after: i64,
         #[allow(dead_code)]
-        reset_after: Option<u64>,
+        reset_after: i64,
     }
 
     let mut stream = TcpStream::connect(format!("127.0.0.1:{}", port)).await?;
 
     let request = Request {
+        cmd: 1, // throttle command
         key,
-        capacity: 100,
-        quantum: 10,
-        window_seconds: 60,
+        burst: 100,
+        rate: 10,
+        period: 60,
+        quantity: 1,
+        timestamp: std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos() as i64,
     };
 
     // Serialize request
@@ -157,7 +170,8 @@ pub async fn test_msgpack_transport(port: u16, key: String) -> Result<bool> {
     // Deserialize response
     let response: Response = Deserialize::deserialize(&mut Deserializer::new(&response_buf[..]))?;
 
-    Ok(response.limited)
+    // Check if request was rate limited (allowed == 0 means rate limited)
+    Ok(response.ok && response.allowed == 0)
 }
 
 pub async fn test_native_transport(port: u16, key: String) -> Result<bool> {

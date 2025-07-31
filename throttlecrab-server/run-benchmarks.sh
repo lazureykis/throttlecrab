@@ -98,15 +98,25 @@ echo -e "${BLUE}Duration: ${YELLOW}${DURATION}s${NC}, Target RPS: ${YELLOW}${RPS
 echo -e "${BLUE}Output directory: ${YELLOW}${OUTPUT_DIR}${NC}"
 echo ""
 
+# Build the benchmark test
+cargo test --release --no-run benchmark
+
+# Find and run the benchmark binary directly  
+BENCHMARK_BIN=$(find ../target/release/deps -name 'benchmark-*' -type f -perm +111 | grep -v '\.d$' | head -1)
+
+if [ -z "$BENCHMARK_BIN" ]; then
+    echo -e "${RED}Error: Could not find benchmark binary${NC}"
+    exit 1
+fi
+
 # Run the benchmark
-cargo test --release benchmark -- \
+"$BENCHMARK_BIN" \
     --suite "$SUITE" \
     --duration "$DURATION" \
     --target-rps "$RPS" \
     --output-dir "$OUTPUT_DIR" \
     $JSON_FLAG \
-    $COMPARE \
-    --nocapture
+    $COMPARE
 
 echo ""
 echo -e "${GREEN}Benchmark completed!${NC}"
