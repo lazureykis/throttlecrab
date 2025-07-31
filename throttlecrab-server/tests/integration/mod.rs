@@ -1,8 +1,8 @@
-pub mod workload;
-pub mod transport_tests;
 pub mod benchmark_suite;
-pub mod store_comparison;
 pub mod multi_transport;
+pub mod store_comparison;
+pub mod transport_tests;
+pub mod workload;
 
 use std::time::Duration;
 

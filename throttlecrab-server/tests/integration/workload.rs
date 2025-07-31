@@ -1,31 +1,28 @@
-use std::time::{Duration, Instant};
-use std::sync::atomic::{AtomicU64, Ordering};
-use std::sync::Arc;
-use tokio::time::sleep;
 use anyhow::Result;
+use std::sync::Arc;
+use std::sync::atomic::{AtomicU64, Ordering};
+use std::time::{Duration, Instant};
+use tokio::time::sleep;
 
 #[derive(Debug, Clone)]
 pub enum WorkloadPattern {
     /// Constant rate
     Steady { rps: u64 },
     /// Burst pattern: high rate for burst_duration, then low rate
-    Burst { 
-        high_rps: u64, 
-        low_rps: u64, 
+    Burst {
+        high_rps: u64,
+        low_rps: u64,
         burst_duration: Duration,
         quiet_duration: Duration,
     },
     /// Gradually increase load
-    Ramp { 
-        start_rps: u64, 
-        end_rps: u64, 
+    Ramp {
+        start_rps: u64,
+        end_rps: u64,
         duration: Duration,
     },
     /// Random rate within bounds
-    Random { 
-        min_rps: u64, 
-        max_rps: u64,
-    },
+    Random { min_rps: u64, max_rps: u64 },
     /// Sine wave pattern
     Wave {
         base_rps: u64,
@@ -75,13 +72,13 @@ impl WorkloadStats {
 
     pub fn record_request(&self, latency: Duration, rate_limited: bool) {
         self.total_requests.fetch_add(1, Ordering::Relaxed);
-        
+
         if rate_limited {
             self.rate_limited.fetch_add(1, Ordering::Relaxed);
         } else {
             self.successful_requests.fetch_add(1, Ordering::Relaxed);
         }
-        
+
         if let Some(mut latencies) = self.latencies.try_write() {
             if latencies.len() < latencies.capacity() {
                 latencies.push(latency);
@@ -142,8 +139,14 @@ impl WorkloadSummary {
         println!("Duration: {:?}", duration);
         println!("Total requests: {}", self.total_requests);
         println!("Requests/sec: {:.2}", rps);
-        println!("Successful: {} ({:.2}%)", self.successful_requests, success_rate);
-        println!("Rate limited: {} ({:.2}%)", self.rate_limited, rate_limit_rate);
+        println!(
+            "Successful: {} ({:.2}%)",
+            self.successful_requests, success_rate
+        );
+        println!(
+            "Rate limited: {} ({:.2}%)",
+            self.rate_limited, rate_limit_rate
+        );
         println!("Failed: {}", self.failed_requests);
         println!("\nLatency percentiles:");
         println!("  P50: {:?}", self.latency_p50);
@@ -182,14 +185,14 @@ impl WorkloadGenerator {
         while start.elapsed() < self.config.duration {
             let current_rps = self.calculate_current_rps(start.elapsed());
             let delay = Duration::from_secs_f64(1.0 / current_rps as f64);
-            
+
             // Generate key
             let key = self.generate_key(request_count);
-            
+
             // Clone for async task
             let stats = self.stats.clone();
             let mut req_fn = request_fn.clone();
-            
+
             // Spawn request
             tokio::spawn(async move {
                 let request_start = Instant::now();
@@ -214,48 +217,62 @@ impl WorkloadGenerator {
     fn calculate_current_rps(&self, elapsed: Duration) -> u64 {
         match &self.config.pattern {
             WorkloadPattern::Steady { rps } => *rps,
-            
-            WorkloadPattern::Burst { high_rps, low_rps, burst_duration, quiet_duration } => {
+
+            WorkloadPattern::Burst {
+                high_rps,
+                low_rps,
+                burst_duration,
+                quiet_duration,
+            } => {
                 let cycle_duration = burst_duration.as_secs_f64() + quiet_duration.as_secs_f64();
                 let cycle_position = elapsed.as_secs_f64() % cycle_duration;
-                
+
                 if cycle_position < burst_duration.as_secs_f64() {
                     *high_rps
                 } else {
                     *low_rps
                 }
-            },
-            
-            WorkloadPattern::Ramp { start_rps, end_rps, duration } => {
+            }
+
+            WorkloadPattern::Ramp {
+                start_rps,
+                end_rps,
+                duration,
+            } => {
                 let progress = (elapsed.as_secs_f64() / duration.as_secs_f64()).min(1.0);
                 let rps = start_rps + ((end_rps - start_rps) as f64 * progress) as u64;
                 rps
-            },
-            
+            }
+
             WorkloadPattern::Random { min_rps, max_rps } => {
                 use rand::Rng;
                 rand::thread_rng().gen_range(*min_rps..=*max_rps)
-            },
-            
-            WorkloadPattern::Wave { base_rps, amplitude, period } => {
-                let phase = (elapsed.as_secs_f64() / period.as_secs_f64()) * 2.0 * std::f64::consts::PI;
+            }
+
+            WorkloadPattern::Wave {
+                base_rps,
+                amplitude,
+                period,
+            } => {
+                let phase =
+                    (elapsed.as_secs_f64() / period.as_secs_f64()) * 2.0 * std::f64::consts::PI;
                 let wave = phase.sin();
                 let rps = *base_rps as f64 + (*amplitude as f64 * wave);
                 rps.max(1.0) as u64
-            },
+            }
         }
     }
 
     fn generate_key(&self, request_num: u64) -> String {
         match &self.config.key_pattern {
             KeyPattern::Sequential => format!("key_{}", request_num),
-            
+
             KeyPattern::Random { pool_size } => {
                 use rand::Rng;
                 let key_id = rand::thread_rng().gen_range(0..*pool_size);
                 format!("key_{}", key_id)
-            },
-            
+            }
+
             KeyPattern::Zipfian { alpha } => {
                 // Simple zipfian approximation
                 use rand::Rng;
@@ -263,15 +280,15 @@ impl WorkloadGenerator {
                 let u: f64 = rng.r#gen::<f64>();
                 let key_id = ((self.config.key_space_size as f64) * u.powf(-1.0 / alpha)) as usize;
                 format!("key_{}", key_id.min(self.config.key_space_size - 1))
-            },
-            
+            }
+
             KeyPattern::UserResource { users, resources } => {
                 use rand::Rng;
                 let mut rng = rand::thread_rng();
                 let user_id = rng.gen_range(0..*users);
                 let resource_id = rng.gen_range(0..*resources);
                 format!("user_{}_resource_{}", user_id, resource_id)
-            },
+            }
         }
     }
 }
@@ -280,7 +297,7 @@ fn percentile(sorted_values: &[Duration], p: f64) -> Duration {
     if sorted_values.is_empty() {
         return Duration::ZERO;
     }
-    
+
     let index = ((sorted_values.len() as f64 - 1.0) * p) as usize;
     sorted_values[index]
 }
@@ -296,9 +313,12 @@ mod tests {
             key_space_size: 1000,
             key_pattern: KeyPattern::Sequential,
         };
-        
+
         let generator = WorkloadGenerator::new(config);
-        assert_eq!(generator.calculate_current_rps(Duration::from_millis(500)), 100);
+        assert_eq!(
+            generator.calculate_current_rps(Duration::from_millis(500)),
+            100
+        );
     }
 
     #[test]
@@ -309,7 +329,7 @@ mod tests {
             key_space_size: 1000,
             key_pattern: KeyPattern::Sequential,
         };
-        
+
         let generator = WorkloadGenerator::new(config);
         assert_eq!(generator.generate_key(0), "key_0");
         assert_eq!(generator.generate_key(42), "key_42");
