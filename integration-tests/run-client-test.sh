@@ -1,23 +1,21 @@
 #!/bin/bash
 
-# Custom performance test with configurable parameters
+# Simple throttlecrab-client integration test
 
 set -e
 
 # Default values
-THREADS=${1:-20}
-REQUESTS=${2:-5000}
-PORT=${3:-58080}
-STORE=${4:-adaptive}
-LOG_LEVEL=${5:-warn}
+THREADS=${1:-10}
+REQUESTS=${2:-1000}
+PORT=${3:-9090}
+POOL_SIZE=${4:-10}
 
-echo "=== Custom ThrottleCrab Performance Test ==="
+echo "=== ThrottleCrab Client Integration Test ==="
 echo "Threads: $THREADS"
 echo "Requests per thread: $REQUESTS"
 echo "Total requests: $((THREADS * REQUESTS))"
 echo "Port: $PORT"
-echo "Store type: $STORE"
-echo "Log level: $LOG_LEVEL"
+echo "Pool size: $POOL_SIZE"
 echo ""
 
 # Build if needed
@@ -30,14 +28,12 @@ fi
 # Kill any existing server on the port
 lsof -ti:$PORT | xargs kill -9 2>/dev/null || true
 
-# Start server
-echo "Starting server..."
+# Start server with native protocol
+echo "Starting server with native protocol..."
 ../target/release/throttlecrab-server \
-    --http --http-port $PORT \
-    --store $STORE \
-    --store-capacity 1000000 \
-    --buffer-size 1000000 \
-    --log-level $LOG_LEVEL &
+    --native --native-port $PORT \
+    --store adaptive \
+    --log-level warn &
 
 SERVER_PID=$!
 echo "Server started with PID: $SERVER_PID"
@@ -45,12 +41,13 @@ echo "Server started with PID: $SERVER_PID"
 # Wait for server
 sleep 2
 
-# Run test
-echo -e "\nRunning performance test..."
-../target/release/throttlecrab-integration-tests perf-test \
+# Run client test
+echo -e "\nRunning client performance test..."
+../target/release/throttlecrab-integration-tests client-perf-test \
     --threads $THREADS \
     --requests $REQUESTS \
-    --port $PORT
+    --port $PORT \
+    --pool-size $POOL_SIZE
 
 # Cleanup
 echo -e "\nStopping server..."

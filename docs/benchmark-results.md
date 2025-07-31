@@ -16,7 +16,7 @@ ThrottleCrab achieves exceptional performance through optimized storage implemen
 All benchmarks run on:
 - **CPU**: Apple M3 Max (16-core)
 - **RAM**: 64GB unified memory
-- **OS**: macOS 15.6.1
+- **OS**: macOS 15.5
 - **Rust**: 1.88.0
 
 ## Library Benchmarks
@@ -81,7 +81,7 @@ Real-world test results with 32 threads, 10K requests per thread (320K total):
 - **Platform**: macOS on Apple M3 Max
 - **Test isolation**: Each transport tested separately
 
-#### Client Setup  
+#### Client Setup
 - **Threads**: 32 concurrent
 - **Requests/thread**: 10,000
 - **Total requests**: 320,000 per test
@@ -151,7 +151,7 @@ Reproduce these results:
 cd throttlecrab
 cargo bench
 
-# Server benchmarks  
+# Server benchmarks
 cd integration-tests
 ./run-transport-test.sh -t all -T 32 -r 10000
 ```

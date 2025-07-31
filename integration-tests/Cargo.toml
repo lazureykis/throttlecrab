@@ -38,9 +38,6 @@ throttlecrab-server = { path = "../throttlecrab-server" }
 # Native client
 throttlecrab-client = { path = "../throttlecrab-client" }
 
-[[bin]]
-name = "native-test-simple"
-path = "src/native_test_simple.rs"
 
 [dev-dependencies]
 criterion = { workspace = true }
