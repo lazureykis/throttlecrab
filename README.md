@@ -235,9 +235,9 @@ Optimized binary protocol with minimal overhead:
 // - key_len: u8 (1 byte)
 // - burst: i64 (8 bytes)
 // - rate: i64 (8 bytes)
-// - period: i64 (8 bytes)
+// - period: i64 (8 bytes, seconds)
 // - quantity: i64 (8 bytes)
-// - timestamp: i64 (8 bytes)
+// - timestamp: i64 (8 bytes, nanoseconds since UNIX epoch)
 // - key: [u8; key_len] (variable, max 255)
 
 // Response format (34 bytes):

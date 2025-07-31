@@ -2,26 +2,98 @@ use super::{CellError, Rate, store::Store};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 /// Result of a rate limit check
+///
+/// Contains information about the current state of the rate limiter for a given key.
 #[derive(Debug, Clone)]
 pub struct RateLimitResult {
+    /// The maximum number of requests allowed in a burst
     pub limit: i64,
+    /// The number of requests remaining in the current window
     pub remaining: i64,
+    /// Time until the rate limit resets to full capacity
     pub reset_after: Duration,
+    /// Time to wait before the next request will be allowed (0 if request was allowed)
     pub retry_after: Duration,
 }
 
-/// GCRA Rate Limiter implementation
+/// GCRA (Generic Cell Rate Algorithm) Rate Limiter
+///
+/// This rate limiter implements the GCRA algorithm, providing smooth and fair rate limiting
+/// with support for bursts. It requires a [`Store`] implementation to manage rate limit data.
+///
+/// # Example
+///
+/// ```
+/// use throttlecrab::{RateLimiter, PeriodicStore};
+/// use std::time::SystemTime;
+///
+/// let mut limiter = RateLimiter::new(PeriodicStore::new());
+///
+/// // Allow 100 requests per minute with a burst of 10
+/// let (allowed, result) = limiter
+///     .rate_limit("api_key", 10, 100, 60, 1, SystemTime::now())
+///     .unwrap();
+/// ```
 pub struct RateLimiter<S: Store> {
     store: S,
 }
 
 impl<S: Store> RateLimiter<S> {
-    /// Create a new rate limiter with a store
+    /// Create a new rate limiter with the specified store
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use throttlecrab::{RateLimiter, AdaptiveStore};
+    ///
+    /// let limiter = RateLimiter::new(AdaptiveStore::new());
+    /// ```
     pub fn new(store: S) -> Self {
         RateLimiter { store }
     }
 
-    /// Check if a request is allowed and update state
+    /// Check if a request is allowed under the rate limit
+    ///
+    /// # Parameters
+    ///
+    /// - `key`: Unique identifier for the rate limit (e.g., user ID, API key)
+    /// - `max_burst`: Maximum number of requests allowed in a burst
+    /// - `count_per_period`: Total number of requests allowed per time period
+    /// - `period`: Time period in seconds
+    /// - `quantity`: Number of tokens to consume (typically 1)
+    /// - `now`: Current time for the rate limit check
+    ///
+    /// # Returns
+    ///
+    /// Returns a tuple of:
+    /// - `bool`: Whether the request is allowed
+    /// - [`RateLimitResult`]: Current state of the rate limiter
+    ///
+    /// # Errors
+    ///
+    /// - [`CellError::NegativeQuantity`]: If quantity is negative
+    /// - [`CellError::InvalidRateLimit`]: If rate limit parameters are invalid
+    /// - [`CellError::Internal`]: If there's an internal error
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use throttlecrab::{RateLimiter, PeriodicStore};
+    /// use std::time::SystemTime;
+    ///
+    /// let mut limiter = RateLimiter::new(PeriodicStore::new());
+    ///
+    /// // Check if user can make a request (10 burst, 100 per minute)
+    /// match limiter.rate_limit("user:123", 10, 100, 60, 1, SystemTime::now()) {
+    ///     Ok((true, result)) => {
+    ///         println!("Request allowed! {} remaining", result.remaining);
+    ///     }
+    ///     Ok((false, result)) => {
+    ///         println!("Rate limited! Retry after {} seconds", result.retry_after.as_secs());
+    ///     }
+    ///     Err(e) => eprintln!("Error: {}", e),
+    /// }
+    /// ```
     pub fn rate_limit(
         &mut self,
         key: &str,

@@ -16,7 +16,26 @@ const MAX_OPERATIONS_BEFORE_CLEANUP: usize = 100_000;
 const EXPIRED_RATIO_THRESHOLD: f64 = 0.2; // 20%
 
 /// Adaptive cleanup store implementation
-/// Dynamically adjusts cleanup frequency based on usage patterns
+///
+/// This store dynamically adjusts its cleanup frequency based on usage patterns,
+/// making it ideal for variable workloads. It monitors the ratio of expired entries
+/// and adjusts cleanup intervals accordingly.
+///
+/// # Features
+///
+/// - Self-tuning cleanup intervals
+/// - Monitors expired entry ratio
+/// - Adjusts between min and max cleanup intervals
+/// - Triggers cleanup based on time or operation count
+///
+/// # Example
+///
+/// ```
+/// use throttlecrab::{RateLimiter, AdaptiveStore};
+/// use std::time::SystemTime;
+///
+/// let mut limiter = RateLimiter::new(AdaptiveStore::new());
+/// ```
 pub struct AdaptiveStore {
     data: HashMap<String, (i64, Option<SystemTime>)>,
     // Cleanup timing
@@ -33,7 +52,22 @@ pub struct AdaptiveStore {
     last_cleanup_total: usize,
 }
 
-/// Builder for AdaptiveStore
+/// Builder for configuring an AdaptiveStore
+///
+/// Provides a fluent interface for customizing the adaptive store's behavior.
+///
+/// # Example
+///
+/// ```
+/// use throttlecrab::AdaptiveStore;
+///
+/// let store = AdaptiveStore::builder()
+///     .capacity(1_000_000)
+///     .min_interval(std::time::Duration::from_secs(5))
+///     .max_interval(std::time::Duration::from_secs(300))
+///     .max_operations(100_000)
+///     .build();
+/// ```
 pub struct AdaptiveStoreBuilder {
     capacity: usize,
     min_cleanup_interval: Duration,
@@ -42,10 +76,18 @@ pub struct AdaptiveStoreBuilder {
 }
 
 impl AdaptiveStore {
+    /// Create a new AdaptiveStore with default configuration
+    ///
+    /// Uses a default capacity of 1000 entries and standard cleanup intervals.
     pub fn new() -> Self {
         Self::with_capacity(DEFAULT_CAPACITY)
     }
 
+    /// Create a new AdaptiveStore with specified capacity
+    ///
+    /// # Parameters
+    ///
+    /// - `capacity`: Expected number of unique keys to track
     pub fn with_capacity(capacity: usize) -> Self {
         AdaptiveStore {
             data: HashMap::with_capacity((capacity as f64 * CAPACITY_OVERHEAD_FACTOR) as usize),
@@ -61,6 +103,9 @@ impl AdaptiveStore {
         }
     }
 
+    /// Create a new builder for configuring an AdaptiveStore
+    ///
+    /// Provides fine-grained control over store configuration.
     pub fn builder() -> AdaptiveStoreBuilder {
         AdaptiveStoreBuilder {
             capacity: DEFAULT_CAPACITY,
@@ -234,26 +279,49 @@ impl Store for AdaptiveStore {
 }
 
 impl AdaptiveStoreBuilder {
+    /// Create a new builder with default settings
+    pub fn new() -> Self {
+        Self {
+            capacity: DEFAULT_CAPACITY,
+            min_cleanup_interval: Duration::from_secs(MIN_CLEANUP_INTERVAL_SECS),
+            max_cleanup_interval: Duration::from_secs(MAX_CLEANUP_INTERVAL_SECS),
+            max_operations_before_cleanup: MAX_OPERATIONS_BEFORE_CLEANUP,
+        }
+    }
+
+    /// Set the expected capacity (number of unique keys)
+    ///
+    /// The store will allocate 30% more space to reduce hash collisions.
     pub fn capacity(mut self, capacity: usize) -> Self {
         self.capacity = capacity;
         self
     }
 
+    /// Set the minimum cleanup interval
+    ///
+    /// Cleanup will never run more frequently than this interval.
     pub fn min_interval(mut self, interval: Duration) -> Self {
         self.min_cleanup_interval = interval;
         self
     }
 
+    /// Set the maximum cleanup interval
+    ///
+    /// Cleanup will run at least this often, even with low expired entry ratios.
     pub fn max_interval(mut self, interval: Duration) -> Self {
         self.max_cleanup_interval = interval;
         self
     }
 
+    /// Set the maximum operations before forcing a cleanup
+    ///
+    /// This prevents unbounded memory growth under high load.
     pub fn max_operations(mut self, max_ops: usize) -> Self {
         self.max_operations_before_cleanup = max_ops;
         self
     }
 
+    /// Build the AdaptiveStore with the configured settings
     pub fn build(self) -> AdaptiveStore {
         AdaptiveStore::with_config(
             self.capacity,
