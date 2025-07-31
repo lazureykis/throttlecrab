@@ -70,11 +70,11 @@ done
 
 # Validate transport
 case $TRANSPORT in
-    http|grpc|msgpack|native|all)
+    http|grpc|native|all)
         ;;
     *)
         echo "Invalid transport: $TRANSPORT"
-        echo "Valid options: http, grpc, msgpack, native, all"
+        echo "Valid options: http, grpc, native, all"
         exit 1
         ;;
 esac
@@ -82,8 +82,7 @@ esac
 # Set ports for different transports
 HTTP_PORT=58080
 GRPC_PORT=58070
-MSGPACK_PORT=58071
-NATIVE_PORT=58072
+NATIVE_PORT=58071
 
 # Function to run test for a specific transport
 run_transport_test() {
@@ -109,9 +108,6 @@ run_transport_test() {
             ;;
         grpc)
             TRANSPORT_ARGS="--grpc --grpc-port $port"
-            ;;
-        msgpack)
-            TRANSPORT_ARGS="--msgpack --msgpack-port $port"
             ;;
         native)
             TRANSPORT_ARGS="--native --native-port $port"
@@ -165,11 +161,10 @@ cd integration-tests && cargo build --release
 # Run tests based on transport selection
 if [ "$TRANSPORT" = "all" ]; then
     # Test all transports
-    for t in http grpc msgpack native; do
+    for t in http grpc native; do
         case $t in
             http) port=$HTTP_PORT ;;
             grpc) port=$GRPC_PORT ;;
-            msgpack) port=$MSGPACK_PORT ;;
             native) port=$NATIVE_PORT ;;
         esac
         run_transport_test $t $port
@@ -180,7 +175,6 @@ else
     case $TRANSPORT in
         http) port=$HTTP_PORT ;;
         grpc) port=$GRPC_PORT ;;
-        msgpack) port=$MSGPACK_PORT ;;
         native) port=$NATIVE_PORT ;;
     esac
     run_transport_test $TRANSPORT $port

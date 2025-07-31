@@ -3,9 +3,7 @@ use std::sync::Arc;
 use std::time::Duration;
 use tokio::task::JoinSet;
 
-use super::transport_tests::{
-    GrpcClient, HttpClient, MsgPackConnectionPool, NativeClient, Transport,
-};
+use super::transport_tests::{GrpcClient, HttpClient, NativeClient, Transport};
 use super::workload::{WorkloadConfig, WorkloadGenerator, WorkloadStats};
 
 pub async fn run_multi_transport_test(workload_config: WorkloadConfig) -> Result<()> {
@@ -25,12 +23,9 @@ pub async fn run_multi_transport_test(workload_config: WorkloadConfig) -> Result
         .arg("--grpc")
         .arg("--grpc-port")
         .arg("28070")
-        .arg("--msgpack")
-        .arg("--msgpack-port")
-        .arg("28071")
         .arg("--native")
         .arg("--native-port")
-        .arg("28072")
+        .arg("28071")
         .arg("--store")
         .arg("adaptive")
         .arg("--store-capacity")
@@ -53,8 +48,7 @@ pub async fn run_multi_transport_test(workload_config: WorkloadConfig) -> Result
     let transports = vec![
         (Transport::Http, 28080),
         (Transport::Grpc, 28070),
-        (Transport::MsgPack, 28071),
-        (Transport::Native, 28072),
+        (Transport::Native, 28071),
     ];
 
     let start_time = std::time::Instant::now();
@@ -94,15 +88,6 @@ pub async fn run_multi_transport_test(workload_config: WorkloadConfig) -> Result
                     }
                     Err(e) => Err(e),
                 },
-                Transport::MsgPack => {
-                    let pool = Arc::new(MsgPackConnectionPool::new(port, 50));
-                    generator
-                        .run(move |key| {
-                            let pool = pool.clone();
-                            async move { pool.test_request(key).await }
-                        })
-                        .await
-                }
                 Transport::Native => {
                     let client = Arc::new(NativeClient::new(port, 50));
                     generator
@@ -201,12 +186,9 @@ pub async fn run_transport_isolation_test() -> Result<()> {
         .arg("--grpc")
         .arg("--grpc-port")
         .arg("38070")
-        .arg("--msgpack")
-        .arg("--msgpack-port")
-        .arg("38071")
         .arg("--native")
         .arg("--native-port")
-        .arg("38072")
+        .arg("38071")
         .arg("--store")
         .arg("periodic")
         .arg("--log-level")
@@ -218,8 +200,7 @@ pub async fn run_transport_isolation_test() -> Result<()> {
     // Create pooled clients for all transports
     let http_client = Arc::new(HttpClient::new(38080));
     let grpc_client = GrpcClient::new(38070).await?;
-    let msgpack_pool = Arc::new(MsgPackConnectionPool::new(38071, 10));
-    let native_client = Arc::new(NativeClient::new(38072, 10));
+    let native_client = Arc::new(NativeClient::new(38071, 10));
 
     // Test with the same key across all transports
     let test_key = "shared_test_key".to_string();
@@ -229,12 +210,11 @@ pub async fn run_transport_isolation_test() -> Result<()> {
     println!("Sending {total_requests} requests with key '{test_key}' across all transports");
 
     for i in 0..total_requests {
-        let transport_idx = i % 4;
+        let transport_idx = i % 3;
         let limited = match transport_idx {
             0 => http_client.test_request(test_key.clone()).await?,
             1 => grpc_client.clone().test_request(test_key.clone()).await?,
-            2 => msgpack_pool.test_request(test_key.clone()).await?,
-            3 => native_client.test_request(test_key.clone()).await?,
+            2 => native_client.test_request(test_key.clone()).await?,
             _ => unreachable!(),
         };
 

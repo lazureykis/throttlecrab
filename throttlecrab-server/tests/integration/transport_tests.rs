@@ -4,9 +4,7 @@ use std::time::Duration;
 use tokio::process::{Child, Command};
 use tokio::time::sleep;
 
-use super::connection_pool::{
-    MsgPackConnectionPool as ImprovedMsgPackPool, NativeConnectionPool as ImprovedNativePool,
-};
+use super::connection_pool::NativeConnectionPool;
 use super::workload::{WorkloadConfig, WorkloadGenerator};
 
 pub struct ServerInstance {
@@ -19,7 +17,6 @@ pub struct ServerInstance {
 pub enum Transport {
     Http,
     Grpc,
-    MsgPack,
     Native,
 }
 
@@ -62,7 +59,6 @@ impl Transport {
         match self {
             Transport::Http => "http",
             Transport::Grpc => "grpc",
-            Transport::MsgPack => "msgpack",
             Transport::Native => "native",
         }
     }
@@ -152,21 +148,9 @@ pub async fn test_grpc_transport(port: u16, key: String) -> Result<bool> {
     client.test_request(key).await
 }
 
-// Use the improved connection pool
-pub type MsgPackConnectionPool = ImprovedMsgPackPool;
-
-pub async fn test_msgpack_transport(port: u16, key: String) -> Result<bool> {
-    // For backward compatibility - uses connection pool
-    let pool = ImprovedMsgPackPool::new(port, 10);
-    pool.test_request(key).await
-}
-
-// Use the improved connection pool
-pub type NativeClient = ImprovedNativePool;
-
 pub async fn test_native_transport(port: u16, key: String) -> Result<bool> {
     // For backward compatibility - uses connection pool
-    let client = ImprovedNativePool::new(port, 10);
+    let client = NativePool::new(port, 10);
     client.test_request(key).await
 }
 
@@ -184,8 +168,7 @@ pub async fn run_transport_benchmark(
     let port = match transport {
         Transport::Http => 18080,
         Transport::Grpc => 18070,
-        Transport::MsgPack => 18071,
-        Transport::Native => 18072,
+        Transport::Native => 18071,
     };
 
     // Start server
@@ -217,17 +200,8 @@ pub async fn run_transport_benchmark(
                 })
                 .await?;
         }
-        Transport::MsgPack => {
-            let pool = Arc::new(MsgPackConnectionPool::new(port, 50));
-            generator
-                .run(move |key| {
-                    let pool = pool.clone();
-                    async move { pool.test_request(key).await }
-                })
-                .await?;
-        }
         Transport::Native => {
-            let client = Arc::new(NativeClient::new(port, 50));
+            let client = Arc::new(NativePool::new(port, 50));
             generator
                 .run(move |key| {
                     let client = client.clone();
@@ -262,12 +236,7 @@ mod tests {
         };
 
         // Test each transport
-        for transport in [
-            Transport::Http,
-            Transport::Grpc,
-            Transport::MsgPack,
-            Transport::Native,
-        ] {
+        for transport in [Transport::Http, Transport::Grpc, Transport::Native] {
             run_transport_benchmark(transport, "periodic", workload.clone()).await?;
         }
 
