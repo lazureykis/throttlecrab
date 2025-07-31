@@ -2,6 +2,7 @@ use anyhow::Result;
 use clap::{Parser, Subcommand};
 
 mod perf_test;
+mod perf_test_multi_transport;
 
 #[derive(Parser)]
 #[command(name = "throttlecrab-integration-tests")]
@@ -26,6 +27,10 @@ enum Commands {
         /// Server port
         #[arg(short, long, default_value = "58080")]
         port: u16,
+
+        /// Transport type (http, grpc, msgpack, native)
+        #[arg(short = 'T', long, default_value = "http")]
+        transport: String,
     },
 }
 
@@ -46,8 +51,9 @@ async fn main() -> Result<()> {
             threads,
             requests,
             port,
+            transport,
         } => {
-            perf_test::run_performance_test(threads, requests, port).await?;
+            perf_test::run_performance_test(threads, requests, port, &transport).await?;
         }
     }
 
