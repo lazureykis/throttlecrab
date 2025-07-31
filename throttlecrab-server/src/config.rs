@@ -172,6 +172,7 @@ impl std::str::FromStr for StoreType {
 #[derive(Parser, Debug)]
 #[command(
     name = "throttlecrab-server",
+    version = env!("CARGO_PKG_VERSION"),
     about = "High-performance rate limiting server",
     long_about = "A high-performance rate limiting server with multiple protocol support.\n\nAt least one transport must be specified.\n\nEnvironment variables with THROTTLECRAB_ prefix are supported. CLI arguments take precedence over environment variables."
 )]
