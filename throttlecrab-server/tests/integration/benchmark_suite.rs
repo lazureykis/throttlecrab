@@ -105,12 +105,7 @@ impl BenchmarkRunner {
             key_pattern: KeyPattern::Random { pool_size: 10_000 },
         };
 
-        for transport in [
-            Transport::Http,
-            Transport::Grpc,
-            Transport::MsgPack,
-            Transport::Native,
-        ] {
+        for transport in [Transport::Http, Transport::Grpc, Transport::Native] {
             run_transport_benchmark(transport, "periodic", workload.clone()).await?;
         }
 

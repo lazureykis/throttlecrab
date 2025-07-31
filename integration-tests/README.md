@@ -15,7 +15,7 @@ Tests the performance of different transport protocols:
 # Test specific transport with custom parameters
 ./run-transport-test.sh -t native -T 32 -r 10000
 
-# Available transports: http, grpc, msgpack, native
+# Available transports: http, grpc, native
 ```
 
 ## Test Binary

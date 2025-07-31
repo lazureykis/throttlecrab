@@ -27,7 +27,3 @@ unknown-registry = "warn"
 unknown-git = "warn"
 
 [advisories]
-ignore = [
-    # paste is unmaintained but used by rmp-serde
-    "RUSTSEC-2024-0436",
-]

@@ -121,7 +121,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
   - **Native binary**: Highest performance (183K req/s), minimal overhead
   - **HTTP/JSON**: REST API for easy integration (173K req/s - only 6% slower)
   - **gRPC**: Service mesh and microservices (163K req/s)
-  - **MessagePack**: Good balance of performance and compatibility (146K req/s)
 - **Shared State**: All protocols share the same rate limiter store
 - **Production Ready**: Health checks, metrics, configurable logging
 - **Flexible Deployment**: Docker, systemd, or standalone binary
@@ -288,11 +287,6 @@ curl -X POST http://localhost:8080/throttle \
   }'
 ```
 
-### MessagePack Protocol
-
-Framed protocol with MessagePack encoding:
-- 4-byte message length (big-endian)
-- MessagePack-encoded request/response
 
 ### gRPC Protocol
 

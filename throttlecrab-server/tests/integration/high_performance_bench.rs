@@ -5,7 +5,7 @@ use std::time::{Duration, Instant};
 use tokio::sync::Barrier;
 use tokio::task::JoinSet;
 
-use super::connection_pool::{MsgPackConnectionPool, NativeConnectionPool};
+use super::connection_pool::NativeConnectionPool;
 use super::transport_tests::{ServerInstance, Transport};
 
 #[derive(Debug, Clone)]
@@ -150,8 +150,7 @@ pub async fn run_high_performance_benchmark(config: BenchmarkConfig) -> Result<(
     let port = match config.transport {
         Transport::Http => 48080,
         Transport::Grpc => 48070,
-        Transport::MsgPack => 48071,
-        Transport::Native => 48072,
+        Transport::Native => 48071,
     };
 
     let server = ServerInstance::start(config.transport, port, &config.store_type).await?;
@@ -186,9 +185,6 @@ pub async fn run_high_performance_benchmark(config: BenchmarkConfig) -> Result<(
                 }
                 Transport::Grpc => {
                     Box::new(GrpcWorkerClient::new(port).await?) as Box<dyn WorkerClient>
-                }
-                Transport::MsgPack => {
-                    Box::new(MsgPackWorkerClient::new(port).await?) as Box<dyn WorkerClient>
                 }
                 Transport::Native => {
                     Box::new(NativeWorkerClient::new(port).await?) as Box<dyn WorkerClient>
@@ -331,26 +327,6 @@ impl WorkerClient for GrpcWorkerClient {
 
         let response = client.throttle(request).await?;
         Ok(!response.into_inner().allowed)
-    }
-}
-
-// MessagePack worker client
-struct MsgPackWorkerClient {
-    pool: MsgPackConnectionPool,
-}
-
-impl MsgPackWorkerClient {
-    async fn new(port: u16) -> Result<Self> {
-        // Use a smaller pool for each worker to avoid contention
-        let pool = MsgPackConnectionPool::new(port, 2);
-        Ok(Self { pool })
-    }
-}
-
-#[async_trait::async_trait]
-impl WorkerClient for MsgPackWorkerClient {
-    async fn send_request(&self, key: String) -> Result<bool> {
-        self.pool.test_request(key).await
     }
 }
 

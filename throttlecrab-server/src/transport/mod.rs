@@ -1,7 +1,5 @@
 pub mod grpc;
 pub mod http;
-pub mod msgpack;
-pub mod msgpack_protocol;
 pub mod native;
 
 #[cfg(test)]

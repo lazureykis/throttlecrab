@@ -1,67 +1,8 @@
 use criterion::{Criterion, Throughput, criterion_group, criterion_main};
-use rmp_serde::Serializer;
-use serde::{Deserialize, Serialize};
 use std::io::{Read, Write};
 use std::net::TcpStream;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use tokio::runtime::Runtime;
-
-#[derive(Debug, Serialize, Deserialize)]
-struct MsgPackRequest {
-    cmd: u8,
-    key: String,
-    burst: i64,
-    rate: i64,
-    period: i64,
-    quantity: i64,
-    timestamp: i64,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-struct MsgPackResponse {
-    ok: bool,
-    allowed: u8,
-    limit: i64,
-    remaining: i64,
-    retry_after: i64,
-    reset_after: i64,
-}
-
-fn make_msgpack_request(stream: &mut TcpStream, key: &str) -> std::io::Result<bool> {
-    let request = MsgPackRequest {
-        cmd: 1,
-        key: key.to_string(),
-        burst: 100,
-        rate: 1000,
-        period: 60,
-        quantity: 1,
-        timestamp: SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap()
-            .as_nanos() as i64,
-    };
-
-    // Serialize request
-    let mut buf = Vec::new();
-    request.serialize(&mut Serializer::new(&mut buf)).unwrap();
-
-    // Send length prefix
-    let len = (buf.len() as u32).to_be_bytes();
-    stream.write_all(&len)?;
-    stream.write_all(&buf)?;
-
-    // Read response length
-    let mut len_buf = [0u8; 4];
-    stream.read_exact(&mut len_buf)?;
-    let len = u32::from_be_bytes(len_buf) as usize;
-
-    // Read response
-    let mut response_buf = vec![0u8; len];
-    stream.read_exact(&mut response_buf)?;
-
-    let response: MsgPackResponse = rmp_serde::from_slice(&response_buf).unwrap();
-    Ok(response.allowed == 1)
-}
 
 fn make_native_request(stream: &mut TcpStream, key: &str) -> std::io::Result<bool> {
     let timestamp = SystemTime::now()
@@ -114,13 +55,16 @@ async fn make_grpc_request(
     Ok(response.into_inner().allowed)
 }
 
-fn benchmark_protocol(c: &mut Criterion, port: u16, name: &str, is_native: bool) {
-    let mut group = c.benchmark_group(name);
+fn benchmark_native_protocol(c: &mut Criterion, port: u16) {
+    let mut group = c.benchmark_group("protocol_native");
     group.throughput(Throughput::Elements(1));
     group.measurement_time(Duration::from_secs(10));
     group.warm_up_time(Duration::from_secs(2));
 
+    // For single_request benchmark, we need a persistent connection
+    // but Criterion's b.iter() requires FnMut, so we'll use setup/teardown approach
     group.bench_function("single_request", |b| {
+        // Setup: Create a single persistent connection
         let mut stream = TcpStream::connect(format!("127.0.0.1:{port}")).unwrap();
         stream.set_nodelay(true).unwrap();
         let mut counter = 0u64;
@@ -128,15 +72,12 @@ fn benchmark_protocol(c: &mut Criterion, port: u16, name: &str, is_native: bool)
         b.iter(|| {
             let key = format!("bench_key_{counter}");
             counter += 1;
-            if is_native {
-                make_native_request(&mut stream, &key).unwrap()
-            } else {
-                make_msgpack_request(&mut stream, &key).unwrap()
-            }
+            make_native_request(&mut stream, &key).unwrap()
         });
     });
 
     group.bench_function("batch_100", |b| {
+        // Setup: Create a single persistent connection
         let mut stream = TcpStream::connect(format!("127.0.0.1:{port}")).unwrap();
         stream.set_nodelay(true).unwrap();
         let mut counter = 0u64;
@@ -145,11 +86,7 @@ fn benchmark_protocol(c: &mut Criterion, port: u16, name: &str, is_native: bool)
             for _ in 0..100 {
                 let key = format!("bench_key_{counter}");
                 counter += 1;
-                if is_native {
-                    make_native_request(&mut stream, &key).unwrap();
-                } else {
-                    make_msgpack_request(&mut stream, &key).unwrap();
-                }
+                make_native_request(&mut stream, &key).unwrap();
             }
         });
     });
@@ -207,28 +144,18 @@ fn benchmark_grpc_protocol(c: &mut Criterion, port: u16) {
 }
 
 fn protocol_comparison(c: &mut Criterion) {
-    println!("Make sure to run four server instances:");
-    println!("  1. cargo run --features bin -- --server --port 9090");
-    println!("  2. cargo run --features bin -- --server --port 9091 --optimized");
-    println!("  3. cargo run --features bin -- --server --port 9092 --native");
-    println!("  4. cargo run --features bin -- --server --port 9093 --grpc");
+    println!("Make sure to run two server instances:");
+    println!("  1. cargo run --release -- --native --native-port 9092");
+    println!("  2. cargo run --release -- --grpc --grpc-port 9093");
     println!("Waiting for servers to start...");
     std::thread::sleep(Duration::from_secs(2));
 
-    // Test connections
-    let servers = [
-        (9090, "standard", false),
-        (9091, "optimized", false),
-        (9092, "native", true),
-    ];
-
-    for (port, name, _) in &servers {
-        match TcpStream::connect(format!("127.0.0.1:{port}")) {
-            Ok(_) => println!("Connected to {name} server on port {port}"),
-            Err(e) => {
-                eprintln!("Failed to connect to {name} server on port {port}: {e}");
-                return;
-            }
+    // Test native connection
+    match TcpStream::connect("127.0.0.1:9092") {
+        Ok(_) => println!("Connected to native server on port 9092"),
+        Err(e) => {
+            eprintln!("Failed to connect to native server on port 9092: {e}");
+            return;
         }
     }
 
@@ -243,11 +170,7 @@ fn protocol_comparison(c: &mut Criterion) {
     }
 
     // Run benchmarks
-    for (port, name, is_native) in servers {
-        benchmark_protocol(c, port, &format!("protocol_{name}"), is_native);
-    }
-
-    // Run gRPC benchmark
+    benchmark_native_protocol(c, 9092);
     benchmark_grpc_protocol(c, 9093);
 }
 
