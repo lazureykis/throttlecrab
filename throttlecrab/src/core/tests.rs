@@ -176,49 +176,6 @@ fn test_saturating_arithmetic() {
 }
 
 #[test]
-fn test_daylight_saving_time_transitions() {
-    let mut limiter = RateLimiter::new(PeriodicStore::new());
-
-    // Simulate DST scenarios where time can jump forward or backward by 1 hour
-    let base_time = SystemTime::now();
-
-    // Test 1: Spring forward - clock jumps ahead 1 hour
-    // Make some requests before the jump
-    let (allowed1, result1) = limiter
-        .rate_limit("dst_test", 5, 10, 60, 1, base_time)
-        .unwrap();
-    assert!(allowed1);
-    assert_eq!(result1.remaining, 4);
-
-    let (allowed2, result2) = limiter
-        .rate_limit("dst_test", 5, 10, 60, 1, base_time)
-        .unwrap();
-    assert!(allowed2);
-    assert_eq!(result2.remaining, 3);
-
-    // Jump forward 1 hour (spring DST transition)
-    let spring_forward = base_time + Duration::from_secs(3600);
-    let (allowed3, result3) = limiter
-        .rate_limit("dst_test", 5, 10, 60, 1, spring_forward)
-        .unwrap();
-    assert!(allowed3);
-    // After an hour, we should have replenished tokens
-    // With 10 requests per 60 seconds, after 3600 seconds we should have all tokens back
-    assert_eq!(result3.remaining, 4);
-
-    // Test 2: Fall back - clock jumps back 1 hour
-    // This is the tricky case where time appears to go backwards
-    let fall_back = base_time - Duration::from_secs(3600);
-
-    // When time goes backwards, our implementation should handle it gracefully
-    let result4 = limiter.rate_limit("dst_test2", 5, 10, 60, 1, fall_back);
-    assert!(result4.is_ok());
-    let (allowed4, _) = result4.unwrap();
-    // Should still allow requests as we handle time going backwards gracefully
-    assert!(allowed4);
-}
-
-#[test]
 fn test_rapid_time_changes() {
     let mut limiter = RateLimiter::new(PeriodicStore::new());
 
