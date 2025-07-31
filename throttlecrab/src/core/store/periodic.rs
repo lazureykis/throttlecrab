@@ -209,13 +209,19 @@ impl Store for PeriodicStore {
     }
 }
 
-impl PeriodicStoreBuilder {
-    /// Create a new builder with default settings
-    pub fn new() -> Self {
+impl Default for PeriodicStoreBuilder {
+    fn default() -> Self {
         Self {
             capacity: DEFAULT_CAPACITY,
             cleanup_interval: Duration::from_secs(DEFAULT_CLEANUP_INTERVAL_SECS),
         }
+    }
+}
+
+impl PeriodicStoreBuilder {
+    /// Create a new builder with default settings
+    pub fn new() -> Self {
+        Self::default()
     }
 
     /// Set the expected capacity (number of unique keys)

@@ -183,13 +183,19 @@ impl Store for ProbabilisticStore {
     }
 }
 
-impl ProbabilisticStoreBuilder {
-    /// Create a new builder with default settings
-    pub fn new() -> Self {
+impl Default for ProbabilisticStoreBuilder {
+    fn default() -> Self {
         Self {
             capacity: DEFAULT_CAPACITY,
             cleanup_probability: PROBABILISTIC_CLEANUP_MODULO,
         }
+    }
+}
+
+impl ProbabilisticStoreBuilder {
+    /// Create a new builder with default settings
+    pub fn new() -> Self {
+        Self::default()
     }
 
     /// Set the expected capacity (number of unique keys)

@@ -278,15 +278,21 @@ impl Store for AdaptiveStore {
     }
 }
 
-impl AdaptiveStoreBuilder {
-    /// Create a new builder with default settings
-    pub fn new() -> Self {
+impl Default for AdaptiveStoreBuilder {
+    fn default() -> Self {
         Self {
             capacity: DEFAULT_CAPACITY,
             min_cleanup_interval: Duration::from_secs(MIN_CLEANUP_INTERVAL_SECS),
             max_cleanup_interval: Duration::from_secs(MAX_CLEANUP_INTERVAL_SECS),
             max_operations_before_cleanup: MAX_OPERATIONS_BEFORE_CLEANUP,
         }
+    }
+}
+
+impl AdaptiveStoreBuilder {
+    /// Create a new builder with default settings
+    pub fn new() -> Self {
+        Self::default()
     }
 
     /// Set the expected capacity (number of unique keys)
