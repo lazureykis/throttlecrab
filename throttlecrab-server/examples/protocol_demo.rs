@@ -70,7 +70,7 @@ fn main() -> std::io::Result<()> {
     println!("======================================");
     println!();
     println!("Start the server with:");
-    println!("  cargo run --features bin -- --server --port 9092 --native");
+    println!("  cargo run --release -- --native --native-port 9092");
     println!();
 
     // Test native binary protocol

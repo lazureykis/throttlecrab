@@ -141,8 +141,8 @@ fn benchmark_grpc_protocol(c: &mut Criterion, port: u16) {
 
 fn protocol_comparison(c: &mut Criterion) {
     println!("Make sure to run two server instances:");
-    println!("  1. cargo run --features bin -- --server --port 9092 --native");
-    println!("  2. cargo run --features bin -- --server --port 9093 --grpc");
+    println!("  1. cargo run --release -- --native --native-port 9092");
+    println!("  2. cargo run --release -- --grpc --grpc-port 9093");
     println!("Waiting for servers to start...");
     std::thread::sleep(Duration::from_secs(2));
 

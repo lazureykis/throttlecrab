@@ -33,7 +33,7 @@ fn main() {
     println!("===========================");
     println!();
     println!("Make sure the server is running:");
-    println!("  cargo run --features bin -- --server --port 9092 --native");
+    println!("  cargo run --release -- --native --native-port 9092");
     println!();
 
     // Test single thread performance
