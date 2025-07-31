@@ -4,10 +4,10 @@ use std::time::Duration;
 use tokio::task::JoinSet;
 
 use super::transport_tests::{
-    Transport, test_grpc_transport, test_http_transport, test_msgpack_transport,
-    test_native_transport,
+    Transport, HttpClient, GrpcClient, MsgPackConnectionPool, NativeClient,
 };
 use super::workload::{WorkloadConfig, WorkloadGenerator, WorkloadStats};
+use tokio::sync::Mutex;
 
 pub async fn run_multi_transport_test(workload_config: WorkloadConfig) -> Result<()> {
     println!("\n=== Multi-Transport Concurrent Test ===");
@@ -76,34 +76,46 @@ pub async fn run_multi_transport_test(workload_config: WorkloadConfig) -> Result
 
             let result = match transport {
                 Transport::Http => {
+                    let client = Arc::new(HttpClient::new(port));
                     generator
                         .run(move |key| {
-                            let port = port;
-                            async move { test_http_transport(port, key).await }
+                            let client = client.clone();
+                            async move { client.test_request(key).await }
                         })
                         .await
                 }
                 Transport::Grpc => {
-                    generator
-                        .run(move |key| {
-                            let port = port;
-                            async move { test_grpc_transport(port, key).await }
-                        })
-                        .await
+                    match GrpcClient::new(port).await {
+                        Ok(grpc_client) => {
+                            let client = Arc::new(Mutex::new(grpc_client));
+                            generator
+                                .run(move |key| {
+                                    let client = client.clone();
+                                    async move { 
+                                        let mut c = client.lock().await;
+                                        c.test_request(key).await 
+                                    }
+                                })
+                                .await
+                        }
+                        Err(e) => Err(e),
+                    }
                 }
                 Transport::MsgPack => {
+                    let pool = Arc::new(MsgPackConnectionPool::new(port, 50));
                     generator
                         .run(move |key| {
-                            let port = port;
-                            async move { test_msgpack_transport(port, key).await }
+                            let pool = pool.clone();
+                            async move { pool.test_request(key).await }
                         })
                         .await
                 }
                 Transport::Native => {
+                    let client = Arc::new(NativeClient::new(port, 50));
                     generator
                         .run(move |key| {
-                            let port = port;
-                            async move { test_native_transport(port, key).await }
+                            let client = client.clone();
+                            async move { client.test_request(key).await }
                         })
                         .await
                 }
@@ -213,6 +225,12 @@ pub async fn run_transport_isolation_test() -> Result<()> {
     let mut server_process = cmd.spawn()?;
     tokio::time::sleep(Duration::from_secs(2)).await;
 
+    // Create pooled clients for all transports
+    let http_client = Arc::new(HttpClient::new(38080));
+    let grpc_client = Arc::new(Mutex::new(GrpcClient::new(38070).await?));
+    let msgpack_pool = Arc::new(MsgPackConnectionPool::new(38071, 10));
+    let native_client = Arc::new(NativeClient::new(38072, 10));
+
     // Test with the same key across all transports
     let test_key = "shared_test_key".to_string();
     let mut limited_count = 0;
@@ -226,10 +244,13 @@ pub async fn run_transport_isolation_test() -> Result<()> {
     for i in 0..total_requests {
         let transport_idx = i % 4;
         let limited = match transport_idx {
-            0 => test_http_transport(38080, test_key.clone()).await?,
-            1 => test_grpc_transport(38070, test_key.clone()).await?,
-            2 => test_msgpack_transport(38071, test_key.clone()).await?,
-            3 => test_native_transport(38072, test_key.clone()).await?,
+            0 => http_client.test_request(test_key.clone()).await?,
+            1 => {
+                let mut client = grpc_client.lock().await;
+                client.test_request(test_key.clone()).await?
+            },
+            2 => msgpack_pool.test_request(test_key.clone()).await?,
+            3 => native_client.test_request(test_key.clone()).await?,
             _ => unreachable!(),
         };
 
