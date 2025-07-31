@@ -232,7 +232,7 @@ async fn native_worker(
         request_buffer.put_u8(key.len() as u8); // key_len
         request_buffer.put_i64_le(100); // burst
         request_buffer.put_i64_le(10); // rate
-        request_buffer.put_i64_le(60_000_000_000); // period in nanoseconds
+        request_buffer.put_i64_le(60); // period in seconds
         request_buffer.put_i64_le(1); // quantity
 
         // Use current timestamp
