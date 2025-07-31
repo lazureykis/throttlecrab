@@ -18,7 +18,8 @@ A high-performance GCRA (Generic Cell Rate Algorithm) rate limiter for Rust. Thi
 - **Flexible parameters**: Different rate limits per key with dynamic configuration
 - **TTL support**: Automatic cleanup of expired entries
 - **Standalone server**: Multiple protocol support for distributed rate limiting:
-  - **MessagePack over TCP**: Most efficient, minimal overhead
+  - **Native binary protocol**: Most efficient, minimal overhead
+  - **MessagePack over TCP**: Good performance with cross-language support
   - **HTTP with JSON**: Standard REST API for easy integration
   - **gRPC**: For service mesh and microservices
 
@@ -93,7 +94,8 @@ throttlecrab-server --host 0.0.0.0 --port 8080
 # Use different transports:
 throttlecrab-server --http      # HTTP with JSON (REST API)
 throttlecrab-server --grpc      # gRPC transport
-throttlecrab-server --msgpack   # MessagePack over TCP (most efficient)
+throttlecrab-server --msgpack   # MessagePack over TCP
+throttlecrab-server --native    # Native binary protocol (most efficient)
 ```
 
 ### Client Example
@@ -148,7 +150,7 @@ The core library (`throttlecrab`) provides a pure Rust implementation of GCRA wi
 
 ### Server
 The optional server binary provides:
-- TCP server with MessagePack or gRPC protocol
+- Multiple transport protocols: Native binary, MessagePack, HTTP/JSON, and gRPC
 - Actor-based concurrency model using Tokio
 - Thread-safe rate limiting for distributed systems
 - **Shared state across transports**: All enabled transports (HTTP, gRPC, MessagePack, Native) share the same rate limiter store, ensuring consistent rate limiting regardless of which protocol clients use
