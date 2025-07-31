@@ -21,7 +21,7 @@ use tokio::net::{TcpListener, TcpStream};
 /// - timestamp: i64 (8 bytes, nanoseconds since UNIX epoch)
 /// - key: [u8; key_len] (variable)
 ///
-/// Response format (fixed size: 33 bytes):
+/// Response format (fixed size: 34 bytes):
 /// - ok: u8 (1 byte)
 /// - allowed: u8 (1 byte)
 /// - limit: i64 (8 bytes)
@@ -131,11 +131,12 @@ impl NativeTransport {
                     write_buffer.put_i64_le(0); // retry_after
                     write_buffer.put_i64_le(0); // reset_after
                     socket.write_all(&write_buffer).await?;
+                    socket.flush().await?;
                     continue;
                 }
             };
 
-            // Write response (33 bytes)
+            // Write response (34 bytes)
             write_buffer.clear();
             write_buffer.put_u8(1); // ok = true
             write_buffer.put_u8(if response.allowed { 1 } else { 0 });
