@@ -32,5 +32,11 @@ USER throttlecrab
 # Expose ports (HTTP, gRPC, Native)
 EXPOSE 8080 50051 8072
 
+# Set default environment variables
+ENV THROTTLECRAB_HTTP=true
+ENV THROTTLECRAB_GRPC=true
+ENV THROTTLECRAB_NATIVE=true
+ENV THROTTLECRAB_LOG_LEVEL=info
+
 # Run the server
-CMD ["throttlecrab-server", "--http", "--grpc", "--native"]
+CMD ["throttlecrab-server"]
