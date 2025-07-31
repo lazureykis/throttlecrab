@@ -155,10 +155,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 - Want centralized rate limit management
 - Require high availability with multiple instances
 
-### Use the Client Library When:
-- Building Rust services that connect to throttlecrab-server
-- Need maximum performance from the server
-- Want connection pooling and automatic retries
 
 ## Common Use Cases
 
@@ -195,11 +191,6 @@ let (allowed, _) = limiter
 # For library usage
 [dependencies]
 throttlecrab = "0.1"
-
-# For client usage
-[dependencies]
-throttlecrab-client = "0.1"
-tokio = { version = "1", features = ["full"] }
 ```
 
 ### Running the Server
