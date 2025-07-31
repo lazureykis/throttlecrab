@@ -1,7 +1,6 @@
 # ThrottleCrab
 
 [![CI](https://github.com/lazureykis/throttlecrab/actions/workflows/ci.yml/badge.svg)](https://github.com/lazureykis/throttlecrab/actions/workflows/ci.yml)
-[![Coverage Status](https://codecov.io/gh/lazureykis/throttlecrab/branch/master/graph/badge.svg)](https://codecov.io/gh/lazureykis/throttlecrab)
 [![Crates.io](https://img.shields.io/crates/v/throttlecrab.svg)](https://crates.io/crates/throttlecrab)
 [![Documentation](https://docs.rs/throttlecrab/badge.svg)](https://docs.rs/throttlecrab)
 [![License](https://img.shields.io/crates/l/throttlecrab.svg)](LICENSE-MIT)
@@ -55,55 +54,33 @@ throttlecrab-server --http --http-port 8080
 
 ### Client Integration
 
-**Recommended approach**: Use established HTTP clients like `reqwest` with the HTTP/JSON protocol. These clients provide:
-- Robust connection pooling and management
-- Automatic retry mechanisms
-- Proper timeout handling
-- Well-tested production stability
+The HTTP/JSON protocol makes it easy to integrate with any programming language or tool:
 
-Example with `reqwest`:
-```rust
-use reqwest::Client;
-use serde::{Deserialize, Serialize};
+```bash
+# Check rate limit with curl
+curl -X POST http://localhost:8080/throttle \
+  -H "Content-Type: application/json" \
+  -d '{
+    "key": "user:123",
+    "max_burst": 10,
+    "count_per_period": 100,
+    "period": 60,
+    "quantity": 1
+  }'
 
-#[derive(Serialize)]
-struct RateLimitRequest {
-    key: String,
-    burst_capacity: u32,
-    emission_rate: u32,
-    emission_period: u64,
-}
-
-#[derive(Deserialize)]
-struct RateLimitResponse {
-    allowed: bool,
-    remaining: u32,
-    retry_after: u32,
-}
-
-#[tokio::main]
-async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let client = Client::new();
-
-    let response: RateLimitResponse = client
-        .post("http://localhost:8080/check_rate_limit")
-        .json(&RateLimitRequest {
-            key: "user:123".to_string(),
-            burst_capacity: 10,
-            emission_rate: 100,
-            emission_period: 60,
-        })
-        .send()
-        .await?
-        .json()
-        .await?;
-
-    if response.allowed {
-        // Process request
-    }
-    Ok(())
-}
+# Response:
+# {
+#   "allowed": true,
+#   "limit": 10,
+#   "remaining": 9,
+#   "retry_after": 0,
+#   "reset_after": 60
+# }
 ```
+
+The `quantity` parameter is optional (defaults to 1) and allows you to check/consume multiple tokens at once.
+
+For production applications, use your language's HTTP client with connection pooling.
 
 ## Features
 
