@@ -1,4 +1,3 @@
-
 // Include the generated protobuf code
 pub mod throttlecrab_proto {
     tonic::include_proto!("throttlecrab");

@@ -48,5 +48,4 @@ mod tests {
         let request: HttpThrottleRequest = serde_json::from_str(request_json).unwrap();
         assert_eq!(request.quantity, None);
     }
-
 }
