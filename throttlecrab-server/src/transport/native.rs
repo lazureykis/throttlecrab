@@ -128,6 +128,7 @@ impl NativeTransport {
                     // Send error response using stack buffer
                     response_buffer.fill(0); // All zeros for error response
                     socket.write_all(&response_buffer).await?;
+                    socket.flush().await?;
                     continue;
                 }
             };
@@ -141,6 +142,7 @@ impl NativeTransport {
             response_buffer[26..34].copy_from_slice(&response.reset_after.to_le_bytes());
 
             socket.write_all(&response_buffer).await?;
+            socket.flush().await?;
         }
 
         Ok(())
