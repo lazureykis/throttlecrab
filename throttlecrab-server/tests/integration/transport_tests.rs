@@ -29,7 +29,7 @@ impl ServerInstance {
         cmd.arg("run")
             .arg("--release")
             .arg("--bin")
-            .arg("throttlecrab")
+            .arg("throttlecrab-server")
             .arg("--")
             .arg(format!("--{}", transport.flag_name()))
             .arg(format!("--{}-port", transport.flag_name()))

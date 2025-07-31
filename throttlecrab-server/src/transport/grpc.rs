@@ -118,7 +118,7 @@ mod tests {
         .unwrap();
 
         let now = SystemTime::now();
-        let duration = now.duration_since(UNIX_EPOCH).unwrap();
+        let duration = now.duration_since(UNIX_EPOCH).expect("Time went backwards");
 
         let request = tonic::Request::new(ThrottleRequest {
             key: "test_key".to_string(),

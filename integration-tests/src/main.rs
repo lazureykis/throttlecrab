@@ -1,7 +1,6 @@
 use anyhow::Result;
 use clap::{Parser, Subcommand};
 
-mod perf_test;
 mod perf_test_multi_transport;
 
 #[derive(Parser)]
@@ -53,7 +52,8 @@ async fn main() -> Result<()> {
             port,
             transport,
         } => {
-            perf_test::run_performance_test(threads, requests, port, &transport).await?;
+            perf_test_multi_transport::run_performance_test(threads, requests, port, &transport)
+                .await?;
         }
     }
 

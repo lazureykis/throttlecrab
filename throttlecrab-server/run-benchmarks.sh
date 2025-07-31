@@ -91,7 +91,7 @@ done
 cd "$(dirname "$0")"
 
 echo -e "${BLUE}Building release version...${NC}"
-cargo build --release --bin throttlecrab
+cargo build --release --bin throttlecrab-server
 
 echo -e "${BLUE}Running benchmark suite: ${YELLOW}$SUITE${NC}"
 echo -e "${BLUE}Duration: ${YELLOW}${DURATION}s${NC}, Target RPS: ${YELLOW}${RPS}${NC}"
@@ -101,7 +101,7 @@ echo ""
 # Build the benchmark test
 cargo test --release --no-run benchmark
 
-# Find and run the benchmark binary directly  
+# Find and run the benchmark binary directly
 BENCHMARK_BIN=$(find ../target/release/deps -name 'benchmark-*' -type f -perm +111 | grep -v '\.d$' | head -1)
 
 if [ -z "$BENCHMARK_BIN" ]; then
