@@ -26,8 +26,16 @@ jobs:
     permissions:
       contents: read
       packages: write
+    outputs:
+      architectures: ${{ steps.arch-list.outputs.architectures }}
 
     steps:
+      - name: Export architecture list
+        id: arch-list
+        run: |
+          # Export the list of architectures from the matrix
+          # This will be available to all matrix jobs but we only need it once
+          echo "architectures=amd64,arm64" >> $GITHUB_OUTPUT
       - name: Checkout repository
         uses: actions/checkout@v4
 
@@ -50,7 +58,7 @@ jobs:
             suffix=-${{ matrix.arch }}
 
       - name: Build and push architecture-specific image
-        uses: docker/build-push-action@v5
+        uses: docker/build-push-action@v6
         with:
           context: .
           platforms: ${{ matrix.platform }}
@@ -93,10 +101,34 @@ jobs:
       - name: Create and push multi-arch manifest
         env:
           TAGS: ${{ steps.meta.outputs.tags }}
+          # Get architectures from build job output
+          ARCHITECTURES: ${{ needs.build.outputs.architectures }}
         run: |
+          set -e  # Exit on error
+          
+          # Convert comma-separated architectures to space-separated
+          ARCH_LIST="${ARCHITECTURES//,/ }"
+          
+          # Create and push manifests for all tags
           for tag in $TAGS; do
-            docker manifest create $tag \
-              ${tag}-amd64 \
-              ${tag}-arm64
-            docker manifest push $tag
+            echo "Creating manifest for $tag with architectures: $ARCH_LIST"
+            
+            # Build the manifest create command
+            MANIFEST_CMD="docker manifest create $tag"
+            for arch in $ARCH_LIST; do
+              MANIFEST_CMD="$MANIFEST_CMD ${tag}-${arch}"
+            done
+            
+            # Create the manifest
+            $MANIFEST_CMD || {
+              echo "Failed to create manifest for $tag"
+              exit 1
+            }
+            
+            # Push the manifest
+            echo "Pushing manifest for $tag"
+            docker manifest push $tag || {
+              echo "Failed to push manifest for $tag"
+              exit 1
+            }
           done
