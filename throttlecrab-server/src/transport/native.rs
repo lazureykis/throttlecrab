@@ -5,14 +5,14 @@
 //!
 //! # Protocol Specification
 //!
-//! ## Request Format (42 bytes + variable key)
+//! ## Request Format (34 bytes + variable key)
 //!
 //! ```text
-//! ┌─────┬─────────┬─────────┬──────┬────────┬──────────┬───────────┬─────┐
-//! │ cmd │ key_len │  burst  │ rate │ period │ quantity │ timestamp │ key │
-//! ├─────┼─────────┼─────────┼──────┼────────┼──────────┼───────────┼─────┤
-//! │ u8  │   u8    │   i64   │ i64  │  i64   │   i64    │    i64    │ var │
-//! └─────┴─────────┴─────────┴──────┴────────┴──────────┴───────────┴─────┘
+//! ┌─────┬─────────┬─────────┬──────┬────────┬──────────┬─────┐
+//! │ cmd │ key_len │  burst  │ rate │ period │ quantity │ key │
+//! ├─────┼─────────┼─────────┼──────┼────────┼──────────┼─────┤
+//! │ u8  │   u8    │   i64   │ i64  │  i64   │   i64    │ var │
+//! └─────┴─────────┴─────────┴──────┴────────┴──────────┴─────┘
 //! ```
 //!
 //! Fields:
@@ -22,7 +22,6 @@
 //!  - `rate`: Requests per period
 //!  - `period`: Time period in seconds
 //!  - `quantity`: Number of tokens to consume
-//!  - `timestamp`: Nanoseconds since UNIX epoch
 //!  - `key`: UTF-8 encoded key string
 //!
 //! ## Response Format (34 bytes)
@@ -50,7 +49,7 @@ use anyhow::Result;
 use async_trait::async_trait;
 use bytes::{BufMut, BytesMut};
 use std::sync::Arc;
-use std::time::UNIX_EPOCH;
+use std::time::SystemTime;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::{TcpListener, TcpStream};
 
@@ -94,7 +93,7 @@ impl NativeTransport {
         socket.set_nodelay(true)?;
 
         // Fixed-size header buffer
-        let mut header = [0u8; 42]; // Max size for fixed fields
+        let mut header = [0u8; 34]; // Max size for fixed fields
 
         loop {
             // Read fixed header (first 2 bytes: cmd + key_len)
@@ -121,15 +120,14 @@ impl NativeTransport {
                 break;
             }
 
-            // Read remaining fixed fields (40 bytes)
-            socket.read_exact(&mut header[2..42]).await?;
+            // Read remaining fixed fields (32 bytes)
+            socket.read_exact(&mut header[2..34]).await?;
 
             // Parse fixed fields
             let burst = i64::from_le_bytes(header[2..10].try_into().unwrap());
             let rate = i64::from_le_bytes(header[10..18].try_into().unwrap());
             let period = i64::from_le_bytes(header[18..26].try_into().unwrap());
             let quantity = i64::from_le_bytes(header[26..34].try_into().unwrap());
-            let timestamp_nanos = i64::from_le_bytes(header[34..42].try_into().unwrap());
 
             // Read key
             read_buffer.clear();
@@ -144,8 +142,8 @@ impl NativeTransport {
                 }
             };
 
-            // Convert timestamp from nanoseconds
-            let timestamp = UNIX_EPOCH + std::time::Duration::from_nanos(timestamp_nanos as u64);
+            // Get server timestamp
+            let timestamp = SystemTime::now();
 
             // Create request
             let request = ThrottleRequest {
