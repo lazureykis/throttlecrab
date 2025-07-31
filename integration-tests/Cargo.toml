@@ -35,8 +35,6 @@ parking_lot = "0.12"
 # For importing proto definitions
 throttlecrab-server = { path = "../throttlecrab-server" }
 
-# Native client
-throttlecrab-client = { path = "../throttlecrab-client" }
 
 
 [dev-dependencies]

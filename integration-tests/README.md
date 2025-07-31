@@ -18,29 +18,13 @@ Tests the performance of different transport protocols:
 # Available transports: http, grpc, msgpack, native
 ```
 
-### Client Library Test
-
-Tests the throttlecrab-client library with connection pooling:
-
-```bash
-# Run with defaults (10 threads, 1000 requests each)
-./run-client-test.sh
-
-# Custom parameters
-./run-client-test.sh 20 5000 9090 20
-# (threads) (requests) (port) (pool_size)
-```
-
 ## Test Binary
 
-The integration test binary supports two commands:
+The integration test binary supports the following command:
 
 ```bash
 # Run transport performance test
 cargo run --release -- perf-test --threads 32 --requests 10000 --transport http
-
-# Run client performance test  
-cargo run --release -- client-perf-test --threads 20 --requests 5000 --pool-size 10
 ```
 
 ## Requirements

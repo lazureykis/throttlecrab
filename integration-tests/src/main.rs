@@ -1,8 +1,6 @@
 use anyhow::Result;
 use clap::{Parser, Subcommand};
 
-mod client_perf_test_v2;
-mod direct_native_test;
 mod perf_test_multi_transport;
 
 #[derive(Parser)]
@@ -33,34 +31,6 @@ enum Commands {
         #[arg(short = 'T', long, default_value = "http")]
         transport: String,
     },
-    /// Run direct native test (no connection pool)
-    DirectNativeTest {
-        /// Number of threads
-        #[arg(short, long, default_value = "20")]
-        threads: usize,
-
-        /// Requests per thread
-        #[arg(short, long, default_value = "5000")]
-        requests: usize,
-
-        /// Server port
-        #[arg(short, long, default_value = "9090")]
-        port: u16,
-    },
-    /// Run client V2 performance test
-    ClientV2PerfTest {
-        /// Number of threads
-        #[arg(short, long, default_value = "20")]
-        threads: usize,
-
-        /// Requests per thread
-        #[arg(short, long, default_value = "5000")]
-        requests: usize,
-
-        /// Server port
-        #[arg(short, long, default_value = "9090")]
-        port: u16,
-    },
 }
 
 #[tokio::main]
@@ -84,20 +54,6 @@ async fn main() -> Result<()> {
         } => {
             perf_test_multi_transport::run_performance_test(threads, requests, port, &transport)
                 .await?;
-        }
-        Commands::DirectNativeTest {
-            threads,
-            requests,
-            port,
-        } => {
-            direct_native_test::run_direct_native_test(threads, requests, port).await?;
-        }
-        Commands::ClientV2PerfTest {
-            threads,
-            requests,
-            port,
-        } => {
-            client_perf_test_v2::run_client_performance_test(threads, requests, port).await?;
         }
     }
 

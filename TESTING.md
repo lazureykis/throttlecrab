@@ -18,9 +18,6 @@ cargo test -p throttlecrab
 
 # Server tests
 cargo test -p throttlecrab-server
-
-# Client tests
-cargo test -p throttlecrab-client
 ```
 
 ## Integration Tests

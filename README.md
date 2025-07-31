@@ -16,7 +16,6 @@ This workspace contains three crates:
 |-------|-------------|----------|
 | [`throttlecrab`](./throttlecrab) | Core rate limiting library | Embed rate limiting in your Rust application |
 | [`throttlecrab-server`](./throttlecrab-server) | Standalone server with multiple protocols | Distributed rate limiting service |
-| [`throttlecrab-client`](./throttlecrab-client) | Native async client library | High-performance client for throttlecrab-server |
 
 ## Quick Start
 
@@ -54,17 +53,49 @@ throttlecrab-server --native --native-port 9090
 throttlecrab-server --http --http-port 8080
 ```
 
-### With Client Library
+### Client Integration
 
+**Recommended approach**: Use established HTTP clients like `reqwest` with the HTTP/JSON protocol. These clients provide:
+- Robust connection pooling and management
+- Automatic retry mechanisms
+- Proper timeout handling
+- Well-tested production stability
+
+Example with `reqwest`:
 ```rust
-use throttlecrab_client::ThrottleCrabClient;
+use reqwest::Client;
+use serde::{Deserialize, Serialize};
+
+#[derive(Serialize)]
+struct RateLimitRequest {
+    key: String,
+    burst_capacity: u32,
+    emission_rate: u32,
+    emission_period: u64,
+}
+
+#[derive(Deserialize)]
+struct RateLimitResponse {
+    allowed: bool,
+    remaining: u32,
+    retry_after: u32,
+}
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let client = ThrottleCrabClient::connect("127.0.0.1:9090").await?;
-
-    let response = client
-        .check_rate_limit("user:123", 10, 100, 60)
+    let client = Client::new();
+    
+    let response: RateLimitResponse = client
+        .post("http://localhost:8080/check_rate_limit")
+        .json(&RateLimitRequest {
+            key: "user:123".to_string(),
+            burst_capacity: 10,
+            emission_rate: 100,
+            emission_period: 60,
+        })
+        .send()
+        .await?
+        .json()
         .await?;
 
     if response.allowed {
@@ -95,9 +126,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 - **Production Ready**: Health checks, metrics, configurable logging
 - **Flexible Deployment**: Docker, systemd, or standalone binary
 
-### Client Library (`throttlecrab-client`)
-- **Connection Pooling**: Reuse connections for better performance
-- **Async/Await**: Full Tokio integration
 - **Automatic Reconnection**: Handles network failures gracefully
 - **Type-Safe**: Strongly typed request/response API
 
