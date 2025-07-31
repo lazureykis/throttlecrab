@@ -32,14 +32,14 @@
 //! # Show all available options
 //! throttlecrab-server --help
 //!
-//! # Start with default settings (native protocol on port 8072)
-//! throttlecrab-server --native
+//! # Start with http transport on port 8080
+//! throttlecrab-server --http --http-port 8080
 //!
 //! # Enable multiple protocols
 //! throttlecrab-server --http --grpc --native
 //!
-//! # Custom configuration
-//! throttlecrab-server --http --http-port 8080 --store adaptive --log-level debug
+//! # Custom store configuration
+//! throttlecrab-server --http --http-port 8080 --store adaptive --store-capacity 100000 --store-cleanup-interval 60
 //! ```
 //!
 //! ## Configuration
@@ -78,12 +78,13 @@
 //!
 //! ## Available Protocols
 //!
-//! - **Native Binary Protocol**: Maximum performance with minimal overhead (183K req/s)
 //! - **HTTP/JSON**: Easy integration with any programming language (173K req/s)
 //! - **gRPC**: Service mesh and microservices integration (163K req/s)
+//! - **Native Binary Protocol**: Maximum performance with minimal overhead (183K req/s)
 //!
 //! All protocols share the same underlying rate limiter, ensuring consistent
-//! rate limiting across different client types.
+//! rate limiting across different client types. RPS are provided for comparison
+//! purposes only.
 //!
 //! ## Architecture
 //!
@@ -124,20 +125,14 @@
 //! ### Starting the Server
 //!
 //! ```bash
-//! # Native protocol only
-//! throttlecrab-server --native --native-port 9090
+//! # HTTP protocol only
+//! throttlecrab-server --http --http-port 8080
 //!
 //! # All protocols
 //! throttlecrab-server --native --http --grpc
 //! ```
 //!
 //! ### Client Examples
-//!
-//! #### Native Protocol (Rust)
-//! ```ignore
-//! let mut stream = TcpStream::connect("127.0.0.1:9090")?;
-//! // Send rate limit request...
-//! ```
 //!
 //! #### HTTP Protocol (curl)
 //! ```bash
@@ -148,6 +143,49 @@
 //!
 //! #### gRPC Protocol
 //! Use any gRPC client library with the provided protobuf definitions.
+//!
+//! #### Native Protocol (Rust)
+//! ```ignore
+//! use std::io::{Read, Write};
+//! use std::net::TcpStream;
+//! use std::time::{SystemTime, UNIX_EPOCH};
+//!
+//! // Connect to server
+//! let mut stream = TcpStream::connect("127.0.0.1:8072")?;
+//!
+//! // Prepare request
+//! let key = "user:123";
+//! let timestamp = SystemTime::now()
+//!     .duration_since(UNIX_EPOCH)?
+//!     .as_nanos() as i64;
+//!
+//! // Write request (42 bytes + key length)
+//! let mut request = Vec::new();
+//! request.push(1u8);                           // cmd: 1 for rate_limit
+//! request.push(key.len() as u8);               // key_len
+//! request.extend_from_slice(&10i64.to_le_bytes());   // max_burst
+//! request.extend_from_slice(&100i64.to_le_bytes());  // count_per_period
+//! request.extend_from_slice(&60i64.to_le_bytes());   // period (seconds)
+//! request.extend_from_slice(&1i64.to_le_bytes());    // quantity
+//! request.extend_from_slice(&timestamp.to_le_bytes()); // timestamp
+//! request.extend_from_slice(key.as_bytes());   // key
+//!
+//! stream.write_all(&request)?;
+//! stream.flush()?;
+//!
+//! // Read response (34 bytes)
+//! let mut response = [0u8; 34];
+//! stream.read_exact(&mut response)?;
+//!
+//! let ok = response[0] == 1;
+//! let allowed = response[1] == 1;
+//! let limit = i64::from_le_bytes(response[2..10].try_into()?);
+//! let remaining = i64::from_le_bytes(response[10..18].try_into()?);
+//! let retry_after = i64::from_le_bytes(response[18..26].try_into()?);
+//! let reset_after = i64::from_le_bytes(response[26..34].try_into()?);
+//!
+//! println!("Allowed: {}, Remaining: {}/{}", allowed, remaining, limit);
+//! ```
 
 pub mod actor;
 pub mod config;
