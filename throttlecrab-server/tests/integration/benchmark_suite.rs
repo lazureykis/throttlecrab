@@ -172,7 +172,7 @@ impl BenchmarkRunner {
         ];
 
         for (name, pattern) in patterns {
-            println!("\n--- Testing {} ---", name);
+            println!("\n--- Testing {name} ---");
 
             let workload = WorkloadConfig {
                 pattern,

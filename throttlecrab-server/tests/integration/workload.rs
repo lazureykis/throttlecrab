@@ -136,9 +136,9 @@ impl WorkloadSummary {
         let rate_limit_rate = self.rate_limited as f64 / self.total_requests as f64 * 100.0;
 
         println!("\n=== Workload Summary ===");
-        println!("Duration: {:?}", duration);
+        println!("Duration: {duration:?}");
         println!("Total requests: {}", self.total_requests);
-        println!("Requests/sec: {:.2}", rps);
+        println!("Requests/sec: {rps:.2}");
         println!(
             "Successful: {} ({:.2}%)",
             self.successful_requests, success_rate
@@ -240,8 +240,8 @@ impl WorkloadGenerator {
                 duration,
             } => {
                 let progress = (elapsed.as_secs_f64() / duration.as_secs_f64()).min(1.0);
-                let rps = start_rps + ((end_rps - start_rps) as f64 * progress) as u64;
-                rps
+
+                start_rps + ((end_rps - start_rps) as f64 * progress) as u64
             }
 
             WorkloadPattern::Random { min_rps, max_rps } => {
@@ -265,12 +265,12 @@ impl WorkloadGenerator {
 
     fn generate_key(&self, request_num: u64) -> String {
         match &self.config.key_pattern {
-            KeyPattern::Sequential => format!("key_{}", request_num),
+            KeyPattern::Sequential => format!("key_{request_num}"),
 
             KeyPattern::Random { pool_size } => {
                 use rand::Rng;
                 let key_id = rand::thread_rng().gen_range(0..*pool_size);
-                format!("key_{}", key_id)
+                format!("key_{key_id}")
             }
 
             KeyPattern::Zipfian { alpha } => {
@@ -287,7 +287,7 @@ impl WorkloadGenerator {
                 let mut rng = rand::thread_rng();
                 let user_id = rng.gen_range(0..*users);
                 let resource_id = rng.gen_range(0..*resources);
-                format!("user_{}_resource_{}", user_id, resource_id)
+                format!("user_{user_id}_resource_{resource_id}")
             }
         }
     }

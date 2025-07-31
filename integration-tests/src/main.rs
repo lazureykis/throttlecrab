@@ -18,11 +18,11 @@ enum Commands {
         /// Number of threads
         #[arg(short, long, default_value = "20")]
         threads: usize,
-        
+
         /// Requests per thread
         #[arg(short, long, default_value = "5000")]
         requests: usize,
-        
+
         /// Server port
         #[arg(short, long, default_value = "58080")]
         port: u16,
@@ -42,7 +42,11 @@ async fn main() -> Result<()> {
     let cli = Cli::parse();
 
     match cli.command {
-        Commands::PerfTest { threads, requests, port } => {
+        Commands::PerfTest {
+            threads,
+            requests,
+            port,
+        } => {
             perf_test::run_performance_test(threads, requests, port).await?;
         }
     }

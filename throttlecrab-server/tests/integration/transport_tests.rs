@@ -2,9 +2,12 @@ use anyhow::Result;
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::process::{Child, Command};
-use tokio::time::sleep;
 use tokio::sync::Mutex;
+use tokio::time::sleep;
 
+use super::connection_pool::{
+    MsgPackConnectionPool as ImprovedMsgPackPool, NativeConnectionPool as ImprovedNativePool,
+};
 use super::workload::{WorkloadConfig, WorkloadGenerator};
 
 pub struct ServerInstance {
@@ -79,15 +82,16 @@ impl HttpClient {
             .pool_idle_timeout(Duration::from_secs(30))
             .build()
             .unwrap();
-        
+
         Self {
             client,
-            url: format!("http://127.0.0.1:{}/throttle", port),
+            url: format!("http://127.0.0.1:{port}/throttle"),
         }
     }
-    
+
     pub async fn test_request(&self, key: String) -> Result<bool> {
-        let response = self.client
+        let response = self
+            .client
             .post(&self.url)
             .json(&serde_json::json!({
                 "key": key,
@@ -112,20 +116,22 @@ pub async fn test_http_transport(port: u16, key: String) -> Result<bool> {
 
 // gRPC client with connection reuse
 pub struct GrpcClient {
-    client: throttlecrab_server::grpc::rate_limiter_client::RateLimiterClient<tonic::transport::Channel>,
+    client: throttlecrab_server::grpc::rate_limiter_client::RateLimiterClient<
+        tonic::transport::Channel,
+    >,
 }
 
 impl GrpcClient {
     pub async fn new(port: u16) -> Result<Self> {
         use throttlecrab_server::grpc::rate_limiter_client::RateLimiterClient;
-        
-        let client = RateLimiterClient::connect(format!("http://127.0.0.1:{}", port)).await?;
+
+        let client = RateLimiterClient::connect(format!("http://127.0.0.1:{port}")).await?;
         Ok(Self { client })
     }
-    
+
     pub async fn test_request(&mut self, key: String) -> Result<bool> {
         use throttlecrab_server::grpc::ThrottleRequest;
-        
+
         let request = tonic::Request::new(ThrottleRequest {
             key: key.clone(),
             max_burst: 100,
@@ -146,217 +152,21 @@ pub async fn test_grpc_transport(port: u16, key: String) -> Result<bool> {
     client.test_request(key).await
 }
 
-// Connection pool for MessagePack
-pub struct MsgPackConnectionPool {
-    connections: Arc<Mutex<Vec<tokio::net::TcpStream>>>,
-    addr: String,
-    max_connections: usize,
-}
-
-impl MsgPackConnectionPool {
-    pub fn new(port: u16, max_connections: usize) -> Self {
-        Self {
-            connections: Arc::new(Mutex::new(Vec::with_capacity(max_connections))),
-            addr: format!("127.0.0.1:{}", port),
-            max_connections,
-        }
-    }
-    
-    async fn get_connection(&self) -> Result<tokio::net::TcpStream> {
-        let mut pool = self.connections.lock().await;
-        
-        if let Some(conn) = pool.pop() {
-            Ok(conn)
-        } else {
-            tokio::net::TcpStream::connect(&self.addr).await.map_err(Into::into)
-        }
-    }
-    
-    async fn return_connection(&self, conn: tokio::net::TcpStream) {
-        let mut pool = self.connections.lock().await;
-        if pool.len() < self.max_connections {
-            pool.push(conn);
-        }
-        // Otherwise, drop the connection
-    }
-    
-    pub async fn test_request(&self, key: String) -> Result<bool> {
-        use rmp_serde::{Deserializer, Serializer};
-        use serde::{Deserialize, Serialize};
-        use tokio::io::{AsyncReadExt, AsyncWriteExt};
-        
-        #[derive(Serialize)]
-        struct Request {
-            cmd: u8,
-            key: String,
-            burst: i64,
-            rate: i64,
-            period: i64,
-            quantity: i64,
-            timestamp: i64,
-        }
-
-        #[derive(Deserialize)]
-        struct Response {
-            ok: bool,
-            allowed: u8,
-            #[allow(dead_code)]
-            limit: i64,
-            #[allow(dead_code)]
-            remaining: i64,
-            #[allow(dead_code)]
-            retry_after: i64,
-            #[allow(dead_code)]
-            reset_after: i64,
-        }
-        
-        let mut stream = self.get_connection().await?;
-
-        let request = Request {
-            cmd: 1, // throttle command
-            key,
-            burst: 100,
-            rate: 10,
-            period: 60,
-            quantity: 1,
-            timestamp: std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .unwrap()
-                .as_nanos() as i64,
-        };
-
-        // Serialize request
-        let mut buf = Vec::new();
-        request.serialize(&mut Serializer::new(&mut buf))?;
-
-        // Write length prefix and data
-        let len = buf.len() as u32;
-        let result = async {
-            stream.write_all(&len.to_be_bytes()).await?;
-            stream.write_all(&buf).await?;
-            stream.flush().await?;
-
-            // Read response length
-            let mut len_buf = [0u8; 4];
-            stream.read_exact(&mut len_buf).await?;
-            let response_len = u32::from_be_bytes(len_buf) as usize;
-
-            // Read response data
-            let mut response_buf = vec![0u8; response_len];
-            stream.read_exact(&mut response_buf).await?;
-
-            // Deserialize response
-            let response: Response = Deserialize::deserialize(&mut Deserializer::new(&response_buf[..]))?;
-
-            // Check if request was rate limited (allowed == 0 means rate limited)
-            Ok::<bool, anyhow::Error>(response.ok && response.allowed == 0)
-        }.await;
-        
-        // Return connection to pool
-        self.return_connection(stream).await;
-        
-        result
-    }
-}
+// Use the improved connection pool
+pub type MsgPackConnectionPool = ImprovedMsgPackPool;
 
 pub async fn test_msgpack_transport(port: u16, key: String) -> Result<bool> {
     // For backward compatibility - uses connection pool
-    let pool = MsgPackConnectionPool::new(port, 10);
+    let pool = ImprovedMsgPackPool::new(port, 10);
     pool.test_request(key).await
 }
 
-// Native transport client with connection pooling
-pub struct NativeClient {
-    connections: Arc<Mutex<Vec<tokio::net::TcpStream>>>,
-    addr: String,
-    max_connections: usize,
-}
-
-impl NativeClient {
-    pub fn new(port: u16, max_connections: usize) -> Self {
-        Self {
-            connections: Arc::new(Mutex::new(Vec::with_capacity(max_connections))),
-            addr: format!("127.0.0.1:{}", port),
-            max_connections,
-        }
-    }
-    
-    async fn get_connection(&self) -> Result<tokio::net::TcpStream> {
-        let mut pool = self.connections.lock().await;
-        
-        if let Some(conn) = pool.pop() {
-            Ok(conn)
-        } else {
-            tokio::net::TcpStream::connect(&self.addr).await.map_err(Into::into)
-        }
-    }
-    
-    async fn return_connection(&self, conn: tokio::net::TcpStream) {
-        let mut pool = self.connections.lock().await;
-        if pool.len() < self.max_connections {
-            pool.push(conn);
-        }
-    }
-    
-    pub async fn test_request(&self, key: String) -> Result<bool> {
-        use bytes::{BufMut, BytesMut};
-        use std::time::{SystemTime, UNIX_EPOCH};
-        use tokio::io::{AsyncReadExt, AsyncWriteExt};
-        
-        let mut stream = self.get_connection().await?;
-
-        // Native protocol request format
-        let mut request = BytesMut::new();
-        request.put_u8(1); // cmd: 1 for rate limit check
-        request.put_u8(key.len() as u8); // key_len
-        request.put_i64_le(100); // burst (capacity)
-        request.put_i64_le(10); // rate (quantum)  
-        request.put_i64_le(60_000_000_000); // period in nanoseconds (60 seconds)
-        request.put_i64_le(1); // quantity
-
-        // timestamp in nanoseconds since UNIX epoch
-        let now = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap()
-            .as_nanos() as i64;
-        request.put_i64_le(now);
-
-        // key
-        request.put_slice(key.as_bytes());
-
-        let result = async {
-            // Send request
-            stream.write_all(&request).await?;
-            stream.flush().await?;
-
-            // Read response (33 bytes fixed)
-            let mut response = vec![0u8; 33];
-            stream.read_exact(&mut response).await?;
-
-            // Parse response
-            let ok = response[0];
-            let allowed = response[1];
-
-            if ok == 0 {
-                return Err(anyhow::anyhow!("Server returned error"));
-            }
-
-            // allowed == 0 means rate limited (not allowed)
-            Ok::<bool, anyhow::Error>(allowed == 0)
-        }.await;
-        
-        // Return connection to pool
-        if result.is_ok() {
-            self.return_connection(stream).await;
-        }
-        
-        result
-    }
-}
+// Use the improved connection pool
+pub type NativeClient = ImprovedNativePool;
 
 pub async fn test_native_transport(port: u16, key: String) -> Result<bool> {
     // For backward compatibility - uses connection pool
-    let client = NativeClient::new(port, 10);
+    let client = ImprovedNativePool::new(port, 10);
     client.test_request(key).await
 }
 
@@ -379,7 +189,7 @@ pub async fn run_transport_benchmark(
     };
 
     // Start server
-    let server = ServerInstance::start(transport.clone(), port, store_type).await?;
+    let server = ServerInstance::start(transport, port, store_type).await?;
 
     // Create workload generator
     let generator = WorkloadGenerator::new(workload_config.clone());
@@ -403,9 +213,9 @@ pub async fn run_transport_benchmark(
             generator
                 .run(move |key| {
                     let client = client.clone();
-                    async move { 
+                    async move {
                         let mut c = client.lock().await;
-                        c.test_request(key).await 
+                        c.test_request(key).await
                     }
                 })
                 .await?;
@@ -444,7 +254,6 @@ pub async fn run_transport_benchmark(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
 
     #[tokio::test]
     async fn test_all_transports() -> Result<()> {

@@ -1,11 +1,12 @@
 use anyhow::Result;
 use std::sync::Arc;
-use std::sync::atomic::{AtomicU64, AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::time::{Duration, Instant};
 use tokio::sync::Barrier;
 use tokio::task::JoinSet;
 
-use super::transport_tests::{Transport, ServerInstance};
+use super::connection_pool::{MsgPackConnectionPool, NativeConnectionPool};
+use super::transport_tests::{ServerInstance, Transport};
 
 #[derive(Debug, Clone)]
 pub struct BenchmarkConfig {
@@ -47,13 +48,15 @@ impl BenchmarkStats {
     pub fn record_success(&self, latency: Duration) {
         self.total_requests.fetch_add(1, Ordering::Relaxed);
         self.successful_requests.fetch_add(1, Ordering::Relaxed);
-        self.total_latency_us.fetch_add(latency.as_micros() as u64, Ordering::Relaxed);
+        self.total_latency_us
+            .fetch_add(latency.as_micros() as u64, Ordering::Relaxed);
     }
 
     pub fn record_rate_limited(&self, latency: Duration) {
         self.total_requests.fetch_add(1, Ordering::Relaxed);
         self.rate_limited.fetch_add(1, Ordering::Relaxed);
-        self.total_latency_us.fetch_add(latency.as_micros() as u64, Ordering::Relaxed);
+        self.total_latency_us
+            .fetch_add(latency.as_micros() as u64, Ordering::Relaxed);
     }
 
     pub fn record_failure(&self) {
@@ -69,16 +72,32 @@ impl BenchmarkStats {
         let total_latency_us = self.total_latency_us.load(Ordering::Relaxed);
 
         let rps = total as f64 / duration.as_secs_f64();
-        let avg_latency_us = if total > 0 { total_latency_us / total } else { 0 };
+        let avg_latency_us = if total > 0 {
+            total_latency_us / total
+        } else {
+            0
+        };
 
         println!("\n=== Benchmark Results ===");
-        println!("Duration: {:?}", duration);
-        println!("Total requests: {}", total);
-        println!("Throughput: {:.2} requests/sec", rps);
-        println!("Successful: {} ({:.2}%)", successful, successful as f64 / total as f64 * 100.0);
-        println!("Rate limited: {} ({:.2}%)", rate_limited, rate_limited as f64 / total as f64 * 100.0);
-        println!("Failed: {} ({:.2}%)", failed, failed as f64 / total as f64 * 100.0);
-        println!("Average latency: {} μs", avg_latency_us);
+        println!("Duration: {duration:?}");
+        println!("Total requests: {total}");
+        println!("Throughput: {rps:.2} requests/sec");
+        println!(
+            "Successful: {} ({:.2}%)",
+            successful,
+            successful as f64 / total as f64 * 100.0
+        );
+        println!(
+            "Rate limited: {} ({:.2}%)",
+            rate_limited,
+            rate_limited as f64 / total as f64 * 100.0
+        );
+        println!(
+            "Failed: {} ({:.2}%)",
+            failed,
+            failed as f64 / total as f64 * 100.0
+        );
+        println!("Average latency: {avg_latency_us} μs");
     }
 }
 
@@ -90,11 +109,11 @@ fn generate_payloads(config: &BenchmarkConfig) -> Vec<Vec<String>> {
     // Generate all payloads
     for i in 0..total_requests {
         let key = match &config.key_pattern {
-            KeyPattern::Sequential => format!("key_{}", i),
+            KeyPattern::Sequential => format!("key_{i}"),
             KeyPattern::Random => {
                 use rand::Rng;
                 let key_id = rand::thread_rng().gen_range(0..config.total_keys);
-                format!("key_{}", key_id)
+                format!("key_{key_id}")
             }
             KeyPattern::Zipfian { alpha } => {
                 let u: f64 = rand::random::<f64>();
@@ -122,7 +141,10 @@ pub async fn run_high_performance_benchmark(config: BenchmarkConfig) -> Result<(
     println!("Store: {}", config.store_type);
     println!("Threads: {}", config.num_threads);
     println!("Requests per thread: {}", config.requests_per_thread);
-    println!("Total requests: {}", config.num_threads * config.requests_per_thread);
+    println!(
+        "Total requests: {}",
+        config.num_threads * config.requests_per_thread
+    );
 
     // Step 1: Start server
     let port = match config.transport {
@@ -133,10 +155,13 @@ pub async fn run_high_performance_benchmark(config: BenchmarkConfig) -> Result<(
     };
 
     let server = ServerInstance::start(config.transport, port, &config.store_type).await?;
-    println!("Server started on port {}", port);
+    println!("Server started on port {port}");
 
     // Step 2: Generate payloads before starting threads
-    println!("Generating {} payloads...", config.num_threads * config.requests_per_thread);
+    println!(
+        "Generating {} payloads...",
+        config.num_threads * config.requests_per_thread
+    );
     let thread_payloads = generate_payloads(&config);
 
     // Step 3: Create shared stats and barrier for synchronization
@@ -146,7 +171,7 @@ pub async fn run_high_performance_benchmark(config: BenchmarkConfig) -> Result<(
 
     // Step 4: Create worker threads
     let mut tasks = JoinSet::new();
-    
+
     for thread_id in 0..config.num_threads {
         let payloads = thread_payloads[thread_id].clone();
         let stats = stats.clone();
@@ -213,7 +238,7 @@ pub async fn run_high_performance_benchmark(config: BenchmarkConfig) -> Result<(
     // Wait for all threads to complete
     while let Some(result) = tasks.join_next().await {
         if let Err(e) = result {
-            eprintln!("Thread error: {}", e);
+            eprintln!("Thread error: {e}");
         }
     }
 
@@ -245,10 +270,10 @@ impl HttpWorkerClient {
         let client = reqwest::Client::builder()
             .pool_max_idle_per_host(1)
             .build()?;
-        
+
         Ok(Self {
             client,
-            url: format!("http://127.0.0.1:{}/throttle", port),
+            url: format!("http://127.0.0.1:{port}/throttle"),
         })
     }
 }
@@ -256,7 +281,8 @@ impl HttpWorkerClient {
 #[async_trait::async_trait]
 impl WorkerClient for HttpWorkerClient {
     async fn send_request(&self, key: String) -> Result<bool> {
-        let response = self.client
+        let response = self
+            .client
             .post(&self.url)
             .json(&serde_json::json!({
                 "key": key,
@@ -275,14 +301,16 @@ impl WorkerClient for HttpWorkerClient {
 
 // gRPC worker client
 struct GrpcWorkerClient {
-    client: throttlecrab_server::grpc::rate_limiter_client::RateLimiterClient<tonic::transport::Channel>,
+    client: throttlecrab_server::grpc::rate_limiter_client::RateLimiterClient<
+        tonic::transport::Channel,
+    >,
 }
 
 impl GrpcWorkerClient {
     async fn new(port: u16) -> Result<Self> {
         use throttlecrab_server::grpc::rate_limiter_client::RateLimiterClient;
-        
-        let client = RateLimiterClient::connect(format!("http://127.0.0.1:{}", port)).await?;
+
+        let client = RateLimiterClient::connect(format!("http://127.0.0.1:{port}")).await?;
         Ok(Self { client })
     }
 }
@@ -291,7 +319,7 @@ impl GrpcWorkerClient {
 impl WorkerClient for GrpcWorkerClient {
     async fn send_request(&self, key: String) -> Result<bool> {
         use throttlecrab_server::grpc::ThrottleRequest;
-        
+
         let mut client = self.client.clone();
         let request = tonic::Request::new(ThrottleRequest {
             key,
@@ -309,148 +337,46 @@ impl WorkerClient for GrpcWorkerClient {
 
 // MessagePack worker client
 struct MsgPackWorkerClient {
-    stream: Arc<tokio::sync::Mutex<tokio::net::TcpStream>>,
+    pool: MsgPackConnectionPool,
 }
 
 impl MsgPackWorkerClient {
     async fn new(port: u16) -> Result<Self> {
-        let stream = tokio::net::TcpStream::connect(format!("127.0.0.1:{}", port)).await?;
-        Ok(Self { stream: Arc::new(tokio::sync::Mutex::new(stream)) })
+        // Use a smaller pool for each worker to avoid contention
+        let pool = MsgPackConnectionPool::new(port, 2);
+        Ok(Self { pool })
     }
 }
 
 #[async_trait::async_trait]
 impl WorkerClient for MsgPackWorkerClient {
     async fn send_request(&self, key: String) -> Result<bool> {
-        use rmp_serde::{Deserializer, Serializer};
-        use serde::{Deserialize, Serialize};
-        use tokio::io::{AsyncReadExt, AsyncWriteExt};
-        
-        #[derive(Serialize)]
-        struct Request {
-            cmd: u8,
-            key: String,
-            burst: i64,
-            rate: i64,
-            period: i64,
-            quantity: i64,
-            timestamp: i64,
-        }
-
-        #[derive(Deserialize)]
-        struct Response {
-            ok: bool,
-            allowed: u8,
-            #[allow(dead_code)]
-            limit: i64,
-            #[allow(dead_code)]
-            remaining: i64,
-            #[allow(dead_code)]
-            retry_after: i64,
-            #[allow(dead_code)]
-            reset_after: i64,
-        }
-
-        let request = Request {
-            cmd: 1,
-            key,
-            burst: 100,
-            rate: 10,
-            period: 60,
-            quantity: 1,
-            timestamp: std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .unwrap()
-                .as_nanos() as i64,
-        };
-
-        // Serialize request
-        let mut buf = Vec::new();
-        request.serialize(&mut Serializer::new(&mut buf))?;
-
-        // Write length prefix and data
-        let len = buf.len() as u32;
-        let mut stream = self.stream.lock().await;
-        
-        stream.write_all(&len.to_be_bytes()).await?;
-        stream.write_all(&buf).await?;
-        stream.flush().await?;
-
-        // Read response length
-        let mut len_buf = [0u8; 4];
-        stream.read_exact(&mut len_buf).await?;
-        let response_len = u32::from_be_bytes(len_buf) as usize;
-
-        // Read response data
-        let mut response_buf = vec![0u8; response_len];
-        stream.read_exact(&mut response_buf).await?;
-
-        // Deserialize response
-        let response: Response = Deserialize::deserialize(&mut Deserializer::new(&response_buf[..]))?;
-
-        Ok(response.ok && response.allowed == 0)
+        self.pool.test_request(key).await
     }
 }
 
 // Native protocol worker client
 struct NativeWorkerClient {
-    stream: Arc<tokio::sync::Mutex<tokio::net::TcpStream>>,
+    pool: NativeConnectionPool,
 }
 
 impl NativeWorkerClient {
     async fn new(port: u16) -> Result<Self> {
-        let stream = tokio::net::TcpStream::connect(format!("127.0.0.1:{}", port)).await?;
-        Ok(Self { stream: Arc::new(tokio::sync::Mutex::new(stream)) })
+        // Use a smaller pool for each worker to avoid contention
+        let pool = NativeConnectionPool::new(port, 2);
+        Ok(Self { pool })
     }
 }
 
 #[async_trait::async_trait]
 impl WorkerClient for NativeWorkerClient {
     async fn send_request(&self, key: String) -> Result<bool> {
-        use bytes::{BufMut, BytesMut};
-        use std::time::{SystemTime, UNIX_EPOCH};
-        use tokio::io::{AsyncReadExt, AsyncWriteExt};
-        
-        // Native protocol request format
-        let mut request = BytesMut::new();
-        request.put_u8(1); // cmd: 1 for rate limit check
-        request.put_u8(key.len() as u8); // key_len
-        request.put_i64_le(100); // burst
-        request.put_i64_le(10); // rate
-        request.put_i64_le(60_000_000_000); // period in nanoseconds
-        request.put_i64_le(1); // quantity
-
-        let now = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap()
-            .as_nanos() as i64;
-        request.put_i64_le(now);
-        request.put_slice(key.as_bytes());
-
-        let mut stream = self.stream.lock().await;
-        
-        // Send request
-        stream.write_all(&request).await?;
-        stream.flush().await?;
-
-        // Read response (33 bytes fixed)
-        let mut response = vec![0u8; 33];
-        stream.read_exact(&mut response).await?;
-
-        let ok = response[0];
-        let allowed = response[1];
-
-        if ok == 0 {
-            return Err(anyhow::anyhow!("Server returned error"));
-        }
-
-        Ok(allowed == 0)
+        self.pool.test_request(key).await
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::*;
 
     #[tokio::test]
     async fn test_high_performance_http() -> Result<()> {

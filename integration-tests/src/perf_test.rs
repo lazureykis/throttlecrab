@@ -1,10 +1,10 @@
 use anyhow::Result;
+use serde_json::json;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{Duration, Instant};
 use tokio::sync::Barrier;
 use tokio::task::JoinSet;
-use serde_json::json;
 
 #[derive(Debug)]
 struct Stats {
@@ -40,9 +40,9 @@ async fn worker(
         .pool_max_idle_per_host(1)
         .pool_idle_timeout(Duration::from_secs(30))
         .build()?;
-    
-    let url = format!("http://127.0.0.1:{}/throttle", port);
-    
+
+    let url = format!("http://127.0.0.1:{port}/throttle");
+
     // Pre-generate payloads
     let mut payloads = Vec::with_capacity(requests_per_thread);
     for i in 0..requests_per_thread {
@@ -55,28 +55,30 @@ async fn worker(
             "quantity": 1,
         }));
     }
-    
+
     // Wait for all threads to be ready
     barrier.wait().await;
-    
+
     // Wait for start signal
     while start_flag.load(Ordering::Acquire) == 0 {
         tokio::task::yield_now().await;
     }
-    
+
     let mut latencies = Vec::with_capacity(requests_per_thread);
-    
+
     // Send all requests
     for payload in payloads {
         let start = Instant::now();
-        
+
         match client.post(&url).json(&payload).send().await {
             Ok(response) => {
                 let latency = start.elapsed();
                 latencies.push(latency);
                 stats.total_requests.fetch_add(1, Ordering::Relaxed);
-                stats.total_latency_us.fetch_add(latency.as_micros() as u64, Ordering::Relaxed);
-                
+                stats
+                    .total_latency_us
+                    .fetch_add(latency.as_micros() as u64, Ordering::Relaxed);
+
                 if let Ok(body) = response.json::<serde_json::Value>().await {
                     if body["allowed"].as_bool().unwrap_or(true) {
                         stats.successful.fetch_add(1, Ordering::Relaxed);
@@ -93,23 +95,28 @@ async fn worker(
             }
         }
     }
-    
+
     Ok(latencies)
 }
 
-pub async fn run_performance_test(num_threads: usize, requests_per_thread: usize, port: u16) -> Result<()> {
+pub async fn run_performance_test(
+    num_threads: usize,
+    requests_per_thread: usize,
+    port: u16,
+) -> Result<()> {
     println!("=== ThrottleCrab High-Performance Benchmark ===");
-    println!("Threads: {}", num_threads);
-    println!("Requests per thread: {}", requests_per_thread);
+    println!("Threads: {num_threads}");
+    println!("Requests per thread: {requests_per_thread}");
     println!("Total requests: {}", num_threads * requests_per_thread);
-    println!("Target port: {}\n", port);
-    
+    println!("Target port: {port}\n");
+
     // Check if server is running
-    println!("Checking if server is running on port {}...", port);
+    println!("Checking if server is running on port {port}...");
     let test_client = reqwest::Client::new();
-    let test_url = format!("http://127.0.0.1:{}/throttle", port);
-    
-    match test_client.post(&test_url)
+    let test_url = format!("http://127.0.0.1:{port}/throttle");
+
+    match test_client
+        .post(&test_url)
         .json(&json!({
             "key": "test",
             "max_burst": 1,
@@ -123,70 +130,96 @@ pub async fn run_performance_test(num_threads: usize, requests_per_thread: usize
     {
         Ok(_) => println!("Server is running!"),
         Err(e) => {
-            eprintln!("Server is not running on port {}: {}", port, e);
+            eprintln!("Server is not running on port {port}: {e}");
             eprintln!("Please start the server with:");
-            eprintln!("  cargo run --release --bin throttlecrab -- --http --http-port {} --store adaptive", port);
+            eprintln!(
+                "  cargo run --release --bin throttlecrab -- --http --http-port {port} --store adaptive"
+            );
             return Err(anyhow::anyhow!("Server not running"));
         }
     }
-    
+
     // Create shared resources
     let stats = Arc::new(Stats::new());
     let barrier = Arc::new(Barrier::new(num_threads + 1)); // +1 for main thread
     let start_flag = Arc::new(AtomicU64::new(0));
-    
+
     // Spawn worker threads
     let mut tasks = JoinSet::new();
     for thread_id in 0..num_threads {
         let stats = stats.clone();
         let barrier = barrier.clone();
         let start_flag = start_flag.clone();
-        
+
         tasks.spawn(async move {
-            worker(thread_id, requests_per_thread, port, stats, barrier, start_flag).await
+            worker(
+                thread_id,
+                requests_per_thread,
+                port,
+                stats,
+                barrier,
+                start_flag,
+            )
+            .await
         });
     }
-    
+
     // Wait for all threads to be ready
     println!("\nWaiting for all threads to establish connections...");
     barrier.wait().await;
-    
+
     // Start the benchmark
     println!("Starting benchmark...");
     let bench_start = Instant::now();
     start_flag.store(1, Ordering::Release);
-    
+
     // Collect all latencies
     let mut all_latencies = Vec::new();
     while let Some(result) = tasks.join_next().await {
         match result {
             Ok(Ok(latencies)) => all_latencies.extend(latencies),
-            Ok(Err(e)) => eprintln!("Worker error: {}", e),
-            Err(e) => eprintln!("Task error: {}", e),
+            Ok(Err(e)) => eprintln!("Worker error: {e}"),
+            Err(e) => eprintln!("Task error: {e}"),
         }
     }
-    
+
     let duration = bench_start.elapsed();
-    
+
     // Calculate and print results
     let total = stats.total_requests.load(Ordering::Relaxed);
     let successful = stats.successful.load(Ordering::Relaxed);
     let rate_limited = stats.rate_limited.load(Ordering::Relaxed);
     let failed = stats.failed.load(Ordering::Relaxed);
     let total_latency_us = stats.total_latency_us.load(Ordering::Relaxed);
-    
+
     let rps = total as f64 / duration.as_secs_f64();
-    let avg_latency_us = if total > 0 { total_latency_us / total } else { 0 };
-    
+    let avg_latency_us = if total > 0 {
+        total_latency_us / total
+    } else {
+        0
+    };
+
     println!("\n=== Benchmark Results ===");
-    println!("Duration: {:?}", duration);
-    println!("Total requests: {}", total);
-    println!("Throughput: {:.2} requests/sec", rps);
-    println!("Successful: {} ({:.2}%)", successful, successful as f64 / total as f64 * 100.0);
-    println!("Rate limited: {} ({:.2}%)", rate_limited, rate_limited as f64 / total as f64 * 100.0);
-    println!("Failed: {} ({:.2}%)", failed, failed as f64 / total as f64 * 100.0);
-    println!("Average latency: {} μs", avg_latency_us);
-    
+    println!("Duration: {duration:?}");
+    println!("Total requests: {total}");
+    println!("Throughput: {rps:.2} requests/sec");
+    println!(
+        "Successful: {} ({:.2}%)",
+        successful,
+        successful as f64 / total as f64 * 100.0
+    );
+    println!(
+        "Rate limited: {} ({:.2}%)",
+        rate_limited,
+        rate_limited as f64 / total as f64 * 100.0
+    );
+    println!(
+        "Failed: {} ({:.2}%)",
+        failed,
+        failed as f64 / total as f64 * 100.0
+    );
+    println!("Average latency: {avg_latency_us} μs");
+
     // Calculate percentiles
     if !all_latencies.is_empty() {
         all_latencies.sort();
@@ -195,15 +228,15 @@ pub async fn run_performance_test(num_threads: usize, requests_per_thread: usize
         let p95 = percentile(&all_latencies, 0.95);
         let p99 = percentile(&all_latencies, 0.99);
         let p999 = percentile(&all_latencies, 0.999);
-        
+
         println!("\nLatency percentiles:");
-        println!("  P50: {:?}", p50);
-        println!("  P90: {:?}", p90);
-        println!("  P95: {:?}", p95);
-        println!("  P99: {:?}", p99);
-        println!("  P99.9: {:?}", p999);
+        println!("  P50: {p50:?}");
+        println!("  P90: {p90:?}");
+        println!("  P95: {p95:?}");
+        println!("  P99: {p99:?}");
+        println!("  P99.9: {p999:?}");
     }
-    
+
     Ok(())
 }
 

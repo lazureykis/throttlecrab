@@ -4,7 +4,7 @@ use std::time::Duration;
 use tokio::task::JoinSet;
 
 use super::transport_tests::{
-    Transport, HttpClient, GrpcClient, MsgPackConnectionPool, NativeClient,
+    GrpcClient, HttpClient, MsgPackConnectionPool, NativeClient, Transport,
 };
 use super::workload::{WorkloadConfig, WorkloadGenerator, WorkloadStats};
 use tokio::sync::Mutex;
@@ -84,23 +84,21 @@ pub async fn run_multi_transport_test(workload_config: WorkloadConfig) -> Result
                         })
                         .await
                 }
-                Transport::Grpc => {
-                    match GrpcClient::new(port).await {
-                        Ok(grpc_client) => {
-                            let client = Arc::new(Mutex::new(grpc_client));
-                            generator
-                                .run(move |key| {
-                                    let client = client.clone();
-                                    async move { 
-                                        let mut c = client.lock().await;
-                                        c.test_request(key).await 
-                                    }
-                                })
-                                .await
-                        }
-                        Err(e) => Err(e),
+                Transport::Grpc => match GrpcClient::new(port).await {
+                    Ok(grpc_client) => {
+                        let client = Arc::new(Mutex::new(grpc_client));
+                        generator
+                            .run(move |key| {
+                                let client = client.clone();
+                                async move {
+                                    let mut c = client.lock().await;
+                                    c.test_request(key).await
+                                }
+                            })
+                            .await
                     }
-                }
+                    Err(e) => Err(e),
+                },
                 Transport::MsgPack => {
                     let pool = Arc::new(MsgPackConnectionPool::new(port, 50));
                     generator
@@ -152,7 +150,7 @@ pub async fn run_multi_transport_test(workload_config: WorkloadConfig) -> Result
                 }
                 results.push((transport, summary));
             }
-            Err(e) => eprintln!("Task error: {}", e),
+            Err(e) => eprintln!("Task error: {e}"),
         }
     }
 
@@ -179,10 +177,7 @@ pub async fn run_multi_transport_test(workload_config: WorkloadConfig) -> Result
     // Calculate server-side metrics
     let total_rps = total_summary.total_requests as f64 / duration.as_secs_f64();
     println!("\nServer Performance:");
-    println!(
-        "  Total throughput: {:.2} requests/sec across all transports",
-        total_rps
-    );
+    println!("  Total throughput: {total_rps:.2} requests/sec across all transports");
     println!(
         "  Average per transport: {:.2} requests/sec",
         total_rps / 4.0
@@ -236,10 +231,7 @@ pub async fn run_transport_isolation_test() -> Result<()> {
     let mut limited_count = 0;
     let total_requests = 200;
 
-    println!(
-        "Sending {} requests with key '{}' across all transports",
-        total_requests, test_key
-    );
+    println!("Sending {total_requests} requests with key '{test_key}' across all transports");
 
     for i in 0..total_requests {
         let transport_idx = i % 4;
@@ -248,7 +240,7 @@ pub async fn run_transport_isolation_test() -> Result<()> {
             1 => {
                 let mut client = grpc_client.lock().await;
                 client.test_request(test_key.clone()).await?
-            },
+            }
             2 => msgpack_pool.test_request(test_key.clone()).await?,
             3 => native_client.test_request(test_key.clone()).await?,
             _ => unreachable!(),
@@ -260,7 +252,7 @@ pub async fn run_transport_isolation_test() -> Result<()> {
     }
 
     println!("\nResults:");
-    println!("  Total requests: {}", total_requests);
+    println!("  Total requests: {total_requests}");
     println!(
         "  Rate limited: {} ({:.2}%)",
         limited_count,
@@ -280,7 +272,6 @@ pub async fn run_transport_isolation_test() -> Result<()> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
 
     #[tokio::test]
     async fn test_multi_transport_quick() -> Result<()> {

@@ -45,7 +45,7 @@ pub async fn run_store_comparison(base_workload: WorkloadConfig) -> Result<()> {
     };
 
     for store in &store_types {
-        println!("\nTesting {} store with short TTL keys", store);
+        println!("\nTesting {store} store with short TTL keys");
         run_transport_benchmark(Transport::Native, store, short_ttl_workload.clone()).await?;
     }
 
