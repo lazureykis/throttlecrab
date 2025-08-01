@@ -35,8 +35,8 @@ if [[ -z "$VERSION" ]]; then
     exit 1
 fi
 
-# Validate version format (should be x.y.z)
-if ! [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+# Validate version format (should be x.y.z or x.y.z-suffix)
+if ! [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9.-]+)?$ ]]; then
     echo -e "${RED}Error: Invalid version format: $VERSION${NC}"
     exit 1
 fi
@@ -92,11 +92,12 @@ if [[ "${PUSH_IMAGES}" == "true" ]]; then
     
     # Verify Docker Hub authentication
     echo -e "${YELLOW}Verifying Docker Hub authentication...${NC}"
-    # Try to inspect a known public image with our credentials
-    if ! docker buildx imagetools inspect ${DOCKER_REGISTRY}/${DOCKER_USERNAME}/${IMAGE_NAME}:latest >/dev/null 2>&1; then
-        # If that fails, we might not have pushed yet or not logged in
-        echo -e "${YELLOW}Authentication check inconclusive. Attempting login...${NC}"
+    # Check if we're logged in to Docker Hub
+    if ! docker info 2>/dev/null | grep -q "Username:"; then
+        echo -e "${YELLOW}Not logged in to Docker Hub. Please authenticate:${NC}"
         docker login ${DOCKER_REGISTRY}
+    else
+        echo -e "${GREEN}Already authenticated to Docker Hub${NC}"
     fi
 else
     echo -e "${YELLOW}Building images locally (use --push to push to registry)...${NC}"
