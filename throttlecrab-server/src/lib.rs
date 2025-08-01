@@ -78,8 +78,8 @@
 //!
 //! ## Available Protocols
 //!
-//! - **HTTP/JSON**: Easy integration with any programming language (173K req/s)
-//! - **gRPC**: Service mesh and microservices integration (163K req/s)
+//! - **HTTP/JSON**: Easy integration with any programming language
+//! - **gRPC**: Service mesh and microservices integration
 //!
 //! All protocols share the same underlying rate limiter, ensuring consistent
 //! rate limiting across different client types. RPS are provided for comparison
@@ -91,7 +91,7 @@
 //!
 //! ```text
 //! ┌─────────────┐   ┌─────────────┐   ┌─────────────┐
-//!     │    HTTP     │   │    gRPC     │
+//! │    HTTP     │   │    gRPC     │   |   Other     |
 //! │  Transport  │   │  Transport  │   │  Transport  │
 //! └──────┬──────┘   └──────┬──────┘   └──────┬──────┘
 //!        │                 │                 │
