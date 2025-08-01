@@ -5,7 +5,7 @@ use tokio::runtime::Runtime;
 fn benchmark_http_protocol(c: &mut Criterion, port: u16) {
     let mut group = c.benchmark_group("protocol_http");
     group.throughput(Throughput::Elements(1));
-    group.measurement_time(Duration::from_secs(10));
+    group.measurement_time(Duration::from_secs(1));
 
     let runtime = Runtime::new().unwrap();
     let client = runtime.block_on(async {
@@ -52,7 +52,7 @@ fn benchmark_grpc_protocol(c: &mut Criterion, port: u16) {
 
     let mut group = c.benchmark_group("protocol_grpc");
     group.throughput(Throughput::Elements(1));
-    group.measurement_time(Duration::from_secs(10));
+    group.measurement_time(Duration::from_secs(1));
 
     let runtime = Runtime::new().unwrap();
     let mut counter = 0u64;

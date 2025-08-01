@@ -4,7 +4,7 @@ use tokio::runtime::Runtime;
 
 fn benchmark_http_throughput(c: &mut Criterion) {
     let mut group = c.benchmark_group("http_throughput");
-    group.measurement_time(Duration::from_secs(10));
+    group.measurement_time(Duration::from_secs(1));
 
     // Create runtime and client once
     let runtime = Runtime::new().unwrap();
@@ -74,7 +74,7 @@ fn benchmark_http_throughput(c: &mut Criterion) {
 fn benchmark_http_connection_reuse(c: &mut Criterion) {
     let mut group = c.benchmark_group("http_connection_reuse");
     group.throughput(Throughput::Elements(1));
-    group.measurement_time(Duration::from_secs(10));
+    group.measurement_time(Duration::from_secs(1));
 
     let runtime = Runtime::new().unwrap();
     let url = "http://127.0.0.1:9091/throttle";

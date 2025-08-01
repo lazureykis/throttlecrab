@@ -32,8 +32,8 @@ fn grpc_throughput(c: &mut Criterion) {
     println!("  Run: ./run-criterion-benchmarks.sh grpc_throughput");
 
     let mut group = c.benchmark_group("grpc_throughput");
-    group.measurement_time(Duration::from_secs(10));
-    group.warm_up_time(Duration::from_secs(2));
+    group.measurement_time(Duration::from_secs(1));
+    group.warm_up_time(Duration::from_millis(100));
 
     let runtime = Runtime::new().unwrap();
 

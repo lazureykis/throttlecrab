@@ -5,8 +5,8 @@ use tokio::runtime::Runtime;
 
 fn benchmark_shared_connection_pool(c: &mut Criterion) {
     let mut group = c.benchmark_group("shared_connection_pool");
-    group.measurement_time(Duration::from_secs(30));
-    group.warm_up_time(Duration::from_secs(3));
+    group.measurement_time(Duration::from_secs(1));
+    group.warm_up_time(Duration::from_millis(100));
 
     let runtime = Runtime::new().unwrap();
 
