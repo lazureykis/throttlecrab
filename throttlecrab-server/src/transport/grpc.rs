@@ -157,7 +157,7 @@ impl RateLimiter for RateLimiterService {
 
         // Convert to actor request
         let actor_request = ActorRequest {
-            key: req.key,
+            key: req.key.clone(),
             max_burst: req.max_burst as i64,
             count_per_period: req.count_per_period as i64,
             period: req.period as i64,
@@ -169,8 +169,12 @@ impl RateLimiter for RateLimiterService {
         let result = match self.limiter.throttle(actor_request).await {
             Ok(result) => {
                 let latency_us = start.elapsed().as_micros() as u64;
-                self.metrics
-                    .record_request(MetricsTransport::Grpc, latency_us, result.allowed);
+                self.metrics.record_request_with_key(
+                    MetricsTransport::Grpc,
+                    latency_us,
+                    result.allowed,
+                    &req.key,
+                );
                 result
             }
             Err(e) => {

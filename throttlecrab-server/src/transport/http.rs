@@ -130,7 +130,7 @@ async fn handle_throttle(
     let timestamp = SystemTime::now();
 
     let internal_req = InternalRequest {
-        key: req.key,
+        key: req.key.clone(),
         max_burst: req.max_burst,
         count_per_period: req.count_per_period,
         period: req.period,
@@ -141,9 +141,12 @@ async fn handle_throttle(
     match state.limiter.throttle(internal_req).await {
         Ok(response) => {
             let latency_us = start.elapsed().as_micros() as u64;
-            state
-                .metrics
-                .record_request(MetricsTransport::Http, latency_us, response.allowed);
+            state.metrics.record_request_with_key(
+                MetricsTransport::Http,
+                latency_us,
+                response.allowed,
+                &req.key,
+            );
             Ok(Json(response))
         }
         Err(e) => {

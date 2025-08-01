@@ -171,11 +171,25 @@ pub(super) async fn process_command(
         _ => return RespValue::Error("ERR invalid command format".to_string()),
     };
 
-    let result = match command.as_str() {
-        "PING" => handle_ping(&command_array),
-        "THROTTLE" => handle_throttle(&command_array, limiter, metrics).await,
-        "QUIT" => RespValue::SimpleString("OK".to_string()),
-        _ => RespValue::Error(format!("ERR unknown command '{command}'")),
+    let (result, key_opt) = match command.as_str() {
+        "PING" => (handle_ping(&command_array), None),
+        "THROTTLE" => {
+            // Extract key for metrics
+            let key = if command_array.len() > 1 {
+                match &command_array[1] {
+                    RespValue::BulkString(Some(k)) => Some(k.clone()),
+                    _ => None,
+                }
+            } else {
+                None
+            };
+            (handle_throttle(&command_array, limiter, metrics).await, key)
+        }
+        "QUIT" => (RespValue::SimpleString("OK".to_string()), None),
+        _ => (
+            RespValue::Error(format!("ERR unknown command '{command}'")),
+            None,
+        ),
     };
 
     let duration = start.elapsed();
@@ -189,7 +203,11 @@ pub(super) async fn process_command(
         _ => true, // Non-throttle commands are considered allowed
     };
 
-    metrics.record_request(MetricsTransport::Redis, latency_us, allowed);
+    if let Some(key) = key_opt {
+        metrics.record_request_with_key(MetricsTransport::Redis, latency_us, allowed, &key);
+    } else {
+        metrics.record_request(MetricsTransport::Redis, latency_us, allowed);
+    }
 
     result
 }
