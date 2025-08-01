@@ -26,7 +26,7 @@ usage() {
     echo "  -h, --help               Show this help message"
     echo ""
     echo "Criterion benchmarks:"
-    echo "  tcp_throughput          - TCP protocol throughput"
+    echo "  http_throughput         - HTTP protocol throughput"
     echo "  connection_pool         - Connection pooling performance"
     echo "  protocol_comparison     - Compare all protocols"
     echo "  grpc_throughput        - gRPC protocol throughput"
@@ -37,7 +37,7 @@ usage() {
     echo ""
     echo "Examples:"
     echo "  $0                                  # Run all Criterion benchmarks"
-    echo "  $0 -t criterion -b tcp_throughput   # Run specific Criterion benchmark"
+    echo "  $0 -t criterion -b http_throughput  # Run specific Criterion benchmark"
     echo "  $0 -t integration                   # Run integration benchmarks"
 }
 
@@ -109,9 +109,9 @@ if [ "$TYPE" = "criterion" ]; then
 
     # Run the benchmarks
     case $BENCH_NAME in
-        tcp_throughput)
-            echo -e "${YELLOW}Running TCP throughput benchmark...${NC}"
-            cargo bench --bench tcp_throughput
+        http_throughput)
+            echo -e "${YELLOW}Running HTTP throughput benchmark...${NC}"
+            cargo bench --bench http_throughput
             ;;
         connection_pool)
             echo -e "${YELLOW}Running connection pool benchmark...${NC}"
@@ -131,7 +131,7 @@ if [ "$TYPE" = "criterion" ]; then
             ;;
         *)
             echo -e "${RED}Unknown benchmark: $BENCH_NAME${NC}"
-            echo "Available benchmarks: tcp_throughput, connection_pool, protocol_comparison, grpc_throughput, all"
+            echo "Available benchmarks: http_throughput, connection_pool, protocol_comparison, grpc_throughput, all"
             exit 1
             ;;
     esac
