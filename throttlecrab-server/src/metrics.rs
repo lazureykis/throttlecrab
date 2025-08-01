@@ -38,7 +38,6 @@ pub struct Metrics {
 
     /// Histogram support
     pub latency_sum_micros: AtomicU64,
-    pub latency_count: AtomicU64,
 
     /// Store metrics
     pub active_keys: AtomicUsize,
@@ -66,7 +65,6 @@ impl Metrics {
             latency_under_1s: AtomicU64::new(0),
             latency_over_1s: AtomicU64::new(0),
             latency_sum_micros: AtomicU64::new(0),
-            latency_count: AtomicU64::new(0),
             active_keys: AtomicUsize::new(0),
             store_evictions: AtomicU64::new(0),
         }
@@ -102,7 +100,6 @@ impl Metrics {
         // Update histogram metrics
         self.latency_sum_micros
             .fetch_add(latency_us, Ordering::Relaxed);
-        self.latency_count.fetch_add(1, Ordering::Relaxed);
     }
 
     /// Update active connection count
@@ -159,7 +156,6 @@ impl Metrics {
         // Update histogram metrics for errors too
         self.latency_sum_micros
             .fetch_add(latency_us, Ordering::Relaxed);
-        self.latency_count.fetch_add(1, Ordering::Relaxed);
     }
 
     /// Get server uptime in seconds
@@ -272,9 +268,15 @@ impl Metrics {
                 + self.latency_under_100ms.load(Ordering::Relaxed)
                 + self.latency_under_1s.load(Ordering::Relaxed)
         ));
+        // Calculate total for +Inf bucket (sum of all buckets)
+        let total_in_buckets = self.latency_under_1ms.load(Ordering::Relaxed)
+            + self.latency_under_10ms.load(Ordering::Relaxed)
+            + self.latency_under_100ms.load(Ordering::Relaxed)
+            + self.latency_under_1s.load(Ordering::Relaxed)
+            + self.latency_over_1s.load(Ordering::Relaxed);
+
         output.push_str(&format!(
-            "throttlecrab_request_duration_bucket{{le=\"+Inf\"}} {}\n",
-            self.total_requests.load(Ordering::Relaxed)
+            "throttlecrab_request_duration_bucket{{le=\"+Inf\"}} {total_in_buckets}\n"
         ));
 
         // Add sum and count for proper histogram
@@ -284,8 +286,7 @@ impl Metrics {
             "throttlecrab_request_duration_sum {latency_sum_seconds:.6}\n"
         ));
         output.push_str(&format!(
-            "throttlecrab_request_duration_count {}\n\n",
-            self.latency_count.load(Ordering::Relaxed)
+            "throttlecrab_request_duration_count {total_in_buckets}\n\n"
         ));
 
         // Store metrics
@@ -414,5 +415,50 @@ mod tests {
         assert!(output.contains("throttlecrab_requests_by_transport{transport=\"http\"} 1"));
         assert!(output.contains("throttlecrab_requests_by_transport{transport=\"grpc\"} 1"));
         assert!(output.contains("throttlecrab_connections_active{transport=\"native\"} 1"));
+    }
+
+    #[test]
+    fn test_counter_consistency() {
+        let metrics = Metrics::new();
+
+        // Record various requests
+        metrics.record_request(Transport::Http, 500, true); // allowed
+        metrics.record_request(Transport::Http, 1500, false); // denied
+        metrics.record_request(Transport::Grpc, 2500, true); // allowed
+        metrics.record_request(Transport::Native, 50000, false); // denied
+        metrics.record_error(Transport::Http, 10000); // error
+
+        // Verify total requests
+        assert_eq!(metrics.total_requests.load(Ordering::Relaxed), 5);
+
+        // Verify transport counters sum to total
+        let transport_sum = metrics.http_requests.load(Ordering::Relaxed)
+            + metrics.grpc_requests.load(Ordering::Relaxed)
+            + metrics.native_requests.load(Ordering::Relaxed);
+        assert_eq!(transport_sum, 5);
+
+        // Verify allowed + denied + errors = total
+        let decision_sum = metrics.requests_allowed.load(Ordering::Relaxed)
+            + metrics.requests_denied.load(Ordering::Relaxed)
+            + metrics.requests_errors.load(Ordering::Relaxed);
+        assert_eq!(decision_sum, 5);
+
+        // Verify histogram buckets sum correctly
+        let bucket_sum = metrics.latency_under_1ms.load(Ordering::Relaxed)
+            + metrics.latency_under_10ms.load(Ordering::Relaxed)
+            + metrics.latency_under_100ms.load(Ordering::Relaxed)
+            + metrics.latency_under_1s.load(Ordering::Relaxed)
+            + metrics.latency_over_1s.load(Ordering::Relaxed);
+        assert_eq!(bucket_sum, 5);
+
+        // Verify specific counts
+        assert_eq!(metrics.requests_allowed.load(Ordering::Relaxed), 2);
+        assert_eq!(metrics.requests_denied.load(Ordering::Relaxed), 2);
+        assert_eq!(metrics.requests_errors.load(Ordering::Relaxed), 1);
+
+        // Verify histogram export consistency
+        let output = metrics.export_prometheus();
+        assert!(output.contains("throttlecrab_request_duration_bucket{le=\"+Inf\"} 5"));
+        assert!(output.contains("throttlecrab_request_duration_count 5"));
     }
 }
