@@ -1,111 +1,69 @@
 use criterion::{BenchmarkId, Criterion, Throughput, criterion_group, criterion_main};
-use std::hint::black_box;
-use std::io::{Read, Write};
-use std::net::TcpStream;
-use std::sync::{Arc, Mutex};
-use std::thread;
+use std::sync::Arc;
+use std::time::Duration;
+use tokio::runtime::Runtime;
 
-/// Native protocol request format
-struct Request {
-    cmd: u8, // 1 = throttle
-    key: String,
-    burst: i64,
-    rate: i64,
-    period: i64,
-    quantity: i64,
-}
+fn benchmark_connection_pool_sizes(c: &mut Criterion) {
+    let mut group = c.benchmark_group("connection_pool_sizes");
+    group.measurement_time(Duration::from_secs(10));
 
-fn make_request(stream: &mut TcpStream, key: &str) -> bool {
-    let request = Request {
-        cmd: 1, // throttle command
-        key: key.to_string(),
-        burst: 100,
-        rate: 1000,
-        period: 60,
-        quantity: 1,
-    };
+    let runtime = Arc::new(Runtime::new().unwrap());
+    let url = "http://127.0.0.1:9091/throttle";
 
-    // Send native protocol request
-    let key_bytes = request.key.as_bytes();
-    let key_len = key_bytes.len().min(255) as u8;
-
-    // Write fixed header (34 bytes)
-    stream.write_all(&[request.cmd]).unwrap(); // cmd: u8
-    stream.write_all(&[key_len]).unwrap(); // key_len: u8
-    stream.write_all(&request.burst.to_le_bytes()).unwrap(); // burst: i64
-    stream.write_all(&request.rate.to_le_bytes()).unwrap(); // rate: i64
-    stream.write_all(&request.period.to_le_bytes()).unwrap(); // period: i64
-    stream.write_all(&request.quantity.to_le_bytes()).unwrap(); // quantity: i64
-
-    // Write key
-    stream.write_all(&key_bytes[..key_len as usize]).unwrap();
-
-    // Read response (34 bytes fixed)
-    let mut response_buf = [0u8; 34];
-    stream.read_exact(&mut response_buf).unwrap();
-
-    // Parse response
-    let ok = response_buf[0];
-    let allowed = response_buf[1];
-    let _limit = i64::from_le_bytes(response_buf[2..10].try_into().unwrap());
-    let _remaining = i64::from_le_bytes(response_buf[10..18].try_into().unwrap());
-    let _retry_after = i64::from_le_bytes(response_buf[18..26].try_into().unwrap());
-    let _reset_after = i64::from_le_bytes(response_buf[26..34].try_into().unwrap());
-
-    ok == 1 && allowed == 1
-}
-
-struct ConnectionPool {
-    connections: Vec<Mutex<TcpStream>>,
-}
-
-impl ConnectionPool {
-    fn new(size: usize, addr: &str) -> Self {
-        let connections = (0..size)
-            .map(|_| {
-                let stream = TcpStream::connect(addr).unwrap();
-                stream.set_nodelay(true).unwrap();
-                Mutex::new(stream)
-            })
-            .collect();
-
-        ConnectionPool { connections }
-    }
-
-    fn with_connection<F, R>(&self, idx: usize, f: F) -> R
-    where
-        F: FnOnce(&mut TcpStream) -> R,
-    {
-        let mut stream = self.connections[idx % self.connections.len()]
-            .lock()
-            .unwrap();
-        f(&mut stream)
-    }
-}
-
-fn bench_connection_pool(c: &mut Criterion) {
-    let mut group = c.benchmark_group("connection_pool");
-
-    for pool_size in [1, 4, 8, 16].iter() {
-        group.throughput(Throughput::Elements(1000));
-
-        // Create connection pool
-        let pool = Arc::new(ConnectionPool::new(*pool_size, "127.0.0.1:9092"));
-
+    // Test different connection pool sizes
+    for pool_size in [1, 5, 10, 20, 50].iter() {
+        group.throughput(Throughput::Elements(100)); // 100 requests per iteration
         group.bench_with_input(
             BenchmarkId::from_parameter(format!("pool_{pool_size}")),
             pool_size,
-            |b, _| {
+            |b, &pool_size| {
+                let client = runtime.block_on(async {
+                    reqwest::Client::builder()
+                        .pool_max_idle_per_host(pool_size)
+                        .pool_idle_timeout(None)
+                        .build()
+                        .unwrap()
+                });
+
                 let mut counter = 0u64;
 
                 b.iter(|| {
-                    let key = format!("pool_key_{counter}");
-                    let idx = counter as usize;
-                    counter += 1;
+                    runtime.block_on(async {
+                        let mut tasks = Vec::with_capacity(100);
 
-                    let result = pool.with_connection(idx, |stream| make_request(stream, &key));
+                        for _ in 0..100 {
+                            let key = format!("bench_key_{counter}");
+                            counter += 1;
 
-                    black_box(result);
+                            let client = client.clone();
+                            let url = url.to_string();
+
+                            let task = tokio::spawn(async move {
+                                let resp = client
+                                    .post(&url)
+                                    .json(&serde_json::json!({
+                                        "key": key,
+                                        "max_burst": 100,
+                                        "count_per_period": 10000,
+                                        "period": 60,
+                                        "quantity": 1
+                                    }))
+                                    .send()
+                                    .await
+                                    .unwrap();
+
+                                let json: serde_json::Value = resp.json().await.unwrap();
+                                json["allowed"].as_bool().unwrap()
+                            });
+
+                            tasks.push(task);
+                        }
+
+                        // Wait for all requests to complete
+                        for task in tasks {
+                            task.await.unwrap();
+                        }
+                    });
                 });
             },
         );
@@ -114,47 +72,97 @@ fn bench_connection_pool(c: &mut Criterion) {
     group.finish();
 }
 
-fn bench_concurrent_pool(c: &mut Criterion) {
-    let mut group = c.benchmark_group("concurrent_pool");
+fn benchmark_concurrent_connections(c: &mut Criterion) {
+    let mut group = c.benchmark_group("concurrent_connections");
+    group.measurement_time(Duration::from_secs(10));
 
-    let num_threads = 8;
-    let pool_size = 16;
+    let runtime = Arc::new(Runtime::new().unwrap());
+    let url = "http://127.0.0.1:9091/throttle";
 
-    group.throughput(Throughput::Elements((num_threads * 1000) as u64));
-
-    group.bench_function("8_threads_16_connections", |b| {
-        let pool = Arc::new(ConnectionPool::new(pool_size, "127.0.0.1:9092"));
-
-        b.iter_custom(|iters| {
-            let requests_per_thread = iters / num_threads as u64;
-            let mut handles = vec![];
-            let start = std::time::Instant::now();
-
-            for thread_id in 0..num_threads {
-                let pool = pool.clone();
-
-                let handle = thread::spawn(move || {
-                    for i in 0..requests_per_thread {
-                        let key = format!("concurrent_{thread_id}_{i}");
-                        let idx = thread_id * requests_per_thread as usize + i as usize;
-
-                        pool.with_connection(idx, |stream| make_request(stream, &key));
-                    }
+    // Test different concurrency levels
+    for concurrency in [1, 10, 50, 100, 200].iter() {
+        group.throughput(Throughput::Elements(*concurrency as u64));
+        group.bench_with_input(
+            BenchmarkId::from_parameter(format!("concurrent_{concurrency}")),
+            concurrency,
+            |b, &concurrency| {
+                let client = runtime.block_on(async {
+                    reqwest::Client::builder()
+                        .pool_max_idle_per_host(concurrency)
+                        .build()
+                        .unwrap()
                 });
 
-                handles.push(handle);
-            }
+                let mut counter = 0u64;
 
-            for handle in handles {
-                handle.join().unwrap();
-            }
+                b.iter(|| {
+                    runtime.block_on(async {
+                        let mut tasks = Vec::with_capacity(concurrency);
 
-            start.elapsed()
-        });
-    });
+                        for _ in 0..concurrency {
+                            let key = format!("bench_key_{counter}");
+                            counter += 1;
+
+                            let client = client.clone();
+                            let url = url.to_string();
+
+                            let task = tokio::spawn(async move {
+                                let resp = client
+                                    .post(&url)
+                                    .json(&serde_json::json!({
+                                        "key": key,
+                                        "max_burst": 100,
+                                        "count_per_period": 10000,
+                                        "period": 60,
+                                        "quantity": 1
+                                    }))
+                                    .send()
+                                    .await
+                                    .unwrap();
+
+                                let json: serde_json::Value = resp.json().await.unwrap();
+                                json["allowed"].as_bool().unwrap()
+                            });
+
+                            tasks.push(task);
+                        }
+
+                        // Wait for all requests to complete
+                        for task in tasks {
+                            task.await.unwrap();
+                        }
+                    });
+                });
+            },
+        );
+    }
 
     group.finish();
 }
 
-criterion_group!(benches, bench_connection_pool, bench_concurrent_pool);
+fn connection_pool_benchmarks(c: &mut Criterion) {
+    println!("Make sure server is running with: cargo run --release -- --http --http-port 9091");
+    println!("Waiting for server to start...");
+    std::thread::sleep(Duration::from_secs(2));
+
+    // Test connection
+    let runtime = Runtime::new().unwrap();
+    let check_result =
+        runtime.block_on(async { reqwest::get("http://127.0.0.1:9091/health").await });
+    match check_result {
+        Ok(_) => println!("Connected to HTTP server on port 9091"),
+        Err(e) => {
+            eprintln!("Failed to connect to HTTP server on port 9091: {e}");
+            eprintln!(
+                "Please start the server with: cargo run --release -- --http --http-port 9091"
+            );
+            return;
+        }
+    }
+
+    benchmark_connection_pool_sizes(c);
+    benchmark_concurrent_connections(c);
+}
+
+criterion_group!(benches, connection_pool_benchmarks);
 criterion_main!(benches);

@@ -49,8 +49,6 @@ cargo install throttlecrab-server
 # Run with HTTP for easy integration
 throttlecrab-server --http --http-port 8080
 
-# Or use native protocol for best performance (up to 183K req/s)
-throttlecrab-server --native --native-port 9090
 ```
 
 ### Client Integration
@@ -98,7 +96,6 @@ For production applications, use your language's HTTP client with connection poo
 - **Multiple Protocols**:
   - **HTTP/JSON**: REST API for easy integration
   - **gRPC**: Service mesh and microservices
-  - **Native binary**: Highest performance, minimal overhead
 - **Shared State**: All protocols share the same rate limiter store
 - **Production Ready**: Health checks, metrics, configurable logging
 - **Flexible Deployment**: Docker, systemd, or standalone binary
@@ -140,13 +137,12 @@ cargo install throttlecrab-server
 throttlecrab-server --http --http-port 8080 --store adaptive
 
 # Run with multiple protocols
-throttlecrab-server --native --http --grpc \
-    --native-port 9090 \
+throttlecrab-server --http --grpc \
     --http-port 8080 \
     --grpc-port 50051
 
 # Run with custom configuration
-throttlecrab-server --native \
+throttlecrab-server --http \
     --store adaptive \
     --store-capacity 1000000 \
     --log-level info
@@ -176,7 +172,6 @@ docker run -d \
   -p 8080:8080 \
   -e THROTTLECRAB_HTTP=true \
   -e THROTTLECRAB_GRPC=false \
-  -e THROTTLECRAB_NATIVE=false \
   -e THROTTLECRAB_STORE=adaptive \
   -e THROTTLECRAB_STORE_CAPACITY=1000000 \
   -e THROTTLECRAB_LOG_LEVEL=info \
@@ -196,7 +191,6 @@ services:
     ports:
       - "8080:8080"   # HTTP
       - "50051:50051" # gRPC
-      - "8072:8072"   # Native
     environment:
       THROTTLECRAB_STORE: "adaptive"
       THROTTLECRAB_STORE_CAPACITY: "100000"
@@ -232,7 +226,7 @@ After=network.target
 [Service]
 Type=simple
 User=throttlecrab
-ExecStart=/usr/local/bin/throttlecrab-server --native --native-port 9090 --store adaptive
+ExecStart=/usr/local/bin/throttlecrab-server --http --http-port 8080 --store adaptive
 Restart=always
 RestartSec=5
 
@@ -275,16 +269,10 @@ See [`throttlecrab-server/proto/throttlecrab.proto`](throttlecrab-server/proto/t
 **Recommendation**: Same as HTTP - use short, efficient keys
 
 
-### Native Binary Protocol
-
-High-performance binary protocol for maximum throughput.
-
-**Key Length**: Maximum 255 bytes (protocol limitation)
-
 
 ## Key Design Best Practices
 
-While ThrottleCrab doesn't enforce key length limits (except for the native protocol's 255-byte limit),
+While ThrottleCrab doesn't enforce key length limits,
 following these practices will maximize performance:
 
 ### Use Short Keys

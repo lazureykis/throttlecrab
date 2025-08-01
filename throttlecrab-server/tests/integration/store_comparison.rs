@@ -14,7 +14,7 @@ pub async fn run_store_comparison(base_workload: WorkloadConfig) -> Result<()> {
     println!("--------------------------------");
 
     for store in &store_types {
-        run_transport_benchmark(Transport::Native, store, base_workload.clone()).await?;
+        run_transport_benchmark(Transport::Http, store, base_workload.clone()).await?;
     }
 
     // Test 2: Memory efficiency test (high key cardinality)
@@ -29,7 +29,7 @@ pub async fn run_store_comparison(base_workload: WorkloadConfig) -> Result<()> {
     };
 
     for store in &store_types {
-        run_transport_benchmark(Transport::Native, store, high_cardinality_workload.clone())
+        run_transport_benchmark(Transport::Http, store, high_cardinality_workload.clone())
             .await?;
     }
 
@@ -46,7 +46,7 @@ pub async fn run_store_comparison(base_workload: WorkloadConfig) -> Result<()> {
 
     for store in &store_types {
         println!("\nTesting {store} store with short TTL keys");
-        run_transport_benchmark(Transport::Native, store, short_ttl_workload.clone()).await?;
+        run_transport_benchmark(Transport::Http, store, short_ttl_workload.clone()).await?;
     }
 
     // Test 4: Burst handling comparison
@@ -66,7 +66,7 @@ pub async fn run_store_comparison(base_workload: WorkloadConfig) -> Result<()> {
     };
 
     for store in &store_types {
-        run_transport_benchmark(Transport::Native, store, burst_workload.clone()).await?;
+        run_transport_benchmark(Transport::Http, store, burst_workload.clone()).await?;
     }
 
     // Test 5: Hotspot handling (Zipfian distribution)
@@ -81,7 +81,7 @@ pub async fn run_store_comparison(base_workload: WorkloadConfig) -> Result<()> {
     };
 
     for store in &store_types {
-        run_transport_benchmark(Transport::Native, store, hotspot_workload.clone()).await?;
+        run_transport_benchmark(Transport::Http, store, hotspot_workload.clone()).await?;
     }
 
     println!("\n=== Store Comparison Summary ===");

@@ -9,7 +9,7 @@ A high-performance rate limiting server with multiple protocol support, built on
 
 ## Features
 
-- **Multiple protocols**: Native binary, HTTP (JSON), and gRPC
+- **Multiple protocols**: HTTP (JSON) and gRPC
 - **High performance**: Lock-free shared state with Tokio async runtime
 - **Production ready**: Health checks, metrics endpoint, configurable logging, systemd support
 - **Flexible deployment**: Docker, binary, or source installation
@@ -93,25 +93,12 @@ THROTTLECRAB_HTTP_PORT=8080 throttlecrab-server --http --http-port 7070
 
 ## Transport Comparison
 
-| Transport | Protocol | Throughput | Latency (P99) | Latency (P50) | Key Length Limit | Use Case |
-|-----------|----------|------------|---------------|---------------|------------------|----------|
-| Native | Binary | 183K req/s | 263 μs | 170 μs | 255 bytes | Maximum performance |
-| HTTP | JSON | 173K req/s | 309 μs | 177 μs | No limit | Easy integration |
-| gRPC | Protobuf | 163K req/s | 370 μs | 186 μs | No limit | Service mesh |
+| Transport | Protocol | Throughput | Latency (P99) | Latency (P50) | Use Case |
+|-----------|----------|------------|---------------|---------------|-----------|
+| HTTP | JSON | 173K req/s | 309 μs | 177 μs | Easy integration |
+| gRPC | Protobuf | 163K req/s | 370 μs | 186 μs | Service mesh |
 
 ## Protocol Documentation
-
-### Native Protocol
-
-Fixed-size binary protocol with minimal overhead:
-- Request: 34 bytes + key length
-- Response: 34 bytes
-- No serialization overhead
-- Direct memory layout
-- **Key length limit: 255 bytes** (protocol uses u8 for length)
-
-For best performance, implement the native protocol in your application or use established HTTP clients with connection pooling.
-
 
 ### HTTP REST API
 
@@ -181,7 +168,7 @@ The project includes several Criterion benchmarks that require running servers. 
 
 The script will:
 1. Build the server in release mode
-2. Start required servers (native on port 9092, gRPC on port 9093)
+2. Start required servers (HTTP on port 9092, gRPC on port 9093)
 3. Run the benchmarks
 4. Clean up servers on exit
 
@@ -194,7 +181,7 @@ Results are saved in `target/criterion/`.
 ```bash
 # Optimal settings for production
 throttlecrab-server \
-    --native --native-port 9090 \
+    --http --http-port 8080 \
     --store adaptive \
     --store-capacity 1000000 \
     --buffer-size 100000 \
@@ -233,7 +220,7 @@ throttlecrab-server \
 
 #### High-throughput API
 ```bash
-throttlecrab-server --native \
+throttlecrab-server --http \
     --store adaptive \
     --store-capacity 5000000 \
     --buffer-size 500000
@@ -248,9 +235,9 @@ throttlecrab-server --http --http-port 8080 \
 
 #### Microservices
 ```bash
-throttlecrab-server --grpc --native \
+throttlecrab-server --grpc --http \
     --grpc-port 50051 \
-    --native-port 9090 \
+    --http-port 8080 \
     --store probabilistic
 ```
 

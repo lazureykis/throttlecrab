@@ -18,7 +18,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added division by zero protection in remaining count calculation
 
 ### Changed
-- Removed client timestamps from all protocols (HTTP, gRPC, Native) - server now always uses its own timestamps
+- Removed client timestamps from all protocols (HTTP, gRPC) - server now always uses its own timestamps
 - Simplified API by removing timestamp parameters from client requests
 - Updated all documentation to reflect server-side timestamp usage
 

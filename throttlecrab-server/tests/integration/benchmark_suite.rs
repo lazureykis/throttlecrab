@@ -105,7 +105,7 @@ impl BenchmarkRunner {
             key_pattern: KeyPattern::Random { pool_size: 10_000 },
         };
 
-        for transport in [Transport::Http, Transport::Grpc, Transport::Native] {
+        for transport in [Transport::Http, Transport::Grpc] {
             run_transport_benchmark(transport, "periodic", workload.clone()).await?;
         }
 
@@ -204,7 +204,7 @@ impl BenchmarkRunner {
         );
         println!("Using Zipfian key distribution (hotspot testing)");
 
-        run_transport_benchmark(Transport::Native, "adaptive", workload).await?;
+        run_transport_benchmark(Transport::Http, "adaptive", workload).await?;
 
         Ok(())
     }

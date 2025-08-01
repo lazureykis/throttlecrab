@@ -5,7 +5,6 @@ use std::time::{Duration, Instant};
 use tokio::sync::Barrier;
 use tokio::task::JoinSet;
 
-use super::connection_pool::NativeConnectionPool;
 use super::transport_tests::{ServerInstance, Transport};
 
 #[derive(Debug, Clone)]
@@ -150,7 +149,6 @@ pub async fn run_high_performance_benchmark(config: BenchmarkConfig) -> Result<(
     let port = match config.transport {
         Transport::Http => 48080,
         Transport::Grpc => 48070,
-        Transport::Native => 48071,
     };
 
     let server = ServerInstance::start(config.transport, port, &config.store_type).await?;
@@ -185,9 +183,6 @@ pub async fn run_high_performance_benchmark(config: BenchmarkConfig) -> Result<(
                 }
                 Transport::Grpc => {
                     Box::new(GrpcWorkerClient::new(port).await?) as Box<dyn WorkerClient>
-                }
-                Transport::Native => {
-                    Box::new(NativeWorkerClient::new(port).await?) as Box<dyn WorkerClient>
                 }
             };
 
@@ -330,25 +325,6 @@ impl WorkerClient for GrpcWorkerClient {
     }
 }
 
-// Native protocol worker client
-struct NativeWorkerClient {
-    pool: NativeConnectionPool,
-}
-
-impl NativeWorkerClient {
-    async fn new(port: u16) -> Result<Self> {
-        // Use a smaller pool for each worker to avoid contention
-        let pool = NativeConnectionPool::new(port, 2);
-        Ok(Self { pool })
-    }
-}
-
-#[async_trait::async_trait]
-impl WorkerClient for NativeWorkerClient {
-    async fn send_request(&self, key: String) -> Result<bool> {
-        self.pool.test_request(key).await
-    }
-}
 
 #[cfg(test)]
 mod tests {
@@ -368,18 +344,4 @@ mod tests {
         Ok(())
     }
 
-    #[tokio::test]
-    async fn test_high_performance_native() -> Result<()> {
-        let config = BenchmarkConfig {
-            transport: Transport::Native,
-            store_type: "adaptive".to_string(),
-            num_threads: 20,
-            requests_per_thread: 5000,
-            key_pattern: KeyPattern::Zipfian { alpha: 1.2 },
-            total_keys: 10000,
-        };
-
-        run_high_performance_benchmark(config).await?;
-        Ok(())
-    }
 }

@@ -16,7 +16,7 @@
 //!
 //! ```bash
 //! # Using CLI arguments
-//! throttlecrab-server --native --native-port 9090
+//! throttlecrab-server --http --http-port 9090
 //!
 //! # Using environment variables
 //! export THROTTLECRAB_HTTP=true
@@ -59,8 +59,6 @@ pub struct TransportConfig {
     pub http: Option<HttpConfig>,
     /// gRPC transport configuration
     pub grpc: Option<GrpcConfig>,
-    /// Native binary protocol transport configuration
-    pub native: Option<NativeConfig>,
 }
 
 /// HTTP transport configuration
@@ -75,15 +73,6 @@ pub struct HttpConfig {
 /// gRPC transport configuration
 #[derive(Debug, Clone, Deserialize)]
 pub struct GrpcConfig {
-    /// Host address to bind to (e.g., "0.0.0.0")
-    pub host: String,
-    /// Port number to listen on
-    pub port: u16,
-}
-
-/// Native binary protocol transport configuration
-#[derive(Debug, Clone, Deserialize)]
-pub struct NativeConfig {
     /// Host address to bind to (e.g., "0.0.0.0")
     pub host: String,
     /// Port number to listen on
@@ -155,9 +144,9 @@ impl std::str::FromStr for StoreType {
 ///
 /// # Examples
 ///
-/// Basic usage with native protocol:
+/// Basic usage with HTTP protocol:
 /// ```bash
-/// throttlecrab-server --native
+/// throttlecrab-server --http
 /// ```
 ///
 /// Multiple transports with custom ports:
@@ -167,7 +156,7 @@ impl std::str::FromStr for StoreType {
 ///
 /// Using adaptive store with debug logging:
 /// ```bash
-/// throttlecrab-server --native --store adaptive --log-level debug
+/// throttlecrab-server --http --store adaptive --log-level debug
 /// ```
 #[derive(Parser, Debug)]
 #[command(
@@ -216,26 +205,6 @@ pub struct Args {
         env = "THROTTLECRAB_GRPC_PORT"
     )]
     pub grpc_port: u16,
-
-    // Native Transport
-    #[arg(long, help = "Enable Native transport", env = "THROTTLECRAB_NATIVE")]
-    pub native: bool,
-    #[arg(
-        long,
-        value_name = "HOST",
-        help = "Native host",
-        default_value = "127.0.0.1",
-        env = "THROTTLECRAB_NATIVE_HOST"
-    )]
-    pub native_host: String,
-    #[arg(
-        long,
-        value_name = "PORT",
-        help = "Native port",
-        default_value_t = 8072,
-        env = "THROTTLECRAB_NATIVE_PORT"
-    )]
-    pub native_port: u16,
 
     // Store Configuration
     #[arg(
@@ -356,7 +325,6 @@ impl Config {
             transports: TransportConfig {
                 http: None,
                 grpc: None,
-                native: None,
             },
             store: StoreConfig {
                 store_type: args.store,
@@ -386,13 +354,6 @@ impl Config {
             });
         }
 
-        if args.native {
-            config.transports.native = Some(NativeConfig {
-                host: args.native_host,
-                port: args.native_port,
-            });
-        }
-
         // Validate configuration
         config.validate()?;
 
@@ -403,9 +364,7 @@ impl Config {
     ///
     /// The server requires at least one transport to be functional.
     pub fn has_any_transport(&self) -> bool {
-        self.transports.http.is_some()
-            || self.transports.grpc.is_some()
-            || self.transports.native.is_some()
+        self.transports.http.is_some() || self.transports.grpc.is_some()
     }
 
     /// Validate the configuration
@@ -423,10 +382,9 @@ impl Config {
                 Available transports:\n  \
                 --http       Enable HTTP transport\n  \
                 --grpc       Enable gRPC transport\n  \
-                --native     Enable Native transport\n\n\
                 Example:\n  \
                 throttlecrab-server --http --http-port 7070\n  \
-                throttlecrab-server --grpc --native\n\n\
+                throttlecrab-server --http --grpc\n\n\
                 For more information, try '--help'"
             ));
         }
@@ -458,10 +416,6 @@ impl Config {
         println!("  THROTTLECRAB_GRPC=true|false          Enable gRPC transport");
         println!("  THROTTLECRAB_GRPC_HOST=<host>         gRPC host [default: 127.0.0.1]");
         println!("  THROTTLECRAB_GRPC_PORT=<port>         gRPC port [default: 8070]");
-        println!();
-        println!("  THROTTLECRAB_NATIVE=true|false        Enable Native transport");
-        println!("  THROTTLECRAB_NATIVE_HOST=<host>       Native host [default: 127.0.0.1]");
-        println!("  THROTTLECRAB_NATIVE_PORT=<port>       Native port [default: 8072]");
         println!();
 
         println!("Store Configuration:");
@@ -548,7 +502,6 @@ mod tests {
             transports: TransportConfig {
                 http: None,
                 grpc: None,
-                native: None,
             },
             store: StoreConfig {
                 store_type: StoreType::Periodic,
@@ -576,7 +529,6 @@ mod tests {
                     port: 8080,
                 }),
                 grpc: None,
-                native: None,
             },
             store: StoreConfig {
                 store_type: StoreType::Periodic,
@@ -607,7 +559,6 @@ mod tests {
                     host: "0.0.0.0".to_string(),
                     port: 50051,
                 }),
-                native: None,
             },
             store: StoreConfig {
                 store_type: StoreType::Adaptive,

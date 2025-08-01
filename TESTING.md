@@ -49,7 +49,7 @@ Configurable test with custom parameters:
 ```
 
 #### Client Performance Test
-Tests native protocol with connection pooling:
+Tests connection pooling with HTTP protocol:
 ```bash
 ./run-client-perf-test.sh
 ```
@@ -139,7 +139,7 @@ perf report
 cargo install flamegraph
 
 # Generate flamegraph
-cargo flamegraph -p throttlecrab-server -- --native
+cargo flamegraph -p throttlecrab-server -- --http
 ```
 
 ## Load Testing

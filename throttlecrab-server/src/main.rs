@@ -12,12 +12,11 @@
 //! # Example
 //!
 //! ```bash
-//! # Start with HTTP and native protocols
-//! throttlecrab-server --http --native --store adaptive
+//! # Start with HTTP protocol
+//! throttlecrab-server --http --store adaptive
 //!
-//! # Start with all protocols and custom configuration
+//! # Start with multiple protocols and custom configuration
 //! throttlecrab-server \
-//!     --native --native-port 9090 \
 //!     --http --http-port 8080 \
 //!     --grpc --grpc-port 50051 \
 //!     --store adaptive \
@@ -41,9 +40,7 @@ use tokio::task::JoinSet;
 
 use crate::config::Config;
 use crate::metrics::Metrics;
-use crate::transport::{
-    Transport, grpc::GrpcTransport, http::HttpTransport, native::NativeTransport,
-};
+use crate::transport::{Transport, grpc::GrpcTransport, http::HttpTransport};
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -92,20 +89,6 @@ async fn main() -> Result<()> {
         transport_tasks.spawn(async move {
             tracing::info!("Starting gRPC transport on {}:{}", host, port);
             let transport = GrpcTransport::new(&host, port, metrics_clone);
-            transport.start(limiter_handle).await
-        });
-    }
-
-    // Start Native transport if enabled
-    if let Some(native_config) = &config.transports.native {
-        let limiter_handle = limiter.clone();
-        let host = native_config.host.clone();
-        let port = native_config.port;
-        let metrics_clone = Arc::clone(&metrics);
-
-        transport_tasks.spawn(async move {
-            tracing::info!("Starting Native transport on {}:{}", host, port);
-            let transport = NativeTransport::new(&host, port, metrics_clone);
             transport.start(limiter_handle).await
         });
     }

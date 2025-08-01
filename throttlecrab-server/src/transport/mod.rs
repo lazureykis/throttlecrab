@@ -6,21 +6,11 @@
 //!
 //! # Available Transports
 //!
-//! - [`native`]: Binary protocol with minimal overhead (best performance)
 //! - [`http`]: REST API with JSON (easy integration)
 //! - [`grpc`]: Protocol Buffers over HTTP/2 (service mesh friendly)
-//!
-//! # Performance Comparison
-//!
-//! | Transport | Throughput | Use Case |
-//! |-----------|------------|----------|
-//! | Native    | 183K req/s | Maximum performance |
-//! | HTTP      | 173K req/s | Web services, easy integration |
-//! | gRPC      | 163K req/s | Microservices, type safety |
 
 pub mod grpc;
 pub mod http;
-pub mod native;
 
 #[cfg(test)]
 mod http_test;

@@ -8,7 +8,6 @@
 //! Each transport protocol converts between its protocol-specific types
 //! and these common types:
 //!
-//! - **Native**: Direct binary serialization
 //! - **HTTP**: JSON serialization
 //! - **gRPC**: Protocol Buffers
 

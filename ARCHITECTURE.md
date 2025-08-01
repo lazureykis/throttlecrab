@@ -12,7 +12,7 @@
 ┌─────────────────▼───────────────▼───────────────▼───────┐
 │                    Transport Layer                       │
 │  ┌─────────────┐ ┌─────────────┐ ┌─────────────┐      │
-│  │   HTTP      │ │    gRPC     │ │Native Binary │ ...  │
+│  │   HTTP      │ │    gRPC     │                       │
 │  └──────┬──────┘ └──────┬──────┘ └──────┬──────┘      │
 └─────────┴───────────────┴───────────────┴──────────────┘
                           │
@@ -211,7 +211,6 @@ throttlecrab-server/src/
     ├── mod.rs           # Transport trait
     ├── http.rs          # HTTP/JSON
     ├── grpc.rs          # gRPC
-    └── native.rs        # Native binary protocol
 
 throttlecrab/src/
 ├── lib.rs               # Library exports

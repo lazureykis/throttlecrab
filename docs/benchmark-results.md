@@ -7,7 +7,7 @@ Last Updated: 2024-12-19
 ThrottleCrab achieves exceptional performance through optimized storage implementations and efficient protocol design:
 
 - **Library Performance**: Up to 12.5M requests/second (21.6x faster than baseline)
-- **Server Performance**: 183K requests/second with native protocol
+- **Server Performance**: 173K requests/second with HTTP protocol
 - **Latency**: Sub-millisecond P99 latency across all protocols (263-370 μs)
 - **Memory Efficiency**: ~100 bytes per active rate limit key
 
@@ -61,7 +61,6 @@ Real-world test results with 32 threads, 10K requests per thread (320K total):
 
 | Protocol | Throughput | Latency P50 | Latency P90 | Latency P99 | Latency P99.9 |
 |----------|------------|-------------|-------------|-------------|---------------|
-| Native | 183,879 req/s | 170 μs | 207 μs | 263 μs | 584 μs |
 | HTTP/JSON | 173,940 req/s | 177 μs | 226 μs | 309 μs | 622 μs |
 | gRPC | 163,814 req/s | 186 μs | 265 μs | 370 μs | 539 μs |
 
@@ -69,7 +68,7 @@ Real-world test results with 32 threads, 10K requests per thread (320K total):
 
 1. **Throughput**: All protocols achieve excellent throughput (163K-183K req/s)
 2. **Latency**: Sub-millisecond P99 latency across all protocols (263-370 μs)
-3. **Native vs HTTP**: Only ~6% performance difference (183K vs 173K req/s)
+3. **HTTP Performance**: Excellent performance with standard tooling
 4. **Consistency**: All protocols achieved 100% success rate with zero failures
 
 ### Test Configuration
@@ -86,14 +85,13 @@ Real-world test results with 32 threads, 10K requests per thread (320K total):
 - **Total requests**: 320,000 per test
 - **Connection pooling**: Enabled
 
-## Native Protocol Efficiency
+## Protocol Efficiency
 
-The native protocol achieves the best performance through:
+HTTP/JSON provides excellent performance with:
 
-- **Request format**: 42 bytes fixed + variable key (max 255 bytes)
-- **Response format**: 34 bytes fixed
-- **Zero serialization overhead**: Direct memory layout
-- **TCP_NODELAY**: Enabled for minimal latency
+- **Standard tooling**: Works with curl, Postman, etc.
+- **Connection pooling**: Reuse connections for efficiency
+- **Universal compatibility**: Any language or platform
 
 ## Recommendations
 
@@ -113,13 +111,13 @@ The native protocol achieves the best performance through:
 
 ### Protocol Selection Guide
 
-1. **Maximum Performance**: Native protocol
-   - Implement directly or use HTTP with connection pooling
-   - 183K requests/second
+1. **Maximum Performance**: HTTP with connection pooling
+   - 173K requests/second
+   - Use established HTTP clients with pooling
 
 2. **Easy Integration**: HTTP/JSON
    - Standard REST API
-   - 173K requests/second (only 6% slower than native)
+   - 173K requests/second
 
 3. **Service Mesh**: gRPC
    - Type-safe clients
