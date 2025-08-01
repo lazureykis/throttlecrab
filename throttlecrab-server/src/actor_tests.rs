@@ -2,6 +2,7 @@
 mod tests {
     use crate::actor::RateLimiterActor;
     use crate::types::ThrottleRequest;
+    use std::sync::Arc;
     use throttlecrab::PeriodicStore;
 
     #[tokio::test]
@@ -10,7 +11,8 @@ mod tests {
             .capacity(1000)
             .cleanup_interval(std::time::Duration::from_secs(60))
             .build();
-        let handle = RateLimiterActor::spawn_periodic(100, store);
+        let metrics = Arc::new(crate::metrics::Metrics::new());
+        let handle = RateLimiterActor::spawn_periodic(100, store, metrics);
 
         // First request should succeed
         let req = ThrottleRequest {
@@ -34,7 +36,8 @@ mod tests {
             .capacity(1000)
             .cleanup_interval(std::time::Duration::from_secs(60))
             .build();
-        let handle = RateLimiterActor::spawn_periodic(100, store);
+        let metrics = Arc::new(crate::metrics::Metrics::new());
+        let handle = RateLimiterActor::spawn_periodic(100, store, metrics);
 
         let req = ThrottleRequest {
             key: "concurrent_test".to_string(),

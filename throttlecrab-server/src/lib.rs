@@ -189,6 +189,7 @@
 
 pub mod actor;
 pub mod config;
+pub mod metrics;
 pub mod store;
 pub mod transport;
 pub mod types;

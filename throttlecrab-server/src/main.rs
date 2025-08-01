@@ -27,6 +27,7 @@
 
 mod actor;
 mod config;
+mod metrics;
 mod store;
 mod transport;
 mod types;
@@ -35,9 +36,11 @@ mod types;
 mod actor_tests;
 
 use anyhow::Result;
+use std::sync::Arc;
 use tokio::task::JoinSet;
 
 use crate::config::Config;
+use crate::metrics::Metrics;
 use crate::transport::{
     Transport, grpc::GrpcTransport, http::HttpTransport, native::NativeTransport,
 };
@@ -55,8 +58,12 @@ async fn main() -> Result<()> {
         )
         .init();
 
+    // Create shared metrics instance
+    let metrics = Arc::new(Metrics::new());
+
     // Create the rate limiter actor with the configured store
-    let limiter = store::create_rate_limiter(&config.store, config.buffer_size);
+    let limiter =
+        store::create_rate_limiter(&config.store, config.buffer_size, Arc::clone(&metrics));
 
     // Create a set to manage multiple transport tasks
     let mut transport_tasks = JoinSet::new();
@@ -66,10 +73,11 @@ async fn main() -> Result<()> {
         let limiter_handle = limiter.clone();
         let host = http_config.host.clone();
         let port = http_config.port;
+        let metrics_clone = Arc::clone(&metrics);
 
         transport_tasks.spawn(async move {
             tracing::info!("Starting HTTP transport on {}:{}", host, port);
-            let transport = HttpTransport::new(&host, port);
+            let transport = HttpTransport::new(&host, port, metrics_clone);
             transport.start(limiter_handle).await
         });
     }
@@ -79,10 +87,11 @@ async fn main() -> Result<()> {
         let limiter_handle = limiter.clone();
         let host = grpc_config.host.clone();
         let port = grpc_config.port;
+        let metrics_clone = Arc::clone(&metrics);
 
         transport_tasks.spawn(async move {
             tracing::info!("Starting gRPC transport on {}:{}", host, port);
-            let transport = GrpcTransport::new(&host, port);
+            let transport = GrpcTransport::new(&host, port, metrics_clone);
             transport.start(limiter_handle).await
         });
     }
@@ -92,10 +101,11 @@ async fn main() -> Result<()> {
         let limiter_handle = limiter.clone();
         let host = native_config.host.clone();
         let port = native_config.port;
+        let metrics_clone = Arc::clone(&metrics);
 
         transport_tasks.spawn(async move {
             tracing::info!("Starting Native transport on {}:{}", host, port);
-            let transport = NativeTransport::new(&host, port);
+            let transport = NativeTransport::new(&host, port, metrics_clone);
             transport.start(limiter_handle).await
         });
     }
