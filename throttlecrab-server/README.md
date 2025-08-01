@@ -197,15 +197,48 @@ throttlecrab-server \
 
 #### Available Metrics
 
-- `throttlecrab_uptime_seconds`: Server uptime
-- `throttlecrab_requests_total`: Total requests processed
-- `throttlecrab_requests_by_transport{transport="..."}`: Requests per transport
+##### System Metrics
+- `throttlecrab_uptime_seconds`: Server uptime in seconds
+- `throttlecrab_requests_total`: Total requests processed across all transports
+- `throttlecrab_requests_by_transport{transport="http|grpc|redis"}`: Requests per transport
+- `throttlecrab_connections_active{transport="http|grpc|redis"}`: Active connections per transport
+
+##### Rate Limiting Metrics
 - `throttlecrab_requests_allowed`: Total allowed requests
 - `throttlecrab_requests_denied`: Total denied requests
-- `throttlecrab_connections_active{transport="..."}`: Active connections per transport
-- `throttlecrab_request_duration_bucket`: Request latency histogram
 - `throttlecrab_active_keys`: Number of active rate limit keys
 - `throttlecrab_store_evictions`: Total key evictions
+
+##### Performance Metrics
+- `throttlecrab_request_duration_bucket`: Request latency histogram (microseconds)
+  - Buckets: 50, 100, 250, 500, 1000, 2500, 5000, 10000, 25000, 50000, 100000
+- `throttlecrab_request_duration_sum`: Total time spent processing requests
+- `throttlecrab_request_duration_count`: Total number of requests
+
+##### Advanced Metrics (v0.4.0+)
+- `throttlecrab_denial_rate`: Current denial rate (0.0-1.0) - useful for alerting
+- `throttlecrab_avg_remaining_ratio`: Average remaining capacity ratio across all keys
+- `throttlecrab_requests_near_limit`: Number of keys using >90% of their capacity
+- `throttlecrab_total_capacity_used`: Sum of all tokens consumed
+- `throttlecrab_total_capacity_available`: Sum of all token limits
+- `throttlecrab_key_distribution_bucket`: Distribution of request counts per key
+  - Buckets: 1, 10, 100, 1000, 10000, 100000, 1000000 requests
+
+#### Metrics Usage Examples
+
+```bash
+# Check denial rate
+curl -s http://localhost:8080/metrics | grep throttlecrab_denial_rate
+
+# Monitor P99 latency with Prometheus query
+histogram_quantile(0.99, rate(throttlecrab_request_duration_bucket[5m]))
+
+# Alert on high denial rate
+throttlecrab_denial_rate > 0.1
+
+# Track keys approaching limits
+throttlecrab_requests_near_limit > 100
+```
 
 ### Store Configuration
 

@@ -124,7 +124,8 @@ For production applications, use connection pooling with your chosen protocol.
   - **HTTP/JSON**: REST API for easy integration
   - **gRPC**: Service mesh and microservices
 - **Shared State**: All protocols share the same rate limiter store
-- **Production Ready**: Health checks, metrics, configurable logging
+- **Production Ready**: Health checks, Prometheus metrics, configurable logging
+- **Advanced Observability**: Comprehensive metrics including denial rates, capacity usage, and key distribution insights
 - **Flexible Deployment**: Docker, systemd, or standalone binary
 
 ## Performance
@@ -349,8 +350,82 @@ throttlecrab-server \
 ### Monitoring
 
 - **Health Check**: `GET /health` returns 200 OK
-- **Metrics**: Internal performance metrics available via logs
+- **Metrics**: Prometheus-compatible metrics via `GET /metrics`
 - **Resource Usage**: Monitor memory usage based on active keys
+
+## Metrics and Observability
+
+ThrottleCrab Server provides comprehensive metrics for monitoring rate limiter performance and behavior. All metrics are exposed in Prometheus format at the `/metrics` endpoint (HTTP only).
+
+### Available Metrics
+
+#### System Metrics
+- `throttlecrab_uptime_seconds`: Server uptime in seconds
+- `throttlecrab_requests_total`: Total number of requests processed
+- `throttlecrab_requests_by_transport{transport="http|grpc|redis"}`: Requests by transport type
+- `throttlecrab_connections_active{transport="http|grpc|redis"}`: Active connections per transport
+
+#### Rate Limiting Metrics
+- `throttlecrab_requests_allowed`: Total allowed requests across all keys
+- `throttlecrab_requests_denied`: Total denied requests across all keys
+- `throttlecrab_active_keys`: Number of active rate limit keys in the store
+- `throttlecrab_store_evictions`: Total key evictions from the store
+
+#### Performance Metrics
+- `throttlecrab_request_duration_bucket`: Request latency histogram (in microseconds)
+  - Buckets: 50μs, 100μs, 250μs, 500μs, 1ms, 2.5ms, 5ms, 10ms, 25ms, 50ms, 100ms
+- `throttlecrab_request_duration_sum`: Total time spent processing requests
+- `throttlecrab_request_duration_count`: Total number of requests in the histogram
+
+#### Advanced Metrics (v0.4.0+)
+- `throttlecrab_denial_rate`: Current denial rate (0.0-1.0)
+- `throttlecrab_avg_remaining_ratio`: Average remaining capacity ratio across all keys
+- `throttlecrab_requests_near_limit`: Number of keys using >90% of their capacity
+- `throttlecrab_total_capacity_used`: Sum of all tokens consumed
+- `throttlecrab_total_capacity_available`: Sum of all token limits
+- `throttlecrab_key_distribution_bucket`: Distribution of request counts per key
+  - Buckets: 1, 10, 100, 1K, 10K, 100K, 1M requests
+
+### Prometheus Integration
+
+```yaml
+# prometheus.yml
+scrape_configs:
+  - job_name: 'throttlecrab'
+    static_configs:
+      - targets: ['localhost:8080']
+    metrics_path: '/metrics'
+    scrape_interval: 15s
+```
+
+### Grafana Dashboard
+
+Key metrics to monitor:
+1. **Request Rate**: `rate(throttlecrab_requests_total[1m])`
+2. **Denial Rate**: `throttlecrab_denial_rate`
+3. **P99 Latency**: `histogram_quantile(0.99, throttlecrab_request_duration_bucket)`
+4. **Active Keys**: `throttlecrab_active_keys`
+5. **Keys Near Limit**: `throttlecrab_requests_near_limit`
+
+### Alerting Examples
+
+```yaml
+# Prometheus alerting rules
+groups:
+  - name: throttlecrab
+    rules:
+      - alert: HighDenialRate
+        expr: throttlecrab_denial_rate > 0.1
+        for: 5m
+        annotations:
+          summary: "High rate limit denial rate ({{ $value }})"
+      
+      - alert: ManyKeysNearLimit
+        expr: throttlecrab_requests_near_limit > 1000
+        for: 5m
+        annotations:
+          summary: "{{ $value }} keys are near their rate limit"
+```
 
 ## Time Handling
 
