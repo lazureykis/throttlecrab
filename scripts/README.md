@@ -4,16 +4,16 @@ This directory contains utility scripts for building and managing ThrottleCrab.
 
 ## Docker Build Script
 
-### docker-push.sh
+### docker-build.sh
 
 Multi-platform Docker build script that supports both local builds and pushing to Docker Hub.
 
 ```bash
 # Build locally (current platform only)
-./scripts/docker-push.sh
+./scripts/docker-build.sh
 
 # Build and push multi-platform images to Docker Hub
-./scripts/docker-push.sh --push
+./scripts/docker-build.sh --push
 ```
 
 Features:
