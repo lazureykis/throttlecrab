@@ -4,7 +4,6 @@ use std::io::{Read, Write};
 use std::net::TcpStream;
 use std::sync::{Arc, Mutex};
 use std::thread;
-use std::time::Duration;
 
 /// Native protocol request format
 struct Request {
