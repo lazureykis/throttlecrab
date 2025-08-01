@@ -98,7 +98,7 @@ impl RespParser {
         if !(0..=MAX_BULK_STRING_SIZE).contains(&length) {
             bail!("Invalid bulk string length: {}", length);
         }
-        
+
         let length = length as usize;
 
         // Check if we have enough data for the string + CRLF
@@ -119,7 +119,7 @@ impl RespParser {
         if self.depth >= MAX_ARRAY_DEPTH {
             bail!("Maximum array nesting depth exceeded");
         }
-        
+
         let (count_line, mut consumed) = match self.read_line(data) {
             Some(v) => v,
             None => return Ok(None),
@@ -137,13 +137,13 @@ impl RespParser {
         if !(0..=MAX_ARRAY_SIZE).contains(&count) {
             bail!("Invalid array size: {}", count);
         }
-        
+
         let count = count as usize;
         let mut elements = Vec::with_capacity(count);
 
         // Increment depth for recursive parsing
         self.depth += 1;
-        
+
         for _ in 0..count {
             match self.parse(&data[consumed..])? {
                 Some((value, element_consumed)) => {
@@ -156,7 +156,7 @@ impl RespParser {
                 }
             }
         }
-        
+
         // Decrement depth after parsing
         self.depth -= 1;
 

@@ -103,7 +103,7 @@ async fn handle_connection(
         }
 
         buffer.extend_from_slice(&temp_buf[..n]);
-        
+
         // Check buffer size limit
         if buffer.len() > MAX_BUFFER_SIZE {
             error!("Redis connection {} exceeded buffer size limit", addr);

@@ -9,7 +9,15 @@ use tokio::time::sleep;
 async fn test_redis_throttle_command() {
     // Start the server
     let mut server = Command::new("cargo")
-        .args(&["run", "-p", "throttlecrab-server", "--", "--redis", "--redis-port", "6380"])
+        .args(&[
+            "run",
+            "-p",
+            "throttlecrab-server",
+            "--",
+            "--redis",
+            "--redis-port",
+            "6380",
+        ])
         .spawn()
         .expect("Failed to start server");
 
@@ -30,31 +38,34 @@ async fn test_redis_throttle_command() {
         .arg(10)  // max_burst
         .arg(100) // count_per_period
         .arg(60)  // period
-        .arg(1);  // quantity
+        .arg(1); // quantity
 
-    let result: Value = cmd.query_async(&mut con).await.expect("Failed to execute command");
+    let result: Value = cmd
+        .query_async(&mut con)
+        .await
+        .expect("Failed to execute command");
 
     // Verify response format
     match result {
         Value::Array(values) => {
             assert_eq!(values.len(), 5, "Expected 5 elements in response");
-            
+
             // Check allowed (should be 1)
             assert_eq!(values[0], Value::Int(1), "Expected allowed = 1");
-            
+
             // Check limit
             assert_eq!(values[1], Value::Int(10), "Expected limit = 10");
-            
+
             // Check remaining (should be 9 after consuming 1)
             assert_eq!(values[2], Value::Int(9), "Expected remaining = 9");
-            
+
             // Check reset_after (should be positive)
             if let Value::Int(reset_after) = &values[3] {
                 assert!(*reset_after > 0, "Expected positive reset_after");
             } else {
                 panic!("Expected integer for reset_after");
             }
-            
+
             // Check retry_after (should be 0 when allowed)
             assert_eq!(values[4], Value::Int(0), "Expected retry_after = 0");
         }
@@ -64,13 +75,19 @@ async fn test_redis_throttle_command() {
     // Test PING command
     let mut ping_cmd = Cmd::new();
     ping_cmd.arg("PING");
-    let ping_result: String = ping_cmd.query_async(&mut con).await.expect("Failed to PING");
+    let ping_result: String = ping_cmd
+        .query_async(&mut con)
+        .await
+        .expect("Failed to PING");
     assert_eq!(ping_result, "PONG");
 
     // Test QUIT command
     let mut quit_cmd = Cmd::new();
     quit_cmd.arg("QUIT");
-    let _: String = quit_cmd.query_async(&mut con).await.expect("Failed to QUIT");
+    let _: String = quit_cmd
+        .query_async(&mut con)
+        .await
+        .expect("Failed to QUIT");
 
     // Kill the server
     server.kill().expect("Failed to kill server");
@@ -80,7 +97,15 @@ async fn test_redis_throttle_command() {
 async fn test_redis_rate_limiting() {
     // Start the server
     let mut server = Command::new("cargo")
-        .args(&["run", "-p", "throttlecrab-server", "--", "--redis", "--redis-port", "6381"])
+        .args(&[
+            "run",
+            "-p",
+            "throttlecrab-server",
+            "--",
+            "--redis",
+            "--redis-port",
+            "6381",
+        ])
         .spawn()
         .expect("Failed to start server");
 
@@ -111,7 +136,10 @@ async fn test_redis_rate_limiting() {
             .arg(60)
             .arg(1);
 
-        let result: Value = cmd.query_async(&mut con).await.expect("Failed to execute command");
+        let result: Value = cmd
+            .query_async(&mut con)
+            .await
+            .expect("Failed to execute command");
 
         if let Value::Array(values) = result {
             if let Value::Int(allowed) = &values[0] {
