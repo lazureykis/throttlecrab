@@ -9,7 +9,7 @@ usage() {
     echo "Usage: $0 [OPTIONS]"
     echo ""
     echo "OPTIONS:"
-    echo "  -t, --transport TRANSPORT    Transport to test (http, grpc, native) [default: http]"
+    echo "  -t, --transport TRANSPORT    Transport to test (http, grpc) [default: http]"
     echo "  -T, --threads NUM           Number of threads [default: 20]"
     echo "  -r, --requests NUM          Requests per thread [default: 5000]"
     echo "  -s, --store TYPE            Store type (adaptive, periodic, probabilistic) [default: adaptive]"
@@ -70,11 +70,11 @@ done
 
 # Validate transport
 case $TRANSPORT in
-    http|grpc|native|all)
+    http|grpc|all)
         ;;
     *)
         echo "Invalid transport: $TRANSPORT"
-        echo "Valid options: http, grpc, native, all"
+        echo "Valid options: http, grpc, all"
         exit 1
         ;;
 esac
@@ -108,9 +108,6 @@ run_transport_test() {
             ;;
         grpc)
             TRANSPORT_ARGS="--grpc --grpc-port $port"
-            ;;
-        native)
-            TRANSPORT_ARGS="--native --native-port $port"
             ;;
     esac
 
@@ -161,11 +158,10 @@ cd integration-tests && cargo build --release
 # Run tests based on transport selection
 if [ "$TRANSPORT" = "all" ]; then
     # Test all transports
-    for t in http grpc native; do
+    for t in http grpc; do
         case $t in
             http) port=$HTTP_PORT ;;
             grpc) port=$GRPC_PORT ;;
-            native) port=$NATIVE_PORT ;;
         esac
         run_transport_test $t $port
         sleep 2  # Brief pause between tests
@@ -175,7 +171,6 @@ else
     case $TRANSPORT in
         http) port=$HTTP_PORT ;;
         grpc) port=$GRPC_PORT ;;
-        native) port=$NATIVE_PORT ;;
     esac
     run_transport_test $TRANSPORT $port
 fi

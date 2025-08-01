@@ -33,7 +33,6 @@ impl Stats {
 pub enum Transport {
     Http,
     Grpc,
-    Native,
 }
 
 impl Transport {
@@ -41,11 +40,7 @@ impl Transport {
         match s.to_lowercase().as_str() {
             "http" => Ok(Transport::Http),
             "grpc" => Ok(Transport::Grpc),
-            "native" => Ok(Transport::Native),
-            _ => anyhow::bail!(
-                "Invalid transport: {}. Valid options: http, grpc, native",
-                s
-            ),
+            _ => anyhow::bail!("Invalid transport: {}. Valid options: http, grpc", s),
         }
     }
 }

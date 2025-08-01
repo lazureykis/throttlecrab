@@ -70,9 +70,6 @@ cd "$(dirname "$0")"
 # Function to cleanup servers on exit
 cleanup() {
     echo -e "\n${YELLOW}Cleaning up servers...${NC}"
-    if [ ! -z "$NATIVE_PID" ]; then
-        kill $NATIVE_PID 2>/dev/null || true
-    fi
     if [ ! -z "$GRPC_PID" ]; then
         kill $GRPC_PID 2>/dev/null || true
     fi
@@ -88,39 +85,28 @@ cargo build --release -p throttlecrab-server
 if [ "$TYPE" = "criterion" ]; then
     # Set trap to cleanup on exit
     trap cleanup EXIT
-    
+
     echo -e "\n${BLUE}Running Criterion benchmarks...${NC}"
-    
+
     # Start servers required for benchmarks
     echo -e "\n${BLUE}Starting servers for benchmarks...${NC}"
-    
-    # Start native server on port 9092
-    echo -e "${YELLOW}Starting native server on port 9092...${NC}"
-    ../target/release/throttlecrab-server --native --native-port 9092 --store adaptive --log-level error 2>/dev/null &
-    NATIVE_PID=$!
-    
+
     # Start gRPC server on port 9093
     echo -e "${YELLOW}Starting gRPC server on port 9093...${NC}"
     ../target/release/throttlecrab-server --grpc --grpc-port 9093 --store adaptive --log-level error 2>/dev/null &
     GRPC_PID=$!
-    
+
     # Wait for servers to start
     echo -e "\n${YELLOW}Waiting for servers to be ready...${NC}"
     sleep 3
-    
-    # Check if servers are running
-    if ! kill -0 $NATIVE_PID 2>/dev/null; then
-        echo -e "${RED}ERROR: Native server failed to start${NC}"
-        exit 1
-    fi
-    
+
     if ! kill -0 $GRPC_PID 2>/dev/null; then
         echo -e "${RED}ERROR: gRPC server failed to start${NC}"
         exit 1
     fi
-    
+
     echo -e "${GREEN}Servers started successfully!${NC}"
-    
+
     # Run the benchmarks
     case $BENCH_NAME in
         tcp_throughput)
@@ -149,16 +135,16 @@ if [ "$TYPE" = "criterion" ]; then
             exit 1
             ;;
     esac
-    
+
     echo -e "\n${GREEN}Criterion benchmarks completed!${NC}"
     echo -e "${BLUE}Results saved in target/criterion/${NC}"
-    
+
 elif [ "$TYPE" = "integration" ]; then
     echo -e "\n${BLUE}Running integration benchmarks...${NC}"
-    
+
     # Build and run integration tests
     cargo test --release -p throttlecrab-server --test '*' -- --nocapture
-    
+
     echo -e "\n${GREEN}Integration benchmarks completed!${NC}"
 else
     echo -e "${RED}Unknown benchmark type: $TYPE${NC}"
