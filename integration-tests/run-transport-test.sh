@@ -82,7 +82,6 @@ esac
 # Set ports for different transports
 HTTP_PORT=58080
 GRPC_PORT=58070
-NATIVE_PORT=58071
 
 # Function to run test for a specific transport
 run_transport_test() {

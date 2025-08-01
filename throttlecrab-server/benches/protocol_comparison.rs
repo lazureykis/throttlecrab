@@ -1,83 +1,45 @@
 use criterion::{Criterion, Throughput, criterion_group, criterion_main};
-use std::io::{Read, Write};
-use std::net::TcpStream;
 use std::time::Duration;
 use tokio::runtime::Runtime;
 
-fn make_native_request(stream: &mut TcpStream, key: &str) -> std::io::Result<bool> {
-    // Write fixed header
-    stream.write_all(&[1u8])?; // cmd
-    stream.write_all(&[key.len() as u8])?; // key_len
-    stream.write_all(&100i64.to_le_bytes())?; // burst
-    stream.write_all(&1000i64.to_le_bytes())?; // rate
-    stream.write_all(&60i64.to_le_bytes())?; // period
-    stream.write_all(&1i64.to_le_bytes())?; // quantity
-    stream.write_all(key.as_bytes())?; // key
-
-    // Read response (34 bytes)
-    let mut response = [0u8; 34];
-    stream.read_exact(&mut response)?;
-
-    Ok(response[1] == 1) // allowed field
-}
-
-// Include the generated protobuf code
-pub mod throttlecrab_proto {
-    tonic::include_proto!("throttlecrab");
-}
-
-use throttlecrab_proto::ThrottleRequest;
-use throttlecrab_proto::rate_limiter_client::RateLimiterClient;
-
-async fn make_grpc_request(
-    client: &mut RateLimiterClient<tonic::transport::Channel>,
-    key: &str,
-) -> Result<bool, tonic::Status> {
-    let request = tonic::Request::new(ThrottleRequest {
-        key: key.to_string(),
-        max_burst: 100,
-        count_per_period: 1000,
-        period: 60,
-        quantity: 1,
-    });
-
-    let response = client.throttle(request).await?;
-    Ok(response.into_inner().allowed)
-}
-
-fn benchmark_native_protocol(c: &mut Criterion, port: u16) {
-    let mut group = c.benchmark_group("protocol_native");
+fn benchmark_http_protocol(c: &mut Criterion, port: u16) {
+    let mut group = c.benchmark_group("protocol_http");
     group.throughput(Throughput::Elements(1));
     group.measurement_time(Duration::from_secs(10));
-    group.warm_up_time(Duration::from_secs(2));
 
-    // For single_request benchmark, we need a persistent connection
-    // but Criterion's b.iter() requires FnMut, so we'll use setup/teardown approach
+    let runtime = Runtime::new().unwrap();
+    let client = runtime.block_on(async {
+        reqwest::Client::builder()
+            .pool_max_idle_per_host(1)
+            .build()
+            .unwrap()
+    });
+
+    let url = format!("http://127.0.0.1:{port}/throttle");
+    let mut counter = 0u64;
+
     group.bench_function("single_request", |b| {
-        // Setup: Create a single persistent connection
-        let mut stream = TcpStream::connect(format!("127.0.0.1:{port}")).unwrap();
-        stream.set_nodelay(true).unwrap();
-        let mut counter = 0u64;
-
         b.iter(|| {
             let key = format!("bench_key_{counter}");
             counter += 1;
-            make_native_request(&mut stream, &key).unwrap()
-        });
-    });
 
-    group.bench_function("batch_100", |b| {
-        // Setup: Create a single persistent connection
-        let mut stream = TcpStream::connect(format!("127.0.0.1:{port}")).unwrap();
-        stream.set_nodelay(true).unwrap();
-        let mut counter = 0u64;
+            runtime.block_on(async {
+                let resp = client
+                    .post(&url)
+                    .json(&serde_json::json!({
+                        "key": key,
+                        "max_burst": 100,
+                        "count_per_period": 1000,
+                        "period": 60,
+                        "quantity": 1
+                    }))
+                    .send()
+                    .await
+                    .unwrap();
 
-        b.iter(|| {
-            for _ in 0..100 {
-                let key = format!("bench_key_{counter}");
-                counter += 1;
-                make_native_request(&mut stream, &key).unwrap();
-            }
+                let json: serde_json::Value = resp.json().await.unwrap();
+                json["allowed"].as_bool().unwrap()
+            })
         });
     });
 
@@ -85,48 +47,39 @@ fn benchmark_native_protocol(c: &mut Criterion, port: u16) {
 }
 
 fn benchmark_grpc_protocol(c: &mut Criterion, port: u16) {
+    use throttlecrab_server::grpc::ThrottleRequest;
+    use throttlecrab_server::grpc::rate_limiter_client::RateLimiterClient;
+
     let mut group = c.benchmark_group("protocol_grpc");
     group.throughput(Throughput::Elements(1));
     group.measurement_time(Duration::from_secs(10));
-    group.warm_up_time(Duration::from_secs(2));
 
     let runtime = Runtime::new().unwrap();
+    let mut counter = 0u64;
+
+    let mut client = runtime.block_on(async {
+        RateLimiterClient::connect(format!("http://127.0.0.1:{port}"))
+            .await
+            .expect("Failed to connect to gRPC server")
+    });
 
     group.bench_function("single_request", |b| {
-        let client = runtime.block_on(async {
-            RateLimiterClient::connect(format!("http://127.0.0.1:{port}"))
-                .await
-                .unwrap()
-        });
-        let mut client = client;
-        let mut counter = 0u64;
-
         b.iter(|| {
             let key = format!("bench_key_{counter}");
             counter += 1;
-            runtime
-                .block_on(make_grpc_request(&mut client, &key))
-                .unwrap()
-        });
-    });
 
-    group.bench_function("batch_100", |b| {
-        let client = runtime.block_on(async {
-            RateLimiterClient::connect(format!("http://127.0.0.1:{port}"))
-                .await
-                .unwrap()
-        });
-        let mut client = client;
-        let mut counter = 0u64;
-
-        b.iter(|| {
             runtime.block_on(async {
-                for _ in 0..100 {
-                    let key = format!("bench_key_{counter}");
-                    counter += 1;
-                    make_grpc_request(&mut client, &key).await.unwrap();
-                }
-            });
+                let request = tonic::Request::new(ThrottleRequest {
+                    key: key.clone(),
+                    max_burst: 100,
+                    count_per_period: 1000,
+                    period: 60,
+                    quantity: 1,
+                });
+
+                let response = client.throttle(request).await.unwrap();
+                response.into_inner().allowed
+            })
         });
     });
 
@@ -135,32 +88,40 @@ fn benchmark_grpc_protocol(c: &mut Criterion, port: u16) {
 
 fn protocol_comparison(c: &mut Criterion) {
     println!("Make sure to run two server instances:");
-    println!("  1. cargo run --release -- --native --native-port 9092");
+    println!("  1. cargo run --release -- --http --http-port 9091");
     println!("  2. cargo run --release -- --grpc --grpc-port 9093");
     println!("Waiting for servers to start...");
     std::thread::sleep(Duration::from_secs(2));
 
-    // Test native connection
-    match TcpStream::connect("127.0.0.1:9092") {
-        Ok(_) => println!("Connected to native server on port 9092"),
+    // Test HTTP connection
+    let runtime = Runtime::new().unwrap();
+    let check_result =
+        runtime.block_on(async { reqwest::get("http://127.0.0.1:9091/health").await });
+    match check_result {
+        Ok(_) => println!("Connected to HTTP server on port 9091"),
         Err(e) => {
-            eprintln!("Failed to connect to native server on port 9092: {e}");
+            eprintln!("Failed to connect to HTTP server on port 9091: {e}");
+            eprintln!(
+                "Please start the server with: cargo run --release -- --http --http-port 9091"
+            );
             return;
         }
     }
 
     // Test gRPC connection
-    let runtime = Runtime::new().unwrap();
-    match runtime.block_on(RateLimiterClient::connect("http://127.0.0.1:9093")) {
-        Ok(_) => println!("Connected to grpc server on port 9093"),
+    match std::net::TcpStream::connect("127.0.0.1:9093") {
+        Ok(_) => println!("Connected to gRPC server on port 9093"),
         Err(e) => {
-            eprintln!("Failed to connect to grpc server on port 9093: {e}");
+            eprintln!("Failed to connect to gRPC server on port 9093: {e}");
+            eprintln!(
+                "Please start the server with: cargo run --release -- --grpc --grpc-port 9093"
+            );
             return;
         }
     }
 
     // Run benchmarks
-    benchmark_native_protocol(c, 9092);
+    benchmark_http_protocol(c, 9091);
     benchmark_grpc_protocol(c, 9093);
 }
 

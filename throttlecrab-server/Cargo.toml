@@ -61,7 +61,7 @@ bincode = "2"
 bytes = { workspace = true }
 
 [[bench]]
-name = "tcp_throughput"
+name = "http_throughput"
 harness = false
 
 [[bench]]

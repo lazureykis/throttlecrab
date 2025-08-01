@@ -3,8 +3,6 @@ use serde_json::json;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{Duration, Instant};
-use tokio::io::{AsyncReadExt, AsyncWriteExt};
-use tokio::net::TcpStream;
 use tokio::sync::Barrier;
 use tokio::task::JoinSet;
 
@@ -183,103 +181,6 @@ async fn grpc_worker(
     Ok(latencies)
 }
 
-async fn native_worker(
-    thread_id: usize,
-    requests_per_thread: usize,
-    port: u16,
-    stats: Arc<Stats>,
-    barrier: Arc<Barrier>,
-    start_flag: Arc<AtomicU64>,
-) -> Result<Vec<Duration>> {
-    use bytes::{BufMut, BytesMut};
-
-    // Create a dedicated connection for this worker (no sharing between threads)
-    let mut stream = TcpStream::connect(format!("127.0.0.1:{port}")).await?;
-    stream.set_nodelay(true)?;
-
-    // Pre-generate key names
-    let mut keys = Vec::with_capacity(requests_per_thread);
-    for i in 0..requests_per_thread {
-        // Use unique keys to avoid rate limiting during performance tests
-        keys.push(format!("key_{thread_id}_req_{i}"));
-    }
-
-    // Wait for all threads to be ready
-    barrier.wait().await;
-
-    // Wait for start signal
-    while start_flag.load(Ordering::Acquire) == 0 {
-        tokio::task::yield_now().await;
-    }
-
-    let mut latencies = Vec::with_capacity(requests_per_thread);
-    let mut request_buffer = BytesMut::with_capacity(256);
-
-    // Send all requests on the same connection
-    for key in keys {
-        let start = Instant::now();
-
-        // Build request
-        request_buffer.clear();
-        request_buffer.put_u8(1); // cmd
-        request_buffer.put_u8(key.len() as u8); // key_len
-        request_buffer.put_i64_le(100); // burst
-        request_buffer.put_i64_le(10); // rate
-        request_buffer.put_i64_le(60); // period in seconds
-        request_buffer.put_i64_le(1); // quantity
-        request_buffer.put_slice(key.as_bytes());
-
-        match async {
-            // Send request
-            stream.write_all(&request_buffer).await?;
-            stream.flush().await?;
-
-            // Read response (34 bytes fixed: 1 + 1 + 8*4)
-            let mut response = [0u8; 34];
-            stream.read_exact(&mut response).await?;
-
-            let ok = response[0];
-            let allowed = response[1];
-
-            Ok::<(bool, bool), anyhow::Error>((ok == 1, allowed == 1))
-        }
-        .await
-        {
-            Ok((ok, allowed)) => {
-                let latency = start.elapsed();
-                latencies.push(latency);
-                stats.total_requests.fetch_add(1, Ordering::Relaxed);
-                stats
-                    .total_latency_us
-                    .fetch_add(latency.as_micros() as u64, Ordering::Relaxed);
-
-                if ok && allowed {
-                    stats.successful.fetch_add(1, Ordering::Relaxed);
-                } else {
-                    stats.rate_limited.fetch_add(1, Ordering::Relaxed);
-                }
-            }
-            Err(e) => {
-                // Connection failed, try to reconnect for next request
-                eprintln!("Native protocol error: {e}");
-                stats.failed.fetch_add(1, Ordering::Relaxed);
-                stats.total_requests.fetch_add(1, Ordering::Relaxed);
-
-                // Try to reconnect
-                match TcpStream::connect(format!("127.0.0.1:{port}")).await {
-                    Ok(new_stream) => {
-                        stream = new_stream;
-                        let _ = stream.set_nodelay(true);
-                    }
-                    Err(_) => break, // Can't reconnect, stop this worker
-                }
-            }
-        }
-    }
-
-    Ok(latencies)
-}
-
 pub async fn run_performance_test(
     num_threads: usize,
     requests_per_thread: usize,
@@ -357,17 +258,6 @@ pub async fn run_performance_test(
                 }
                 Transport::Grpc => {
                     grpc_worker(
-                        thread_id,
-                        requests_per_thread,
-                        port,
-                        stats,
-                        barrier,
-                        start_flag,
-                    )
-                    .await
-                }
-                Transport::Native => {
-                    native_worker(
                         thread_id,
                         requests_per_thread,
                         port,
