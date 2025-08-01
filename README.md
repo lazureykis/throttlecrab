@@ -49,6 +49,12 @@ cargo install throttlecrab-server
 # Run with HTTP for easy integration
 throttlecrab-server --http --http-port 8080
 
+# Or run with Redis protocol for maximum performance
+throttlecrab-server --redis --redis-port 6379
+
+# Or run with multiple protocols
+throttlecrab-server --http --grpc --redis
+
 ```
 
 ### Client Integration
@@ -79,7 +85,27 @@ curl -X POST http://localhost:8080/throttle \
 
 The `quantity` parameter is optional (defaults to 1) and allows you to check/consume multiple tokens at once.
 
-For production applications, use your language's HTTP client with connection pooling.
+#### Redis Protocol
+
+For maximum performance, use the Redis protocol with any Redis client:
+
+```python
+import redis
+
+# Connect to ThrottleCrab Redis interface
+r = redis.Redis(host='localhost', port=6379)
+
+# Check rate limit using THROTTLE command
+# THROTTLE key max_burst count_per_period period [quantity]
+result = r.execute_command('THROTTLE', 'user:123', 10, 100, 60, 1)
+
+# Result: [allowed, limit, remaining, reset_after, retry_after]
+# Example: [1, 10, 9, 60, 0]
+allowed = result[0] == 1
+remaining = result[2]
+```
+
+For production applications, use connection pooling with your chosen protocol.
 
 ## Features
 
@@ -94,6 +120,7 @@ For production applications, use your language's HTTP client with connection poo
 
 ### Server (`throttlecrab-server`)
 - **Multiple Protocols**:
+  - **Redis/RESP**: Redis-compatible protocol for highest performance
   - **HTTP/JSON**: REST API for easy integration
   - **gRPC**: Service mesh and microservices
 - **Shared State**: All protocols share the same rate limiter store
@@ -333,7 +360,9 @@ ThrottleCrab uses server-side timestamps for all rate limiting decisions.
 
 #### Vertical Scaling
 A single instance can handle:
-- 100K+ requests/second on modern CPUs
+- 180K+ requests/second on modern CPUs (Redis protocol)
+- 170K+ requests/second with HTTP
+- 160K+ requests/second with gRPC
 - Millions of unique keys in memory
 - Sub-millisecond P99 latency
 

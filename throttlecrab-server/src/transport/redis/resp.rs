@@ -5,6 +5,10 @@
 use anyhow::{Result, bail};
 use std::str;
 
+const MAX_BULK_STRING_SIZE: i64 = 512 * 1024 * 1024; // 512MB max
+const MAX_ARRAY_SIZE: i64 = 1024 * 1024; // 1M elements max
+const MAX_ARRAY_DEPTH: usize = 128; // Max nesting depth
+
 /// RESP value types
 #[derive(Debug, Clone, PartialEq)]
 pub enum RespValue {
@@ -21,11 +25,13 @@ pub enum RespValue {
 }
 
 /// RESP protocol parser
-pub struct RespParser;
+pub struct RespParser {
+    depth: usize,
+}
 
 impl RespParser {
     pub fn new() -> Self {
-        Self
+        Self { depth: 0 }
     }
 
     /// Parse a RESP value from bytes
@@ -88,6 +94,11 @@ impl RespParser {
             return Ok(Some((RespValue::BulkString(None), consumed)));
         }
 
+        // Prevent integer overflow and enforce size limits
+        if !(0..=MAX_BULK_STRING_SIZE).contains(&length) {
+            bail!("Invalid bulk string length: {}", length);
+        }
+        
         let length = length as usize;
 
         // Check if we have enough data for the string + CRLF
@@ -104,6 +115,11 @@ impl RespParser {
     }
 
     fn parse_array(&mut self, data: &[u8]) -> Result<Option<(RespValue, usize)>> {
+        // Check recursion depth
+        if self.depth >= MAX_ARRAY_DEPTH {
+            bail!("Maximum array nesting depth exceeded");
+        }
+        
         let (count_line, mut consumed) = match self.read_line(data) {
             Some(v) => v,
             None => return Ok(None),
@@ -117,18 +133,32 @@ impl RespParser {
             return Ok(Some((RespValue::Array(vec![]), consumed)));
         }
 
+        // Prevent integer overflow and enforce size limits
+        if !(0..=MAX_ARRAY_SIZE).contains(&count) {
+            bail!("Invalid array size: {}", count);
+        }
+        
         let count = count as usize;
         let mut elements = Vec::with_capacity(count);
 
+        // Increment depth for recursive parsing
+        self.depth += 1;
+        
         for _ in 0..count {
             match self.parse(&data[consumed..])? {
                 Some((value, element_consumed)) => {
                     elements.push(value);
                     consumed += element_consumed;
                 }
-                None => return Ok(None), // Need more data
+                None => {
+                    self.depth -= 1;
+                    return Ok(None); // Need more data
+                }
             }
         }
+        
+        // Decrement depth after parsing
+        self.depth -= 1;
 
         Ok(Some((RespValue::Array(elements), consumed)))
     }

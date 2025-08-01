@@ -105,7 +105,7 @@ async fn main() -> Result<()> {
 
         transport_tasks.spawn(async move {
             tracing::info!("Starting Redis transport on {}:{}", host, port);
-            let transport = RedisTransport::new(&host, port, metrics_clone);
+            let transport = RedisTransport::new(&host, port, metrics_clone)?;
             transport.start(limiter_handle).await
         });
     }

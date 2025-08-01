@@ -48,9 +48,11 @@ pub struct RedisTransport {
 }
 
 impl RedisTransport {
-    pub fn new(host: &str, port: u16, metrics: Arc<Metrics>) -> Self {
-        let addr = format!("{host}:{port}").parse().expect("Invalid address");
-        Self { addr, metrics }
+    pub fn new(host: &str, port: u16, metrics: Arc<Metrics>) -> Result<Self> {
+        let addr = format!("{host}:{port}")
+            .parse()
+            .with_context(|| format!("Invalid address: {host}:{port}"))?;
+        Ok(Self { addr, metrics })
     }
 }
 
@@ -77,6 +79,8 @@ impl Transport for RedisTransport {
     }
 }
 
+const MAX_BUFFER_SIZE: usize = 64 * 1024; // 64KB max buffer per connection
+
 async fn handle_connection(
     mut socket: TcpStream,
     addr: SocketAddr,
@@ -99,6 +103,12 @@ async fn handle_connection(
         }
 
         buffer.extend_from_slice(&temp_buf[..n]);
+        
+        // Check buffer size limit
+        if buffer.len() > MAX_BUFFER_SIZE {
+            error!("Redis connection {} exceeded buffer size limit", addr);
+            return Err(anyhow::anyhow!("Buffer size limit exceeded"));
+        }
 
         // Try to parse RESP values
         while let Some((value, consumed)) = parser.parse(&buffer)? {

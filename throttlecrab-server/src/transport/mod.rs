@@ -20,6 +20,9 @@ mod http_test;
 #[cfg(test)]
 mod redis_test;
 
+#[cfg(test)]
+mod redis_security_test;
+
 use crate::actor::RateLimiterHandle;
 use anyhow::Result;
 use async_trait::async_trait;
