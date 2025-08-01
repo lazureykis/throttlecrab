@@ -242,7 +242,7 @@ WantedBy=multi-user.target
 
 ## Protocol Documentation
 
-### HTTP REST API (Recommended)
+### HTTP REST API
 
 **Endpoint**: `POST /throttle`
 
@@ -284,7 +284,7 @@ High-performance binary protocol for maximum throughput.
 
 ## Key Design Best Practices
 
-While ThrottleCrab doesn't enforce key length limits (except for the native protocol's 255-byte limit), 
+While ThrottleCrab doesn't enforce key length limits (except for the native protocol's 255-byte limit),
 following these practices will maximize performance:
 
 ### Use Short Keys
@@ -298,7 +298,7 @@ following these practices will maximize performance:
 ### Memory Impact
 Each key is stored in memory with ~80-150 bytes overhead:
 - 10-char key: ~90 bytes total
-- 50-char key: ~130 bytes total  
+- 50-char key: ~130 bytes total
 - 100-char key: ~180 bytes total
 
 With 1 million keys:
