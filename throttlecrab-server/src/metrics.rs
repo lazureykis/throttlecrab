@@ -15,7 +15,6 @@ pub struct Metrics {
     pub total_requests: AtomicU64,
 
     /// Requests by transport
-    pub native_requests: AtomicU64,
     pub http_requests: AtomicU64,
     pub grpc_requests: AtomicU64,
 
@@ -25,7 +24,6 @@ pub struct Metrics {
     pub requests_errors: AtomicU64,
 
     /// Active connections by transport
-    pub native_connections: AtomicUsize,
     pub http_connections: AtomicUsize,
     pub grpc_connections: AtomicUsize,
 
@@ -50,13 +48,11 @@ impl Metrics {
         Self {
             start_time: Instant::now(),
             total_requests: AtomicU64::new(0),
-            native_requests: AtomicU64::new(0),
             http_requests: AtomicU64::new(0),
             grpc_requests: AtomicU64::new(0),
             requests_allowed: AtomicU64::new(0),
             requests_denied: AtomicU64::new(0),
             requests_errors: AtomicU64::new(0),
-            native_connections: AtomicUsize::new(0),
             http_connections: AtomicUsize::new(0),
             grpc_connections: AtomicUsize::new(0),
             latency_under_1ms: AtomicU64::new(0),
@@ -76,7 +72,6 @@ impl Metrics {
 
         // Record transport-specific counter
         match transport {
-            Transport::Native => self.native_requests.fetch_add(1, Ordering::Relaxed),
             Transport::Http => self.http_requests.fetch_add(1, Ordering::Relaxed),
             Transport::Grpc => self.grpc_requests.fetch_add(1, Ordering::Relaxed),
         };
@@ -103,18 +98,18 @@ impl Metrics {
     }
 
     /// Update active connection count
+    #[allow(dead_code)]
     pub fn connection_opened(&self, transport: Transport) {
         match transport {
-            Transport::Native => self.native_connections.fetch_add(1, Ordering::Relaxed),
             Transport::Http => self.http_connections.fetch_add(1, Ordering::Relaxed),
             Transport::Grpc => self.grpc_connections.fetch_add(1, Ordering::Relaxed),
         };
     }
 
     /// Update active connection count
+    #[allow(dead_code)]
     pub fn connection_closed(&self, transport: Transport) {
         match transport {
-            Transport::Native => self.native_connections.fetch_sub(1, Ordering::Relaxed),
             Transport::Http => self.http_connections.fetch_sub(1, Ordering::Relaxed),
             Transport::Grpc => self.grpc_connections.fetch_sub(1, Ordering::Relaxed),
         };
@@ -139,7 +134,6 @@ impl Metrics {
 
         // Record transport-specific counter
         match transport {
-            Transport::Native => self.native_requests.fetch_add(1, Ordering::Relaxed),
             Transport::Http => self.http_requests.fetch_add(1, Ordering::Relaxed),
             Transport::Grpc => self.grpc_requests.fetch_add(1, Ordering::Relaxed),
         };
@@ -190,10 +184,6 @@ impl Metrics {
         );
         output.push_str("# TYPE throttlecrab_requests_by_transport counter\n");
         output.push_str(&format!(
-            "throttlecrab_requests_by_transport{{transport=\"native\"}} {}\n",
-            self.native_requests.load(Ordering::Relaxed)
-        ));
-        output.push_str(&format!(
             "throttlecrab_requests_by_transport{{transport=\"http\"}} {}\n",
             self.http_requests.load(Ordering::Relaxed)
         ));
@@ -229,10 +219,6 @@ impl Metrics {
             "# HELP throttlecrab_connections_active Current active connections by transport\n",
         );
         output.push_str("# TYPE throttlecrab_connections_active gauge\n");
-        output.push_str(&format!(
-            "throttlecrab_connections_active{{transport=\"native\"}} {}\n",
-            self.native_connections.load(Ordering::Relaxed)
-        ));
         output.push_str(&format!(
             "throttlecrab_connections_active{{transport=\"http\"}} {}\n",
             self.http_connections.load(Ordering::Relaxed)
@@ -311,7 +297,6 @@ impl Metrics {
 /// Transport type for metrics tracking
 #[derive(Debug, Clone, Copy)]
 pub enum Transport {
-    Native,
     Http,
     Grpc,
 }
@@ -349,11 +334,12 @@ mod tests {
         assert_eq!(metrics.requests_denied.load(Ordering::Relaxed), 0);
         assert_eq!(metrics.latency_under_1ms.load(Ordering::Relaxed), 1);
 
-        // Record a denied Native request
-        metrics.record_request(Transport::Native, 50000, false);
+        // Record a denied gRPC request
+        metrics.record_request(Transport::Grpc, 50000, false);
 
         assert_eq!(metrics.total_requests.load(Ordering::Relaxed), 2);
-        assert_eq!(metrics.native_requests.load(Ordering::Relaxed), 1);
+        assert_eq!(metrics.grpc_requests.load(Ordering::Relaxed), 1);
+        assert_eq!(metrics.http_requests.load(Ordering::Relaxed), 1);
         assert_eq!(metrics.requests_allowed.load(Ordering::Relaxed), 1);
         assert_eq!(metrics.requests_denied.load(Ordering::Relaxed), 1);
         assert_eq!(metrics.latency_under_100ms.load(Ordering::Relaxed), 1);
@@ -370,7 +356,6 @@ mod tests {
 
         assert_eq!(metrics.http_connections.load(Ordering::Relaxed), 2);
         assert_eq!(metrics.grpc_connections.load(Ordering::Relaxed), 1);
-        assert_eq!(metrics.native_connections.load(Ordering::Relaxed), 0);
 
         // Close one HTTP connection
         metrics.connection_closed(Transport::Http);
@@ -403,7 +388,7 @@ mod tests {
         // Add some test data
         metrics.record_request(Transport::Http, 500, true);
         metrics.record_request(Transport::Grpc, 1500, false);
-        metrics.connection_opened(Transport::Native);
+        metrics.connection_opened(Transport::Http);
 
         let output = metrics.export_prometheus();
 
@@ -414,7 +399,7 @@ mod tests {
         assert!(output.contains("throttlecrab_requests_denied 1"));
         assert!(output.contains("throttlecrab_requests_by_transport{transport=\"http\"} 1"));
         assert!(output.contains("throttlecrab_requests_by_transport{transport=\"grpc\"} 1"));
-        assert!(output.contains("throttlecrab_connections_active{transport=\"native\"} 1"));
+        assert!(output.contains("throttlecrab_connections_active{transport=\"http\"} 1"));
     }
 
     #[test]
@@ -425,7 +410,7 @@ mod tests {
         metrics.record_request(Transport::Http, 500, true); // allowed
         metrics.record_request(Transport::Http, 1500, false); // denied
         metrics.record_request(Transport::Grpc, 2500, true); // allowed
-        metrics.record_request(Transport::Native, 50000, false); // denied
+        metrics.record_request(Transport::Grpc, 50000, false); // denied
         metrics.record_error(Transport::Http, 10000); // error
 
         // Verify total requests
@@ -433,8 +418,7 @@ mod tests {
 
         // Verify transport counters sum to total
         let transport_sum = metrics.http_requests.load(Ordering::Relaxed)
-            + metrics.grpc_requests.load(Ordering::Relaxed)
-            + metrics.native_requests.load(Ordering::Relaxed);
+            + metrics.grpc_requests.load(Ordering::Relaxed);
         assert_eq!(transport_sum, 5);
 
         // Verify allowed + denied + errors = total
