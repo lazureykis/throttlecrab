@@ -412,6 +412,249 @@ fn test_edge_cases_zero_remaining() {
 }
 
 #[test]
+fn test_quantity_variations_and_replenishment() {
+    let mut limiter = RateLimiter::new(PeriodicStore::new());
+    let start_time = SystemTime::now();
+
+    // Test 1: Consuming multiple tokens at once
+    // burst=10, rate=60/60s = 1 per second
+    let (allowed, result) = limiter
+        .rate_limit("multi_quantity", 10, 60, 60, 5, start_time)
+        .unwrap();
+    assert!(allowed);
+    assert_eq!(result.remaining, 5, "Should have 5 remaining after using 5");
+
+    // Try to consume 6 tokens (should fail)
+    let (allowed, result) = limiter
+        .rate_limit("multi_quantity", 10, 60, 60, 6, start_time)
+        .unwrap();
+    assert!(!allowed, "Should not allow quantity larger than remaining");
+    assert_eq!(
+        result.remaining, 5,
+        "Remaining should not change on failure"
+    );
+
+    // Consume exactly what's left
+    let (allowed, result) = limiter
+        .rate_limit("multi_quantity", 10, 60, 60, 5, start_time)
+        .unwrap();
+    assert!(allowed);
+    assert_eq!(result.remaining, 0);
+
+    // Test 2: Replenishment with different quantities
+    // After 3 seconds, should have 3 tokens
+    let three_sec = start_time + Duration::from_secs(3);
+    let (allowed, result) = limiter
+        .rate_limit("multi_quantity", 10, 60, 60, 2, three_sec)
+        .unwrap();
+    assert!(allowed, "Should have replenished tokens");
+    assert_eq!(
+        result.remaining, 1,
+        "Should have 1 remaining after using 2 of 3"
+    );
+
+    // Test 3: Gradual replenishment over time
+    // burst=5, rate=120/60s = 2 per second
+    let key = "gradual_replenish";
+
+    // Use all burst
+    for _ in 0..5 {
+        limiter.rate_limit(key, 5, 120, 60, 1, start_time).unwrap();
+    }
+
+    // Check replenishment at different intervals
+    // We need to test each interval independently
+    let test_cases = vec![
+        (500, 1, 0),  // 0.5s = 1 token, use it, 0 remaining
+        (1000, 2, 1), // 1s = 2 tokens, use 1, 1 remaining
+        (1500, 3, 2), // 1.5s = 3 tokens, use 1, 2 remaining
+        (2000, 4, 3), // 2s = 4 tokens, use 1, 3 remaining
+        (2500, 5, 4), // 2.5s = 5 tokens (full), use 1, 4 remaining
+    ];
+
+    for (millis, expected_available, expected_remaining) in test_cases {
+        // Create fresh key for each test
+        let test_key = format!("gradual_replenish_{millis}");
+
+        // Use all burst
+        for _ in 0..5 {
+            limiter
+                .rate_limit(&test_key, 5, 120, 60, 1, start_time)
+                .unwrap();
+        }
+
+        // Check at specific time
+        let time = start_time + Duration::from_millis(millis);
+        let (allowed, result) = limiter.rate_limit(&test_key, 5, 120, 60, 1, time).unwrap();
+
+        if expected_available > 0 {
+            assert!(allowed, "At {millis}ms should be allowed");
+            assert_eq!(
+                result.remaining, expected_remaining,
+                "At {millis}ms, should have {expected_available} tokens available, {expected_remaining} remaining after use"
+            );
+        } else {
+            assert!(!allowed, "At {millis}ms should be blocked");
+        }
+    }
+}
+
+#[test]
+fn test_complex_replenishment_scenarios() {
+    let mut limiter = RateLimiter::new(PeriodicStore::new());
+    let start = SystemTime::now();
+
+    // Scenario 1: Partial burst usage with replenishment
+    // burst=8, rate=240/60s = 4 per second
+    let key = "partial_burst";
+
+    // Use 6 of 8 tokens
+    let (allowed, result) = limiter.rate_limit(key, 8, 240, 60, 6, start).unwrap();
+    assert!(allowed);
+    assert_eq!(result.remaining, 2);
+
+    // After 0.5 seconds, should have 2 + 2 = 4 tokens
+    let half_sec = start + Duration::from_millis(500);
+    let (allowed, result) = limiter.rate_limit(key, 8, 240, 60, 1, half_sec).unwrap();
+    assert!(allowed);
+    assert_eq!(result.remaining, 3);
+
+    // After 1 more second, should have 3 + 4 = 7 tokens
+    let one_half_sec = start + Duration::from_millis(1500);
+    let (allowed, result) = limiter
+        .rate_limit(key, 8, 240, 60, 1, one_half_sec)
+        .unwrap();
+    assert!(allowed);
+    assert_eq!(
+        result.remaining, 6,
+        "Should have 6 remaining after using 1 of 7"
+    );
+
+    // Scenario 2: Slow replenishment rate
+    // burst=3, rate=6/60s = 1 per 10 seconds
+    let key2 = "slow_replenish";
+
+    // Use all burst
+    for _ in 0..3 {
+        limiter.rate_limit(key2, 3, 6, 60, 1, start).unwrap();
+    }
+
+    // After 5 seconds, should still have 0
+    let five_sec = start + Duration::from_secs(5);
+    let (allowed, _) = limiter.rate_limit(key2, 3, 6, 60, 1, five_sec).unwrap();
+    assert!(!allowed, "Should not have token after 5 seconds");
+
+    // After 10 seconds, should have exactly 1
+    let ten_sec = start + Duration::from_secs(10);
+    let (allowed, result) = limiter.rate_limit(key2, 3, 6, 60, 1, ten_sec).unwrap();
+    assert!(allowed);
+    assert_eq!(result.remaining, 0);
+
+    // After 20 seconds from start, should have 1 more token
+    let twenty_sec = start + Duration::from_secs(20);
+    let (allowed, result) = limiter.rate_limit(key2, 3, 6, 60, 1, twenty_sec).unwrap();
+    assert!(allowed);
+    assert_eq!(result.remaining, 0);
+
+    // Scenario 3: Fractional token accumulation
+    // burst=5, rate=100/60s = ~1.67 per second
+    let key3 = "fractional_accumulation";
+
+    // Use all burst
+    for _ in 0..5 {
+        limiter.rate_limit(key3, 5, 100, 60, 1, start).unwrap();
+    }
+
+    // Track exact replenishment - create fresh key for each test
+    let replenish_tests = vec![
+        (600, true, 0),  // 0.6s = 1 token (allowed, 0 remaining)
+        (1200, true, 1), // 1.2s = 2 tokens, use 1, 1 remaining
+        (1800, true, 2), // 1.8s = 3 tokens, use 1, 2 remaining
+        (2400, true, 3), // 2.4s = 4 tokens, use 1, 3 remaining
+        (3000, true, 4), // 3.0s = 5 tokens (full), use 1, 4 remaining
+    ];
+
+    for (millis, should_allow, expected_remaining) in replenish_tests {
+        let test_key = format!("fractional_accumulation_{millis}");
+
+        // Use all burst
+        for _ in 0..5 {
+            limiter.rate_limit(&test_key, 5, 100, 60, 1, start).unwrap();
+        }
+
+        let time = start + Duration::from_millis(millis);
+        let (allowed, result) = limiter.rate_limit(&test_key, 5, 100, 60, 1, time).unwrap();
+        assert_eq!(
+            allowed,
+            should_allow,
+            "At {}ms, request should be {}",
+            millis,
+            if should_allow { "allowed" } else { "blocked" }
+        );
+        if allowed {
+            assert_eq!(
+                result.remaining, expected_remaining,
+                "At {millis}ms, should have {expected_remaining} remaining"
+            );
+        }
+    }
+}
+
+#[test]
+fn test_quantity_edge_cases() {
+    let mut limiter = RateLimiter::new(PeriodicStore::new());
+    let now = SystemTime::now();
+
+    // Test 1: Zero quantity (currently allowed but essentially a no-op)
+    let (allowed, result) = limiter
+        .rate_limit("zero_quantity", 10, 100, 60, 0, now)
+        .unwrap();
+    assert!(allowed, "Zero quantity should be allowed");
+    assert_eq!(result.remaining, 10, "Should not consume any tokens");
+
+    // Test 2: Negative quantity (already tested but let's be explicit)
+    let result = limiter.rate_limit("neg_quantity", 10, 100, 60, -5, now);
+    assert!(result.is_err(), "Negative quantity should be invalid");
+
+    // Test 3: Quantity larger than burst
+    let (allowed, result) = limiter
+        .rate_limit("large_quantity", 5, 100, 60, 10, now)
+        .unwrap();
+    assert!(!allowed, "Quantity larger than burst should be blocked");
+    assert_eq!(
+        result.remaining, 5,
+        "Should still have full burst available"
+    );
+
+    // Test 4: Exact burst size quantity
+    let (allowed, result) = limiter
+        .rate_limit("exact_burst", 10, 100, 60, 10, now)
+        .unwrap();
+    assert!(allowed, "Should allow quantity equal to burst");
+    assert_eq!(result.remaining, 0, "Should have 0 remaining");
+
+    // Test 5: Replenishment with large quantity requests
+    // burst=20, rate=600/60s = 10 per second
+    let key = "large_quantity_replenish";
+
+    // Use 15 tokens
+    let (allowed, result) = limiter.rate_limit(key, 20, 600, 60, 15, now).unwrap();
+    assert!(allowed);
+    assert_eq!(result.remaining, 5);
+
+    // After 1 second, should have 5 + 10 = 15 tokens
+    let one_sec = now + Duration::from_secs(1);
+    let (allowed, result) = limiter.rate_limit(key, 20, 600, 60, 12, one_sec).unwrap();
+    assert!(allowed, "Should allow 12 of 15 available");
+    assert_eq!(result.remaining, 3);
+
+    // Try to take 5 (should fail, only 3 available)
+    let (allowed, result) = limiter.rate_limit(key, 20, 600, 60, 5, one_sec).unwrap();
+    assert!(!allowed);
+    assert_eq!(result.remaining, 3);
+}
+
+#[test]
 fn test_rapid_time_changes() {
     let mut limiter = RateLimiter::new(PeriodicStore::new());
 
