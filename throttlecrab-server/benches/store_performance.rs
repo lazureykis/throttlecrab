@@ -1,4 +1,4 @@
-use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion, Throughput};
+use criterion::{BenchmarkId, Criterion, Throughput, criterion_group, criterion_main};
 use std::hint::black_box;
 use std::sync::Arc;
 use std::time::{Duration, SystemTime};
@@ -23,13 +23,13 @@ fn benchmark_store_operations(c: &mut Criterion) {
             let mut limiter = store.lock();
             let result = limiter.rate_limit(
                 black_box(&key),
-                black_box(100),     // max_burst
-                black_box(1000),    // count_per_period
-                black_box(60),      // period
-                black_box(1),       // quantity
+                black_box(100),  // max_burst
+                black_box(1000), // count_per_period
+                black_box(60),   // period
+                black_box(1),    // quantity
                 black_box(SystemTime::now()),
             );
-            black_box(result);
+            let _ = black_box(result);
         });
     });
 
@@ -49,7 +49,7 @@ fn benchmark_store_operations(c: &mut Criterion) {
                 black_box(1),
                 black_box(SystemTime::now()),
             );
-            black_box(result);
+            let _ = black_box(result);
         });
     });
 
@@ -68,7 +68,7 @@ fn benchmark_store_operations(c: &mut Criterion) {
                 black_box(1),
                 black_box(SystemTime::now()),
             );
-            black_box(result);
+            let _ = black_box(result);
         });
     });
 
@@ -98,20 +98,14 @@ fn benchmark_concurrent_access(c: &mut Criterion) {
 
                         for thread_id in 0..num_threads {
                             let store = store.clone();
-                            let key = format!("concurrent_key_{}_{}", thread_id, counter);
+                            let key = format!("concurrent_key_{thread_id}_{counter}");
                             counter += 1;
 
                             let handle = tokio::spawn(async move {
                                 let mut limiter = store.lock();
-                                let result = limiter.rate_limit(
-                                    &key,
-                                    100,
-                                    1000,
-                                    60,
-                                    1,
-                                    SystemTime::now(),
-                                );
-                                black_box(result);
+                                let result =
+                                    limiter.rate_limit(&key, 100, 1000, 60, 1, SystemTime::now());
+                                let _ = black_box(result);
                             });
 
                             handles.push(handle);
@@ -156,7 +150,7 @@ fn benchmark_memory_patterns(c: &mut Criterion) {
                 black_box(1),
                 black_box(SystemTime::now()),
             );
-            black_box(result);
+            let _ = black_box(result);
         });
     });
 
@@ -180,7 +174,7 @@ fn benchmark_memory_patterns(c: &mut Criterion) {
                 black_box(1),
                 black_box(SystemTime::now()),
             );
-            black_box(result);
+            let _ = black_box(result);
         });
     });
 
@@ -194,13 +188,13 @@ fn benchmark_store_types(c: &mut Criterion) {
 
     // Compare different store types with mixed workload
     let workload_keys: Vec<String> = (0..1000).map(|i| format!("workload_key_{i}")).collect();
-    
+
     group.bench_function("periodic_store", |b| {
         let store = Arc::new(parking_lot::Mutex::new(RateLimiter::new(
             PeriodicStore::new(),
         )));
         let mut idx = 0;
-        
+
         b.iter(|| {
             let key = &workload_keys[idx % workload_keys.len()];
             idx += 1;
@@ -213,7 +207,7 @@ fn benchmark_store_types(c: &mut Criterion) {
                 black_box(1),
                 black_box(SystemTime::now()),
             );
-            black_box(result);
+            let _ = black_box(result);
         });
     });
 
@@ -222,7 +216,7 @@ fn benchmark_store_types(c: &mut Criterion) {
             ProbabilisticStore::new(),
         )));
         let mut idx = 0;
-        
+
         b.iter(|| {
             let key = &workload_keys[idx % workload_keys.len()];
             idx += 1;
@@ -235,7 +229,7 @@ fn benchmark_store_types(c: &mut Criterion) {
                 black_box(1),
                 black_box(SystemTime::now()),
             );
-            black_box(result);
+            let _ = black_box(result);
         });
     });
 
@@ -244,7 +238,7 @@ fn benchmark_store_types(c: &mut Criterion) {
             AdaptiveStore::new(),
         )));
         let mut idx = 0;
-        
+
         b.iter(|| {
             let key = &workload_keys[idx % workload_keys.len()];
             idx += 1;
@@ -257,7 +251,7 @@ fn benchmark_store_types(c: &mut Criterion) {
                 black_box(1),
                 black_box(SystemTime::now()),
             );
-            black_box(result);
+            let _ = black_box(result);
         });
     });
 
@@ -272,7 +266,7 @@ fn benchmark_workload_patterns(c: &mut Criterion) {
     // Test with different request rates
     for request_rate in [100, 1000, 10_000] {
         group.bench_with_input(
-            BenchmarkId::from_parameter(format!("rps_{}", request_rate)),
+            BenchmarkId::from_parameter(format!("rps_{request_rate}")),
             &request_rate,
             |b, &request_rate| {
                 let store = Arc::new(parking_lot::Mutex::new(RateLimiter::new(
@@ -284,7 +278,7 @@ fn benchmark_workload_patterns(c: &mut Criterion) {
                 b.iter(|| {
                     let key = &keys[idx % keys.len()];
                     idx += 1;
-                    
+
                     let mut limiter = store.lock();
                     let result = limiter.rate_limit(
                         black_box(key),
@@ -294,7 +288,7 @@ fn benchmark_workload_patterns(c: &mut Criterion) {
                         black_box(1),
                         black_box(SystemTime::now()),
                     );
-                    black_box(result);
+                    let _ = black_box(result);
                 });
             },
         );
@@ -306,7 +300,7 @@ fn benchmark_workload_patterns(c: &mut Criterion) {
             PeriodicStore::new(),
         )));
         let mut counter = 0u64;
-        
+
         b.iter(|| {
             let burst_size = if counter % 100 < 10 { 10 } else { 1 };
             let key = format!("burst_key_{}", counter / 100);
@@ -321,7 +315,7 @@ fn benchmark_workload_patterns(c: &mut Criterion) {
                 black_box(burst_size),
                 black_box(SystemTime::now()),
             );
-            black_box(result);
+            let _ = black_box(result);
         });
     });
 
@@ -338,26 +332,19 @@ fn benchmark_high_cardinality(c: &mut Criterion) {
     for num_keys in [1_000, 10_000, 100_000] {
         group.throughput(Throughput::Elements(num_keys as u64));
         group.bench_with_input(
-            BenchmarkId::from_parameter(format!("keys_{}", num_keys)),
+            BenchmarkId::from_parameter(format!("keys_{num_keys}")),
             &num_keys,
             |b, &num_keys| {
                 let store = Arc::new(parking_lot::Mutex::new(RateLimiter::new(
                     PeriodicStore::new(),
                 )));
-                
+
                 b.iter(|| {
                     // Fill store with unique keys
                     for i in 0..num_keys {
-                        let key = format!("high_card_key_{}", i);
+                        let key = format!("high_card_key_{i}");
                         let mut limiter = store.lock();
-                        let _ = limiter.rate_limit(
-                            &key,
-                            100,
-                            1000,
-                            60,
-                            1,
-                            SystemTime::now(),
-                        );
+                        let _ = limiter.rate_limit(&key, 100, 1000, 60, 1, SystemTime::now());
                     }
                 });
             },
