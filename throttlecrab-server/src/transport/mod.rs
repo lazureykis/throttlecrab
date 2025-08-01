@@ -8,12 +8,20 @@
 //!
 //! - [`http`]: REST API with JSON (easy integration)
 //! - [`grpc`]: Protocol Buffers over HTTP/2 (service mesh friendly)
+//! - [`redis`]: Redis protocol for native Redis client support
 
 pub mod grpc;
 pub mod http;
+pub mod redis;
 
 #[cfg(test)]
 mod http_test;
+
+#[cfg(test)]
+mod redis_test;
+
+#[cfg(test)]
+mod redis_security_test;
 
 use crate::actor::RateLimiterHandle;
 use anyhow::Result;

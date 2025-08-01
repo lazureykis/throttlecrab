@@ -17,6 +17,7 @@ pub struct Metrics {
     /// Requests by transport
     pub http_requests: AtomicU64,
     pub grpc_requests: AtomicU64,
+    pub redis_requests: AtomicU64,
 
     /// Rate limiting decisions
     pub requests_allowed: AtomicU64,
@@ -26,6 +27,7 @@ pub struct Metrics {
     /// Active connections by transport
     pub http_connections: AtomicUsize,
     pub grpc_connections: AtomicUsize,
+    pub redis_connections: AtomicUsize,
 
     /// Request latency buckets (in microseconds)
     pub latency_under_1ms: AtomicU64,
@@ -50,11 +52,13 @@ impl Metrics {
             total_requests: AtomicU64::new(0),
             http_requests: AtomicU64::new(0),
             grpc_requests: AtomicU64::new(0),
+            redis_requests: AtomicU64::new(0),
             requests_allowed: AtomicU64::new(0),
             requests_denied: AtomicU64::new(0),
             requests_errors: AtomicU64::new(0),
             http_connections: AtomicUsize::new(0),
             grpc_connections: AtomicUsize::new(0),
+            redis_connections: AtomicUsize::new(0),
             latency_under_1ms: AtomicU64::new(0),
             latency_under_10ms: AtomicU64::new(0),
             latency_under_100ms: AtomicU64::new(0),
@@ -74,6 +78,7 @@ impl Metrics {
         match transport {
             Transport::Http => self.http_requests.fetch_add(1, Ordering::Relaxed),
             Transport::Grpc => self.grpc_requests.fetch_add(1, Ordering::Relaxed),
+            Transport::Redis => self.redis_requests.fetch_add(1, Ordering::Relaxed),
         };
 
         // Record allow/deny decision
@@ -103,6 +108,7 @@ impl Metrics {
         match transport {
             Transport::Http => self.http_connections.fetch_add(1, Ordering::Relaxed),
             Transport::Grpc => self.grpc_connections.fetch_add(1, Ordering::Relaxed),
+            Transport::Redis => self.redis_connections.fetch_add(1, Ordering::Relaxed),
         };
     }
 
@@ -112,6 +118,7 @@ impl Metrics {
         match transport {
             Transport::Http => self.http_connections.fetch_sub(1, Ordering::Relaxed),
             Transport::Grpc => self.grpc_connections.fetch_sub(1, Ordering::Relaxed),
+            Transport::Redis => self.redis_connections.fetch_sub(1, Ordering::Relaxed),
         };
     }
 
@@ -136,6 +143,7 @@ impl Metrics {
         match transport {
             Transport::Http => self.http_requests.fetch_add(1, Ordering::Relaxed),
             Transport::Grpc => self.grpc_requests.fetch_add(1, Ordering::Relaxed),
+            Transport::Redis => self.redis_requests.fetch_add(1, Ordering::Relaxed),
         };
 
         // Record latency bucket even for errors
@@ -188,8 +196,12 @@ impl Metrics {
             self.http_requests.load(Ordering::Relaxed)
         ));
         output.push_str(&format!(
-            "throttlecrab_requests_by_transport{{transport=\"grpc\"}} {}\n\n",
+            "throttlecrab_requests_by_transport{{transport=\"grpc\"}} {}\n",
             self.grpc_requests.load(Ordering::Relaxed)
+        ));
+        output.push_str(&format!(
+            "throttlecrab_requests_by_transport{{transport=\"redis\"}} {}\n\n",
+            self.redis_requests.load(Ordering::Relaxed)
         ));
 
         // Allow/Deny decisions
@@ -224,8 +236,12 @@ impl Metrics {
             self.http_connections.load(Ordering::Relaxed)
         ));
         output.push_str(&format!(
-            "throttlecrab_connections_active{{transport=\"grpc\"}} {}\n\n",
+            "throttlecrab_connections_active{{transport=\"grpc\"}} {}\n",
             self.grpc_connections.load(Ordering::Relaxed)
+        ));
+        output.push_str(&format!(
+            "throttlecrab_connections_active{{transport=\"redis\"}} {}\n\n",
+            self.redis_connections.load(Ordering::Relaxed)
         ));
 
         // Latency distribution
@@ -299,6 +315,7 @@ impl Metrics {
 pub enum Transport {
     Http,
     Grpc,
+    Redis,
 }
 
 impl Default for Metrics {

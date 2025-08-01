@@ -34,6 +34,9 @@ parking_lot = "0.12"
 # For importing proto definitions
 throttlecrab-server = { path = "../throttlecrab-server" }
 
+# Redis client
+redis = { version = "0.32.4", features = ["tokio-comp"] }
+
 
 
 [dev-dependencies]

@@ -59,6 +59,8 @@ pub struct TransportConfig {
     pub http: Option<HttpConfig>,
     /// gRPC transport configuration
     pub grpc: Option<GrpcConfig>,
+    /// Redis protocol transport configuration
+    pub redis: Option<RedisConfig>,
 }
 
 /// HTTP transport configuration
@@ -73,6 +75,15 @@ pub struct HttpConfig {
 /// gRPC transport configuration
 #[derive(Debug, Clone, Deserialize)]
 pub struct GrpcConfig {
+    /// Host address to bind to (e.g., "0.0.0.0")
+    pub host: String,
+    /// Port number to listen on
+    pub port: u16,
+}
+
+/// Redis transport configuration
+#[derive(Debug, Clone, Deserialize)]
+pub struct RedisConfig {
     /// Host address to bind to (e.g., "0.0.0.0")
     pub host: String,
     /// Port number to listen on
@@ -206,6 +217,30 @@ pub struct Args {
     )]
     pub grpc_port: u16,
 
+    // Redis Transport
+    #[arg(
+        long,
+        help = "Enable Redis protocol transport",
+        env = "THROTTLECRAB_REDIS"
+    )]
+    pub redis: bool,
+    #[arg(
+        long,
+        value_name = "HOST",
+        help = "Redis host",
+        default_value = "127.0.0.1",
+        env = "THROTTLECRAB_REDIS_HOST"
+    )]
+    pub redis_host: String,
+    #[arg(
+        long,
+        value_name = "PORT",
+        help = "Redis port",
+        default_value_t = 6379,
+        env = "THROTTLECRAB_REDIS_PORT"
+    )]
+    pub redis_port: u16,
+
     // Store Configuration
     #[arg(
         long,
@@ -325,6 +360,7 @@ impl Config {
             transports: TransportConfig {
                 http: None,
                 grpc: None,
+                redis: None,
             },
             store: StoreConfig {
                 store_type: args.store,
@@ -354,6 +390,13 @@ impl Config {
             });
         }
 
+        if args.redis {
+            config.transports.redis = Some(RedisConfig {
+                host: args.redis_host,
+                port: args.redis_port,
+            });
+        }
+
         // Validate configuration
         config.validate()?;
 
@@ -364,7 +407,9 @@ impl Config {
     ///
     /// The server requires at least one transport to be functional.
     pub fn has_any_transport(&self) -> bool {
-        self.transports.http.is_some() || self.transports.grpc.is_some()
+        self.transports.http.is_some()
+            || self.transports.grpc.is_some()
+            || self.transports.redis.is_some()
     }
 
     /// Validate the configuration
@@ -382,9 +427,10 @@ impl Config {
                 Available transports:\n  \
                 --http       Enable HTTP transport\n  \
                 --grpc       Enable gRPC transport\n  \
+                --redis      Enable Redis protocol transport\n  \
                 Example:\n  \
                 throttlecrab-server --http --http-port 7070\n  \
-                throttlecrab-server --http --grpc\n\n\
+                throttlecrab-server --http --grpc --redis\n\n\
                 For more information, try '--help'"
             ));
         }
@@ -416,6 +462,10 @@ impl Config {
         println!("  THROTTLECRAB_GRPC=true|false          Enable gRPC transport");
         println!("  THROTTLECRAB_GRPC_HOST=<host>         gRPC host [default: 127.0.0.1]");
         println!("  THROTTLECRAB_GRPC_PORT=<port>         gRPC port [default: 8070]");
+        println!();
+        println!("  THROTTLECRAB_REDIS=true|false         Enable Redis protocol transport");
+        println!("  THROTTLECRAB_REDIS_HOST=<host>        Redis host [default: 127.0.0.1]");
+        println!("  THROTTLECRAB_REDIS_PORT=<port>        Redis port [default: 6379]");
         println!();
 
         println!("Store Configuration:");
@@ -502,6 +552,7 @@ mod tests {
             transports: TransportConfig {
                 http: None,
                 grpc: None,
+                redis: None,
             },
             store: StoreConfig {
                 store_type: StoreType::Periodic,
@@ -529,6 +580,7 @@ mod tests {
                     port: 8080,
                 }),
                 grpc: None,
+                redis: None,
             },
             store: StoreConfig {
                 store_type: StoreType::Periodic,
@@ -559,6 +611,7 @@ mod tests {
                     host: "0.0.0.0".to_string(),
                     port: 50051,
                 }),
+                redis: None,
             },
             store: StoreConfig {
                 store_type: StoreType::Adaptive,

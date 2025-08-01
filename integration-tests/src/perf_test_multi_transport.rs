@@ -31,6 +31,7 @@ impl Stats {
 pub enum Transport {
     Http,
     Grpc,
+    Redis,
 }
 
 impl Transport {
@@ -38,7 +39,8 @@ impl Transport {
         match s.to_lowercase().as_str() {
             "http" => Ok(Transport::Http),
             "grpc" => Ok(Transport::Grpc),
-            _ => anyhow::bail!("Invalid transport: {}. Valid options: http, grpc", s),
+            "redis" => Ok(Transport::Redis),
+            _ => anyhow::bail!("Invalid transport: {}. Valid options: http, grpc, redis", s),
         }
     }
 }
@@ -181,6 +183,83 @@ async fn grpc_worker(
     Ok(latencies)
 }
 
+async fn redis_worker(
+    thread_id: usize,
+    requests_per_thread: usize,
+    port: u16,
+    stats: Arc<Stats>,
+    barrier: Arc<Barrier>,
+    start_flag: Arc<AtomicU64>,
+) -> Result<Vec<Duration>> {
+    use redis::{Client, Cmd, Value};
+
+    // Connect to Redis server
+    let client = Client::open(format!("redis://127.0.0.1:{port}/"))?;
+    let mut con = client.get_multiplexed_tokio_connection().await?;
+
+    // Pre-generate request parameters
+    let mut requests = Vec::with_capacity(requests_per_thread);
+    for i in 0..requests_per_thread {
+        let key = format!("key_{}_{}", thread_id, i % 1000);
+        requests.push(key);
+    }
+
+    // Wait for all threads to be ready
+    barrier.wait().await;
+
+    // Wait for start signal
+    while start_flag.load(Ordering::Acquire) == 0 {
+        tokio::task::yield_now().await;
+    }
+
+    let mut latencies = Vec::with_capacity(requests_per_thread);
+
+    // Send all requests
+    for key in requests {
+        let start = Instant::now();
+
+        // Send THROTTLE command
+        // THROTTLE key max_burst count_per_period period quantity
+        let mut cmd = Cmd::new();
+        cmd.arg("THROTTLE")
+            .arg(&key)
+            .arg(100)  // max_burst
+            .arg(10)   // count_per_period
+            .arg(60)   // period
+            .arg(1); // quantity
+
+        let result: Result<Value, _> = cmd.query_async(&mut con).await;
+
+        match result {
+            Ok(Value::Array(ref values)) if values.len() == 5 => {
+                let latency = start.elapsed();
+                latencies.push(latency);
+                stats.total_requests.fetch_add(1, Ordering::Relaxed);
+                stats
+                    .total_latency_us
+                    .fetch_add(latency.as_micros() as u64, Ordering::Relaxed);
+
+                // Check if allowed (first element is 1)
+                if let Value::Int(allowed) = &values[0] {
+                    if *allowed == 1 {
+                        stats.successful.fetch_add(1, Ordering::Relaxed);
+                    } else {
+                        stats.rate_limited.fetch_add(1, Ordering::Relaxed);
+                    }
+                }
+            }
+            _ => {
+                stats.failed.fetch_add(1, Ordering::Relaxed);
+                stats.total_requests.fetch_add(1, Ordering::Relaxed);
+            }
+        }
+    }
+
+    // Redis client automatically handles connection cleanup
+
+    Ok(latencies)
+}
+
 pub async fn run_performance_test(
     num_threads: usize,
     requests_per_thread: usize,
@@ -258,6 +337,17 @@ pub async fn run_performance_test(
                 }
                 Transport::Grpc => {
                     grpc_worker(
+                        thread_id,
+                        requests_per_thread,
+                        port,
+                        stats,
+                        barrier,
+                        start_flag,
+                    )
+                    .await
+                }
+                Transport::Redis => {
+                    redis_worker(
                         thread_id,
                         requests_per_thread,
                         port,

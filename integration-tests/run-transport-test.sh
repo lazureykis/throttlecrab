@@ -70,11 +70,11 @@ done
 
 # Validate transport
 case $TRANSPORT in
-    http|grpc|all)
+    http|grpc|redis|all)
         ;;
     *)
         echo "Invalid transport: $TRANSPORT"
-        echo "Valid options: http, grpc, all"
+        echo "Valid options: http, grpc, redis, all"
         exit 1
         ;;
 esac
@@ -82,6 +82,7 @@ esac
 # Set ports for different transports
 HTTP_PORT=58080
 GRPC_PORT=58070
+REDIS_PORT=58060
 
 # Function to run test for a specific transport
 run_transport_test() {
@@ -107,6 +108,9 @@ run_transport_test() {
             ;;
         grpc)
             TRANSPORT_ARGS="--grpc --grpc-port $port"
+            ;;
+        redis)
+            TRANSPORT_ARGS="--redis --redis-port $port"
             ;;
     esac
 
@@ -157,10 +161,11 @@ cd integration-tests && cargo build --release
 # Run tests based on transport selection
 if [ "$TRANSPORT" = "all" ]; then
     # Test all transports
-    for t in http grpc; do
+    for t in http grpc redis; do
         case $t in
             http) port=$HTTP_PORT ;;
             grpc) port=$GRPC_PORT ;;
+            redis) port=$REDIS_PORT ;;
         esac
         run_transport_test $t $port
         sleep 2  # Brief pause between tests
@@ -170,6 +175,7 @@ else
     case $TRANSPORT in
         http) port=$HTTP_PORT ;;
         grpc) port=$GRPC_PORT ;;
+        redis) port=$REDIS_PORT ;;
     esac
     run_transport_test $TRANSPORT $port
 fi

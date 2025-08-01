@@ -15,7 +15,7 @@ Tests the performance of different transport protocols:
 # Test specific transport with custom parameters
 ./run-transport-test.sh -t http -T 32 -r 10000
 
-# Available transports: http, grpc
+# Available transports: http, grpc, redis
 ```
 
 ## Test Binary
@@ -30,7 +30,7 @@ cargo run --release -- perf-test --threads 32 --requests 10000 --transport http
 ## Requirements
 
 - ThrottleCrab server must be built in release mode
-- Ports must be available (default: 58080 for HTTP, 58070 for gRPC, etc.)
+- Ports must be available (default: 58080 for HTTP, 58070 for gRPC, 58060 for Redis)
 - For best results, run on a machine with multiple cores
 
 ## Performance Tips
