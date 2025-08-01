@@ -40,7 +40,7 @@ impl Transport {
             "http" => Ok(Transport::Http),
             "grpc" => Ok(Transport::Grpc),
             "redis" => Ok(Transport::Redis),
-            _ => anyhow::bail!("Invalid transport: {}. Valid options: http, grpc", s),
+            _ => anyhow::bail!("Invalid transport: {}. Valid options: http, grpc, redis", s),
         }
     }
 }

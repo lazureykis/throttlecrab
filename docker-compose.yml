@@ -7,10 +7,12 @@ services:
     ports:
       - "8080:8080"   # HTTP
       - "50051:50051" # gRPC
+      - "6379:6379"   # Redis
     environment:
       # Transport configuration
       THROTTLECRAB_HTTP: "true"
       THROTTLECRAB_GRPC: "true"
+      THROTTLECRAB_REDIS: "true"
       
       # Store configuration
       THROTTLECRAB_STORE: "adaptive"
