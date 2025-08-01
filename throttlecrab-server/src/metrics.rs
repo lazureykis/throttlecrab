@@ -3,8 +3,68 @@
 //! This module provides lightweight metrics collection using atomic counters.
 //! Designed for minimal overhead and zero allocations in the hot path.
 
+use std::collections::HashMap;
+use std::sync::Mutex;
 use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
-use std::time::Instant;
+use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
+
+/// Maximum length allowed for rate limit keys
+const MAX_KEY_LENGTH: usize = 256;
+
+/// Tracks top N denied keys using HashMap for counts
+pub(crate) struct TopDeniedKeys {
+    counts: HashMap<String, u64>,
+    max_size: usize,
+}
+
+impl TopDeniedKeys {
+    fn new(max_size: usize) -> Self {
+        Self {
+            counts: HashMap::with_capacity(max_size * 2),
+            max_size,
+        }
+    }
+
+    fn update(&mut self, key: String) {
+        // Validate key length to prevent memory exhaustion
+        if key.len() > MAX_KEY_LENGTH {
+            return;
+        }
+
+        // Update count
+        *self.counts.entry(key).or_insert(0) += 1;
+
+        // Periodically clean up if we have too many entries
+        if self.counts.len() > self.max_size * 3 {
+            self.cleanup();
+        }
+    }
+
+    fn cleanup(&mut self) {
+        if self.counts.len() <= self.max_size {
+            return;
+        }
+
+        // Get all entries and sort by count
+        let mut entries: Vec<_> = self.counts.drain().collect();
+        entries.sort_by(|a, b| b.1.cmp(&a.1));
+
+        // Keep only top max_size entries
+        entries.truncate(self.max_size);
+        self.counts = entries.into_iter().collect();
+    }
+
+    fn get_top(&self) -> Vec<(String, u64)> {
+        let mut entries: Vec<_> = self.counts.iter().map(|(k, v)| (k.clone(), *v)).collect();
+
+        // Sort by count descending
+        entries.sort_by(|a, b| b.1.cmp(&a.1));
+
+        // Take only top N
+        entries.truncate(self.max_size);
+        entries
+    }
+}
 
 /// Core metrics collected by the server
 pub struct Metrics {
@@ -42,11 +102,33 @@ pub struct Metrics {
     /// Store metrics
     pub active_keys: AtomicUsize,
     pub store_evictions: AtomicU64,
+
+    /// Advanced metrics
+    pub(crate) top_denied_keys: Mutex<TopDeniedKeys>,
+    pub denial_window_start: AtomicU64,
+    pub requests_in_window: AtomicU64,
+    pub denials_in_window: AtomicU64,
+    pub requests_per_minute: Mutex<[AtomicU64; 60]>,
+    pub current_minute: AtomicUsize,
+    pub last_cleanup_duration_micros: AtomicU64,
+    pub last_cleanup_evicted: AtomicU64,
 }
 
 impl Metrics {
     /// Create a new metrics instance
     pub fn new() -> Self {
+        let now = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_secs();
+
+        // Initialize requests_per_minute array
+        let mut rpm_array = Vec::with_capacity(60);
+        for _ in 0..60 {
+            rpm_array.push(AtomicU64::new(0));
+        }
+        let rpm_array: [AtomicU64; 60] = rpm_array.try_into().unwrap();
+
         Self {
             start_time: Instant::now(),
             total_requests: AtomicU64::new(0),
@@ -67,6 +149,77 @@ impl Metrics {
             latency_sum_micros: AtomicU64::new(0),
             active_keys: AtomicUsize::new(0),
             store_evictions: AtomicU64::new(0),
+            top_denied_keys: Mutex::new(TopDeniedKeys::new(100)),
+            denial_window_start: AtomicU64::new(now),
+            requests_in_window: AtomicU64::new(0),
+            denials_in_window: AtomicU64::new(0),
+            requests_per_minute: Mutex::new(rpm_array),
+            current_minute: AtomicUsize::new((now / 60) as usize),
+            last_cleanup_duration_micros: AtomicU64::new(0),
+            last_cleanup_evicted: AtomicU64::new(0),
+        }
+    }
+
+    /// Record a request and its latency with key information
+    pub fn record_request_with_key(
+        &self,
+        transport: Transport,
+        latency_us: u64,
+        allowed: bool,
+        key: &str,
+    ) {
+        // Update all the metrics that don't need the key
+        self.record_request(transport, latency_us, allowed);
+
+        // Update advanced metrics
+        let now = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_secs();
+
+        // Update denial window metrics
+        let window_start = self.denial_window_start.load(Ordering::Relaxed);
+        if now - window_start > 300 {
+            // Reset 5-minute window
+            self.denial_window_start.store(now, Ordering::Relaxed);
+            self.requests_in_window.store(1, Ordering::Relaxed);
+            self.denials_in_window
+                .store(if allowed { 0 } else { 1 }, Ordering::Relaxed);
+        } else {
+            self.requests_in_window.fetch_add(1, Ordering::Relaxed);
+            if !allowed {
+                self.denials_in_window.fetch_add(1, Ordering::Relaxed);
+            }
+        }
+
+        // Update requests per minute
+        let current_minute = (now / 60) as usize;
+        let last_minute = self.current_minute.load(Ordering::Relaxed);
+
+        if current_minute != last_minute {
+            // Clear old minutes if we've jumped ahead
+            if let Ok(rpm) = self.requests_per_minute.lock() {
+                let diff = current_minute.wrapping_sub(last_minute);
+                if diff > 0 && diff < 60 {
+                    for i in 1..=diff.min(60) {
+                        let idx = (last_minute + i) % 60;
+                        rpm[idx].store(0, Ordering::Relaxed);
+                    }
+                }
+            }
+            self.current_minute.store(current_minute, Ordering::Relaxed);
+        }
+
+        if let Ok(rpm) = self.requests_per_minute.lock() {
+            let idx = current_minute % 60;
+            rpm[idx].fetch_add(1, Ordering::Relaxed);
+        }
+
+        // Update top denied keys if request was denied
+        if !allowed {
+            if let Ok(mut top_keys) = self.top_denied_keys.lock() {
+                top_keys.update(key.to_string());
+            }
         }
     }
 
@@ -160,9 +313,59 @@ impl Metrics {
             .fetch_add(latency_us, Ordering::Relaxed);
     }
 
+    /// Record store cleanup metrics
+    #[allow(dead_code)]
+    pub fn record_cleanup(&self, duration: Duration, evicted_count: usize) {
+        self.last_cleanup_duration_micros
+            .store(duration.as_micros() as u64, Ordering::Relaxed);
+        self.last_cleanup_evicted
+            .store(evicted_count as u64, Ordering::Relaxed);
+    }
+
+    /// Get current requests per minute
+    pub fn get_requests_per_minute(&self) -> u64 {
+        if let Ok(rpm) = self.requests_per_minute.lock() {
+            rpm.iter().map(|a| a.load(Ordering::Relaxed)).sum()
+        } else {
+            0
+        }
+    }
+
+    /// Get denial rate percentage
+    pub fn get_denial_rate_percent(&self) -> f64 {
+        let requests = self.requests_in_window.load(Ordering::Relaxed);
+        let denials = self.denials_in_window.load(Ordering::Relaxed);
+
+        if requests == 0 {
+            0.0
+        } else {
+            (denials as f64 / requests as f64) * 100.0
+        }
+    }
+
     /// Get server uptime in seconds
     pub fn uptime_seconds(&self) -> u64 {
         self.start_time.elapsed().as_secs()
+    }
+
+    /// Escape a string for use as a Prometheus label value
+    fn escape_prometheus_label(s: &str) -> String {
+        let mut result = String::with_capacity(s.len() * 2);
+        for ch in s.chars() {
+            match ch {
+                '"' => result.push_str("\\\""),
+                '\\' => result.push_str("\\\\"),
+                '\n' => result.push_str("\\n"),
+                '\r' => result.push_str("\\r"),
+                '\t' => result.push_str("\\t"),
+                // Control characters
+                c if c.is_control() => {
+                    result.push_str(&format!("\\x{:02x}", c as u8));
+                }
+                c => result.push(c),
+            }
+        }
+        result
     }
 
     /// Export metrics in Prometheus text format
@@ -302,8 +505,71 @@ impl Metrics {
         output.push_str("# HELP throttlecrab_store_evictions Total number of key evictions\n");
         output.push_str("# TYPE throttlecrab_store_evictions counter\n");
         output.push_str(&format!(
-            "throttlecrab_store_evictions {}\n",
+            "throttlecrab_store_evictions {}\n\n",
             self.store_evictions.load(Ordering::Relaxed)
+        ));
+
+        // Advanced metrics
+
+        // Top denied keys
+        output.push_str("# HELP throttlecrab_top_denied_keys Top keys by denial count\n");
+        output.push_str("# TYPE throttlecrab_top_denied_keys gauge\n");
+        if let Ok(top_keys) = self.top_denied_keys.lock() {
+            for (rank, (key, count)) in top_keys.get_top().iter().enumerate() {
+                output.push_str(&format!(
+                    "throttlecrab_top_denied_keys{{key=\"{}\",rank=\"{}\"}} {}\n",
+                    Self::escape_prometheus_label(key),
+                    rank + 1,
+                    count
+                ));
+            }
+        }
+        output.push('\n');
+
+        // Denial rate
+        output.push_str("# HELP throttlecrab_denial_rate_percent Percentage of requests denied in last 5 minutes\n");
+        output.push_str("# TYPE throttlecrab_denial_rate_percent gauge\n");
+        output.push_str(&format!(
+            "throttlecrab_denial_rate_percent {:.2}\n\n",
+            self.get_denial_rate_percent()
+        ));
+
+        // Requests per minute
+        output.push_str(
+            "# HELP throttlecrab_requests_per_minute Total requests in the last minute\n",
+        );
+        output.push_str("# TYPE throttlecrab_requests_per_minute gauge\n");
+        output.push_str(&format!(
+            "throttlecrab_requests_per_minute {}\n\n",
+            self.get_requests_per_minute()
+        ));
+
+        // Store performance metrics
+        output.push_str(
+            "# HELP throttlecrab_cleanup_duration_seconds Duration of last cleanup operation\n",
+        );
+        output.push_str("# TYPE throttlecrab_cleanup_duration_seconds gauge\n");
+        let cleanup_duration_secs =
+            self.last_cleanup_duration_micros.load(Ordering::Relaxed) as f64 / 1_000_000.0;
+        output.push_str(&format!(
+            "throttlecrab_cleanup_duration_seconds {cleanup_duration_secs:.6}\n\n"
+        ));
+
+        output.push_str("# HELP throttlecrab_last_cleanup_evicted_keys Number of keys evicted in last cleanup\n");
+        output.push_str("# TYPE throttlecrab_last_cleanup_evicted_keys gauge\n");
+        output.push_str(&format!(
+            "throttlecrab_last_cleanup_evicted_keys {}\n\n",
+            self.last_cleanup_evicted.load(Ordering::Relaxed)
+        ));
+
+        // Estimated memory usage (rough approximation: 100 bytes per key)
+        let estimated_memory = self.active_keys.load(Ordering::Relaxed) * 100;
+        output.push_str(
+            "# HELP throttlecrab_estimated_memory_bytes Estimated memory usage in bytes\n",
+        );
+        output.push_str("# TYPE throttlecrab_estimated_memory_bytes gauge\n");
+        output.push_str(&format!(
+            "throttlecrab_estimated_memory_bytes {estimated_memory}\n"
         ));
 
         output

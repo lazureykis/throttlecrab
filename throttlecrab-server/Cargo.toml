@@ -59,20 +59,8 @@ parking_lot = "0.12"
 rand = "0.9"
 bincode = "2"
 bytes = { workspace = true }
+fastrand = "2.0"
 
 [[bench]]
-name = "http_throughput"
-harness = false
-
-[[bench]]
-name = "connection_pool"
-harness = false
-
-
-[[bench]]
-name = "protocol_comparison"
-harness = false
-
-[[bench]]
-name = "grpc_throughput"
+name = "store_performance"
 harness = false
