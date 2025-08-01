@@ -66,12 +66,14 @@
 //! ```
 
 use crate::actor::RateLimiterHandle;
+use crate::metrics::{Metrics, Transport as MetricsTransport};
 use crate::transport::Transport;
 use crate::types::ThrottleRequest as ActorRequest;
 use anyhow::Result;
 use async_trait::async_trait;
 use std::net::SocketAddr;
-use std::time::SystemTime;
+use std::sync::Arc;
+use std::time::{Instant, SystemTime};
 use tonic::{Request, Response, Status, transport::Server};
 
 // Include the generated protobuf code
@@ -88,6 +90,7 @@ use throttlecrab_proto::{ThrottleRequest, ThrottleResponse};
 /// high-performance communication in microservice architectures.
 pub struct GrpcTransport {
     addr: SocketAddr,
+    metrics: Arc<Metrics>,
 }
 
 impl GrpcTransport {
@@ -97,16 +100,20 @@ impl GrpcTransport {
     ///
     /// - `host`: The host address to bind to (e.g., "0.0.0.0")
     /// - `port`: The port number to listen on (typically 50051)
-    pub fn new(host: &str, port: u16) -> Self {
+    /// - `metrics`: Shared metrics instance
+    pub fn new(host: &str, port: u16, metrics: Arc<Metrics>) -> Self {
         let addr = format!("{host}:{port}").parse().expect("Invalid address");
-        Self { addr }
+        Self { addr, metrics }
     }
 }
 
 #[async_trait]
 impl Transport for GrpcTransport {
     async fn start(self, limiter: RateLimiterHandle) -> Result<()> {
-        let service = RateLimiterService { limiter };
+        let service = RateLimiterService { 
+            limiter,
+            metrics: Arc::clone(&self.metrics),
+        };
 
         Server::builder()
             .add_service(RateLimiterServer::new(service))
@@ -123,6 +130,7 @@ impl Transport for GrpcTransport {
 /// to the rate limiter actor for processing.
 pub struct RateLimiterService {
     limiter: RateLimiterHandle,
+    metrics: Arc<Metrics>,
 }
 
 #[tonic::async_trait]
@@ -141,6 +149,7 @@ impl RateLimiter for RateLimiterService {
         &self,
         request: Request<ThrottleRequest>,
     ) -> Result<Response<ThrottleResponse>, Status> {
+        let start = Instant::now();
         let req = request.into_inner();
 
         // Use server timestamp
@@ -157,11 +166,21 @@ impl RateLimiter for RateLimiterService {
         };
 
         // Call the rate limiter
-        let result = self
+        let result = match self
             .limiter
             .throttle(actor_request)
-            .await
-            .map_err(|e| Status::internal(format!("Rate limiter error: {e}")))?;
+            .await {
+            Ok(result) => {
+                let latency_us = start.elapsed().as_micros() as u64;
+                self.metrics.record_request(MetricsTransport::Grpc, latency_us, result.allowed);
+                result
+            }
+            Err(e) => {
+                let latency_us = start.elapsed().as_micros() as u64;
+                self.metrics.record_request(MetricsTransport::Grpc, latency_us, false);
+                return Err(Status::internal(format!("Rate limiter error: {e}")));
+            }
+        };
 
         // Convert to gRPC response
         let response = ThrottleResponse {
@@ -185,12 +204,13 @@ mod tests {
     #[tokio::test]
     async fn test_grpc_server_basic() {
         // Start server
+        let metrics = Arc::new(crate::metrics::Metrics::new());
         let store = throttlecrab::PeriodicStore::builder()
             .capacity(1000)
             .cleanup_interval(std::time::Duration::from_secs(60))
             .build();
-        let limiter = RateLimiterActor::spawn_periodic(1000, store);
-        let transport = GrpcTransport::new("127.0.0.1", 9091);
+        let limiter = RateLimiterActor::spawn_periodic(1000, store, Arc::clone(&metrics));
+        let transport = GrpcTransport::new("127.0.0.1", 9091, Arc::clone(&metrics));
 
         // Run server in background
         tokio::spawn(async move {
@@ -230,8 +250,9 @@ mod tests {
             .capacity(1000)
             .cleanup_interval(std::time::Duration::from_secs(60))
             .build();
-        let limiter = RateLimiterActor::spawn_periodic(1000, store);
-        let transport = GrpcTransport::new("127.0.0.1", 9092);
+        let metrics2 = Arc::new(crate::metrics::Metrics::new());
+        let limiter = RateLimiterActor::spawn_periodic(1000, store, Arc::clone(&metrics2));
+        let transport = GrpcTransport::new("127.0.0.1", 9092, metrics2);
 
         // Run server in background
         tokio::spawn(async move {

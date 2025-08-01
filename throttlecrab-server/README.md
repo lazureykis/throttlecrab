@@ -11,9 +11,10 @@ A high-performance rate limiting server with multiple protocol support, built on
 
 - **Multiple protocols**: Native binary, HTTP (JSON), and gRPC
 - **High performance**: Lock-free shared state with Tokio async runtime
-- **Production ready**: Health checks, configurable logging, systemd support
+- **Production ready**: Health checks, metrics endpoint, configurable logging, systemd support
 - **Flexible deployment**: Docker, binary, or source installation
 - **Shared rate limiter**: All protocols share the same store for consistent limits
+- **Observability**: Prometheus-compatible metrics for monitoring and alerting
 
 ## Installation
 
@@ -203,8 +204,21 @@ throttlecrab-server \
 ### Monitoring
 
 - **Health endpoint**: `GET /health` (available on HTTP port)
+- **Metrics endpoint**: `GET /metrics` (Prometheus format, available on HTTP port)
 - **Logs**: Structured logging with configurable levels
-- **Metrics**: Performance metrics in debug/trace logs
+- **Performance metrics**: Available via `/metrics` endpoint
+
+#### Available Metrics
+
+- `throttlecrab_uptime_seconds`: Server uptime
+- `throttlecrab_requests_total`: Total requests processed
+- `throttlecrab_requests_by_transport{transport="..."}`: Requests per transport
+- `throttlecrab_requests_allowed`: Total allowed requests
+- `throttlecrab_requests_denied`: Total denied requests
+- `throttlecrab_connections_active{transport="..."}`: Active connections per transport
+- `throttlecrab_request_duration_bucket`: Request latency histogram
+- `throttlecrab_active_keys`: Number of active rate limit keys
+- `throttlecrab_store_evictions`: Total key evictions
 
 ### Store Configuration
 

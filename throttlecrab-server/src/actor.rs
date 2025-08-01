@@ -21,8 +21,10 @@
 //! let response = limiter.throttle(request).await?;
 //! ```
 
+use crate::metrics::Metrics;
 use crate::types::{ThrottleRequest, ThrottleResponse};
 use anyhow::Result;
+use std::sync::Arc;
 use throttlecrab::{AdaptiveStore, CellError, PeriodicStore, ProbabilisticStore, RateLimiter};
 use tokio::sync::{mpsc, oneshot};
 
@@ -48,6 +50,7 @@ pub enum RateLimiterMessage {
 #[derive(Clone)]
 pub struct RateLimiterHandle {
     tx: mpsc::Sender<RateLimiterMessage>,
+    pub metrics: Arc<Metrics>,
 }
 
 impl RateLimiterHandle {
@@ -95,15 +98,16 @@ impl RateLimiterActor {
     /// # Returns
     ///
     /// A [`RateLimiterHandle`] for communicating with the actor
-    pub fn spawn_periodic(buffer_size: usize, store: PeriodicStore) -> RateLimiterHandle {
+    pub fn spawn_periodic(buffer_size: usize, store: PeriodicStore, metrics: Arc<Metrics>) -> RateLimiterHandle {
         let (tx, rx) = mpsc::channel(buffer_size);
+        let metrics_clone = Arc::clone(&metrics);
 
         tokio::spawn(async move {
             let store_type = StoreType::Periodic(RateLimiter::new(store));
-            run_actor(rx, store_type).await;
+            run_actor(rx, store_type, metrics_clone).await;
         });
 
-        RateLimiterHandle { tx }
+        RateLimiterHandle { tx, metrics }
     }
 
     /// Spawn a new rate limiter actor with a probabilistic store
@@ -116,15 +120,16 @@ impl RateLimiterActor {
     /// # Returns
     ///
     /// A [`RateLimiterHandle`] for communicating with the actor
-    pub fn spawn_probabilistic(buffer_size: usize, store: ProbabilisticStore) -> RateLimiterHandle {
+    pub fn spawn_probabilistic(buffer_size: usize, store: ProbabilisticStore, metrics: Arc<Metrics>) -> RateLimiterHandle {
         let (tx, rx) = mpsc::channel(buffer_size);
+        let metrics_clone = Arc::clone(&metrics);
 
         tokio::spawn(async move {
             let store_type = StoreType::Probabilistic(RateLimiter::new(store));
-            run_actor(rx, store_type).await;
+            run_actor(rx, store_type, metrics_clone).await;
         });
 
-        RateLimiterHandle { tx }
+        RateLimiterHandle { tx, metrics }
     }
 
     /// Spawn a new rate limiter actor with an adaptive store
@@ -137,15 +142,16 @@ impl RateLimiterActor {
     /// # Returns
     ///
     /// A [`RateLimiterHandle`] for communicating with the actor
-    pub fn spawn_adaptive(buffer_size: usize, store: AdaptiveStore) -> RateLimiterHandle {
+    pub fn spawn_adaptive(buffer_size: usize, store: AdaptiveStore, metrics: Arc<Metrics>) -> RateLimiterHandle {
         let (tx, rx) = mpsc::channel(buffer_size);
+        let metrics_clone = Arc::clone(&metrics);
 
         tokio::spawn(async move {
             let store_type = StoreType::Adaptive(RateLimiter::new(store));
-            run_actor(rx, store_type).await;
+            run_actor(rx, store_type, metrics_clone).await;
         });
 
-        RateLimiterHandle { tx }
+        RateLimiterHandle { tx, metrics }
     }
 }
 
@@ -195,7 +201,7 @@ impl StoreType {
     }
 }
 
-async fn run_actor(mut rx: mpsc::Receiver<RateLimiterMessage>, mut store_type: StoreType) {
+async fn run_actor(mut rx: mpsc::Receiver<RateLimiterMessage>, mut store_type: StoreType, _metrics: Arc<Metrics>) {
     while let Some(msg) = rx.recv().await {
         match msg {
             RateLimiterMessage::Throttle {

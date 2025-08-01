@@ -51,12 +51,13 @@
 
 use super::Transport;
 use crate::actor::RateLimiterHandle;
+use crate::metrics::{Metrics, Transport as MetricsTransport};
 use crate::types::ThrottleRequest;
 use anyhow::Result;
 use async_trait::async_trait;
 use bytes::{BufMut, BytesMut};
 use std::sync::Arc;
-use std::time::SystemTime;
+use std::time::{Instant, SystemTime};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::{TcpListener, TcpStream};
 
@@ -71,6 +72,7 @@ const MAX_KEY_LENGTH: usize = 255;
 pub struct NativeTransport {
     host: String,
     port: u16,
+    metrics: Arc<Metrics>,
 }
 
 impl NativeTransport {
@@ -80,10 +82,12 @@ impl NativeTransport {
     ///
     /// - `host`: The host address to bind to (e.g., "0.0.0.0")
     /// - `port`: The port number to listen on
-    pub fn new(host: &str, port: u16) -> Self {
+    /// - `metrics`: Shared metrics instance
+    pub fn new(host: &str, port: u16, metrics: Arc<Metrics>) -> Self {
         NativeTransport {
             host: host.to_string(),
             port,
+            metrics,
         }
     }
 
@@ -91,7 +95,9 @@ impl NativeTransport {
     ///
     /// Processes rate limit requests from the client until the connection
     /// is closed or an error occurs.
-    async fn handle_connection(mut socket: TcpStream, limiter: RateLimiterHandle) -> Result<()> {
+    async fn handle_connection(mut socket: TcpStream, limiter: RateLimiterHandle, metrics: Arc<Metrics>) -> Result<()> {
+        // Track connection
+        metrics.connection_opened(MetricsTransport::Native);
         // Pre-allocate buffers
         let mut read_buffer = BytesMut::with_capacity(READ_BUFFER_SIZE);
         let mut write_buffer = BytesMut::with_capacity(WRITE_BUFFER_SIZE);
@@ -162,7 +168,8 @@ impl NativeTransport {
                 timestamp,
             };
 
-            // Process request
+            // Process request with timing
+            let start = Instant::now();
             let response = match limiter.throttle(request).await {
                 Ok(resp) => resp,
                 Err(e) => {
@@ -192,8 +199,14 @@ impl NativeTransport {
 
             socket.write_all(&write_buffer).await?;
             socket.flush().await?;
+            
+            // Record metrics
+            let latency_us = start.elapsed().as_micros() as u64;
+            metrics.record_request(MetricsTransport::Native, latency_us, response.allowed);
         }
 
+        // Connection closed
+        metrics.connection_closed(MetricsTransport::Native);
         Ok(())
     }
 }
@@ -207,16 +220,18 @@ impl Transport for NativeTransport {
         tracing::info!("Native protocol transport listening on {}", addr);
 
         let limiter = Arc::new(limiter);
+        let metrics = Arc::clone(&self.metrics);
 
         loop {
             let (socket, peer_addr) = listener.accept().await?;
             let limiter = Arc::clone(&limiter);
+            let metrics = Arc::clone(&metrics);
 
             tracing::debug!("New connection from {}", peer_addr);
 
             // Spawn a task to handle this connection
             tokio::spawn(async move {
-                if let Err(e) = Self::handle_connection(socket, (*limiter).clone()).await {
+                if let Err(e) = Self::handle_connection(socket, (*limiter).clone(), metrics).await {
                     tracing::error!("Connection error from {}: {}", peer_addr, e);
                 }
                 tracing::debug!("Connection closed from {}", peer_addr);
