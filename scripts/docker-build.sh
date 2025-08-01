@@ -28,8 +28,18 @@ if [[ ! -f "Cargo.toml" ]]; then
     exit 1
 fi
 
-# Get version from Cargo.toml
-VERSION=$(grep '^version' throttlecrab/Cargo.toml | head -1 | cut -d '"' -f 2)
+# Get version from throttlecrab's Cargo.toml
+VERSION=$(grep '^version' throttlecrab/Cargo.toml | head -1 | sed 's/version = //;s/"//g;s/ //g')
+if [[ -z "$VERSION" ]]; then
+    echo -e "${RED}Error: Could not extract version from throttlecrab/Cargo.toml${NC}"
+    exit 1
+fi
+
+# Validate version format (should be x.y.z)
+if ! [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+    echo -e "${RED}Error: Invalid version format: $VERSION${NC}"
+    exit 1
+fi
 
 echo -e "${GREEN}Building throttlecrab Docker image v${VERSION}${NC}"
 echo "Platforms: ${PLATFORMS}"
@@ -76,42 +86,44 @@ for tag in "${TAGS[@]}"; do
     TAG_ARGS="${TAG_ARGS} --tag ${tag}"
 done
 
-# Build command
-BUILD_CMD="docker buildx build \
-    --platform ${PLATFORMS} \
-    ${TAG_ARGS} \
-    --file Dockerfile"
-
+# Prepare for build
 if [[ "${PUSH_IMAGES}" == "true" ]]; then
     echo -e "${YELLOW}Building and pushing images to Docker Hub...${NC}"
     
-    # Try to ensure we're logged in to Docker Hub
-    echo -e "${YELLOW}Checking Docker Hub login...${NC}"
-    if ! docker pull hello-world >/dev/null 2>&1; then
-        echo -e "${YELLOW}Please log in to Docker Hub:${NC}"
+    # Verify Docker Hub authentication
+    echo -e "${YELLOW}Verifying Docker Hub authentication...${NC}"
+    # Try to inspect a known public image with our credentials
+    if ! docker buildx imagetools inspect ${DOCKER_REGISTRY}/${DOCKER_USERNAME}/${IMAGE_NAME}:latest >/dev/null 2>&1; then
+        # If that fails, we might not have pushed yet or not logged in
+        echo -e "${YELLOW}Authentication check inconclusive. Attempting login...${NC}"
         docker login ${DOCKER_REGISTRY}
     fi
-    
-    BUILD_CMD="${BUILD_CMD} --push"
 else
     echo -e "${YELLOW}Building images locally (use --push to push to registry)...${NC}"
-    BUILD_CMD="${BUILD_CMD} --load"
     
     # Note: --load only works with single platform, so we'll build for current platform only
-    CURRENT_PLATFORM=$(docker version --format '{{.Server.Os}}/{{.Server.Arch}}')
-    BUILD_CMD="docker buildx build \
-        --platform ${CURRENT_PLATFORM} \
-        ${TAG_ARGS} \
-        --file Dockerfile \
-        --load"
+    # Use a more reliable method to detect platform
+    CURRENT_PLATFORM="linux/$(uname -m | sed 's/x86_64/amd64/;s/aarch64/arm64/')"
 fi
 
-# Add build context
-BUILD_CMD="${BUILD_CMD} ."
-
-# Execute build
-echo -e "${GREEN}Executing: ${BUILD_CMD}${NC}"
-eval ${BUILD_CMD}
+# Execute build directly without eval
+if [[ "${PUSH_IMAGES}" == "true" ]]; then
+    echo -e "${GREEN}Building multi-platform images and pushing...${NC}"
+    docker buildx build \
+        --platform "${PLATFORMS}" \
+        ${TAG_ARGS} \
+        --file Dockerfile \
+        --push \
+        .
+else
+    echo -e "${GREEN}Building for current platform: ${CURRENT_PLATFORM}${NC}"
+    docker buildx build \
+        --platform "${CURRENT_PLATFORM}" \
+        ${TAG_ARGS} \
+        --file Dockerfile \
+        --load \
+        .
+fi
 
 if [[ $? -eq 0 ]]; then
     echo -e "${GREEN}✓ Build successful!${NC}"
