@@ -2227,6 +2227,7 @@ dependencies = [
  "clap",
  "config",
  "criterion",
+ "fastrand",
  "parking_lot",
  "prost",
  "rand",
