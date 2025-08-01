@@ -36,9 +36,10 @@ use anyhow::{Context, Result};
 use async_trait::async_trait;
 use std::net::SocketAddr;
 use std::sync::Arc;
-use std::time::{Instant, SystemTime};
+use std::time::{Duration, Instant, SystemTime};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::{TcpListener, TcpStream};
+use tokio::time::timeout;
 use tracing::{debug, error, info};
 
 /// Redis transport implementation
@@ -93,9 +94,21 @@ async fn handle_connection(
     let mut parser = RespParser::new();
 
     loop {
-        // Read data from socket
+        // Read data from socket with timeout
         let mut temp_buf = vec![0; 1024];
-        let n = socket.read(&mut temp_buf).await?;
+        let read_timeout = Duration::from_secs(300); // 5 minutes timeout
+
+        let n = match timeout(read_timeout, socket.read(&mut temp_buf)).await {
+            Ok(Ok(n)) => n,
+            Ok(Err(e)) => return Err(e.into()),
+            Err(_) => {
+                debug!(
+                    "Redis connection {} timed out after 5 minutes of inactivity",
+                    addr
+                );
+                return Ok(());
+            }
+        };
 
         if n == 0 {
             debug!("Redis connection closed by client {}", addr);
@@ -114,6 +127,11 @@ async fn handle_connection(
         while let Some((value, consumed)) = parser.parse(&buffer)? {
             buffer.drain(..consumed);
 
+            // Check if this is a QUIT command before processing
+            let is_quit = matches!(&value, RespValue::Array(arr) if arr.first().map(|v| {
+                matches!(v, RespValue::BulkString(Some(cmd)) if cmd.to_uppercase() == "QUIT")
+            }).unwrap_or(false));
+
             // Process the command
             let response = process_command(value, &limiter, &metrics).await;
 
@@ -121,19 +139,13 @@ async fn handle_connection(
             let response_bytes = RespSerializer::serialize(&response);
             socket.write_all(&response_bytes).await?;
 
-            // Check if we should close the connection
-            if matches!(response, RespValue::SimpleString(ref s) if s == "OK" && is_quit_response(&response))
-            {
-                debug!("Closing Redis connection for {}", addr);
+            // Close connection if this was a QUIT command
+            if is_quit {
+                debug!("Closing Redis connection for {} after QUIT", addr);
                 return Ok(());
             }
         }
     }
-}
-
-fn is_quit_response(_resp: &RespValue) -> bool {
-    // This is a marker to indicate QUIT command was processed
-    false
 }
 
 pub(super) async fn process_command(
@@ -153,6 +165,7 @@ pub(super) async fn process_command(
         return RespValue::Error("ERR empty command".to_string());
     }
 
+    // Redis commands are case-insensitive, so we uppercase them for matching
     let command = match &command_array[0] {
         RespValue::BulkString(Some(cmd)) => cmd.to_uppercase(),
         _ => return RespValue::Error("ERR invalid command format".to_string()),
