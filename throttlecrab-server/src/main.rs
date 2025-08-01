@@ -19,6 +19,7 @@
 //! throttlecrab-server \
 //!     --http --http-port 8080 \
 //!     --grpc --grpc-port 50051 \
+//!     --redis --redis-port 6379 \
 //!     --store adaptive \
 //!     --buffer-size 100000 \
 //!     --log-level info
@@ -40,7 +41,9 @@ use tokio::task::JoinSet;
 
 use crate::config::Config;
 use crate::metrics::Metrics;
-use crate::transport::{Transport, grpc::GrpcTransport, http::HttpTransport};
+use crate::transport::{
+    Transport, grpc::GrpcTransport, http::HttpTransport, redis::RedisTransport,
+};
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -89,6 +92,20 @@ async fn main() -> Result<()> {
         transport_tasks.spawn(async move {
             tracing::info!("Starting gRPC transport on {}:{}", host, port);
             let transport = GrpcTransport::new(&host, port, metrics_clone);
+            transport.start(limiter_handle).await
+        });
+    }
+
+    // Start Redis transport if enabled
+    if let Some(redis_config) = &config.transports.redis {
+        let limiter_handle = limiter.clone();
+        let host = redis_config.host.clone();
+        let port = redis_config.port;
+        let metrics_clone = Arc::clone(&metrics);
+
+        transport_tasks.spawn(async move {
+            tracing::info!("Starting Redis transport on {}:{}", host, port);
+            let transport = RedisTransport::new(&host, port, metrics_clone);
             transport.start(limiter_handle).await
         });
     }

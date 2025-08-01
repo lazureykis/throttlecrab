@@ -70,11 +70,11 @@ done
 
 # Validate transport
 case $TRANSPORT in
-    http|grpc|all)
+    http|grpc|redis|all)
         ;;
     *)
         echo "Invalid transport: $TRANSPORT"
-        echo "Valid options: http, grpc, all"
+        echo "Valid options: http, grpc, redis, all"
         exit 1
         ;;
 esac
@@ -107,6 +107,9 @@ run_transport_test() {
             ;;
         grpc)
             TRANSPORT_ARGS="--grpc --grpc-port $port"
+            ;;
+        redis)
+            TRANSPORT_ARGS="--redis --redis-port $port"
             ;;
     esac
 
@@ -161,6 +164,7 @@ if [ "$TRANSPORT" = "all" ]; then
         case $t in
             http) port=$HTTP_PORT ;;
             grpc) port=$GRPC_PORT ;;
+            redis) port=$REDIS_PORT ;;
         esac
         run_transport_test $t $port
         sleep 2  # Brief pause between tests
@@ -170,6 +174,7 @@ else
     case $TRANSPORT in
         http) port=$HTTP_PORT ;;
         grpc) port=$GRPC_PORT ;;
+        redis) port=$REDIS_PORT ;;
     esac
     run_transport_test $TRANSPORT $port
 fi
