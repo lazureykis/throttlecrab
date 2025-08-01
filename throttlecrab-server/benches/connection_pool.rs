@@ -152,11 +152,17 @@ fn connection_pool_benchmarks(c: &mut Criterion) {
     match check_result {
         Ok(_) => println!("Connected to HTTP server on port 9091"),
         Err(e) => {
-            eprintln!("Failed to connect to HTTP server on port 9091: {e}");
-            eprintln!(
-                "Please start the server with: cargo run --release -- --http --http-port 9091"
-            );
-            return;
+            eprintln!("\n❌ ERROR: Server is not running on port 9091");
+            eprintln!("   Error: {e}");
+            eprintln!("\n📝 To run benchmarks, you need to start the server first:");
+            eprintln!("\n   Option 1 - All transports (recommended):");
+            eprintln!("   cargo run --release -- --http --http-port 9091 --grpc --grpc-port 9093 --redis --redis-port 9092");
+            eprintln!("\n   Option 2 - HTTP only:");
+            eprintln!("   cargo run --release -- --http --http-port 9091");
+            eprintln!("\n   Then in another terminal, run:");
+            eprintln!("   cargo bench");
+            eprintln!("\n⚠️  Note: The server must be running for benchmarks to work.");
+            std::process::exit(1);
         }
     }
 

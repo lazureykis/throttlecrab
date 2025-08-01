@@ -100,11 +100,14 @@ fn protocol_comparison(c: &mut Criterion) {
     match check_result {
         Ok(_) => println!("Connected to HTTP server on port 9091"),
         Err(e) => {
-            eprintln!("Failed to connect to HTTP server on port 9091: {e}");
-            eprintln!(
-                "Please start the server with: cargo run --release -- --http --http-port 9091"
-            );
-            return;
+            eprintln!("\n❌ ERROR: Server is not running on port 9091");
+            eprintln!("   Error: {e}");
+            eprintln!("\n📝 To run protocol comparison benchmarks, you need both HTTP and gRPC:");
+            eprintln!("   cargo run --release -- --http --http-port 9091 --grpc --grpc-port 9093");
+            eprintln!("\n   Then in another terminal, run:");
+            eprintln!("   cargo bench protocol_comparison");
+            eprintln!("\n⚠️  Note: Both HTTP and gRPC must be running for this benchmark.");
+            std::process::exit(1);
         }
     }
 
@@ -112,11 +115,14 @@ fn protocol_comparison(c: &mut Criterion) {
     match std::net::TcpStream::connect("127.0.0.1:9093") {
         Ok(_) => println!("Connected to gRPC server on port 9093"),
         Err(e) => {
-            eprintln!("Failed to connect to gRPC server on port 9093: {e}");
-            eprintln!(
-                "Please start the server with: cargo run --release -- --grpc --grpc-port 9093"
-            );
-            return;
+            eprintln!("\n❌ ERROR: Server is not running on port 9093");
+            eprintln!("   Error: {e}");
+            eprintln!("\n📝 To run protocol comparison benchmarks, you need both HTTP and gRPC:");
+            eprintln!("   cargo run --release -- --http --http-port 9091 --grpc --grpc-port 9093");
+            eprintln!("\n   Then in another terminal, run:");
+            eprintln!("   cargo bench protocol_comparison");
+            eprintln!("\n⚠️  Note: Both HTTP and gRPC must be running for this benchmark.");
+            std::process::exit(1);
         }
     }
 

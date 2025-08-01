@@ -43,11 +43,17 @@ fn grpc_throughput(c: &mut Criterion) {
     match runtime.block_on(RateLimiterClient::connect("http://127.0.0.1:9093")) {
         Ok(_) => println!("Connected to gRPC server"),
         Err(e) => {
-            eprintln!("Failed to connect to gRPC server: {e}");
-            eprintln!(
-                "Please start the server with: cargo run -p throttlecrab-server -- --grpc --grpc-port 9093"
-            );
-            return;
+            eprintln!("\n❌ ERROR: Server is not running on port 9093");
+            eprintln!("   Error: {e}");
+            eprintln!("\n📝 To run benchmarks, you need to start the server first:");
+            eprintln!("\n   Option 1 - All transports (recommended):");
+            eprintln!("   cargo run --release -- --http --http-port 9091 --grpc --grpc-port 9093 --redis --redis-port 9092");
+            eprintln!("\n   Option 2 - gRPC only:");
+            eprintln!("   cargo run --release -- --grpc --grpc-port 9093");
+            eprintln!("\n   Then in another terminal, run:");
+            eprintln!("   cargo bench");
+            eprintln!("\n⚠️  Note: The server must be running for benchmarks to work.");
+            std::process::exit(1);
         }
     }
 
