@@ -31,6 +31,7 @@ impl Stats {
 pub enum Transport {
     Http,
     Grpc,
+    Redis,
 }
 
 impl Transport {
@@ -38,6 +39,7 @@ impl Transport {
         match s.to_lowercase().as_str() {
             "http" => Ok(Transport::Http),
             "grpc" => Ok(Transport::Grpc),
+            "redis" => Ok(Transport::Redis),
             _ => anyhow::bail!("Invalid transport: {}. Valid options: http, grpc", s),
         }
     }
@@ -181,6 +183,85 @@ async fn grpc_worker(
     Ok(latencies)
 }
 
+async fn redis_worker(
+    thread_id: usize,
+    requests_per_thread: usize,
+    port: u16,
+    stats: Arc<Stats>,
+    barrier: Arc<Barrier>,
+    start_flag: Arc<AtomicU64>,
+) -> Result<Vec<Duration>> {
+    use tokio::net::TcpStream;
+    use tokio::io::{AsyncReadExt, AsyncWriteExt};
+    
+    // Connect to Redis server
+    let mut stream = TcpStream::connect(format!("127.0.0.1:{}", port)).await?;
+    
+    // Pre-generate THROTTLE commands
+    let mut commands = Vec::with_capacity(requests_per_thread);
+    for i in 0..requests_per_thread {
+        let key = format!("key_{}_{}", thread_id, i % 1000);
+        // THROTTLE key max_burst count_per_period period quantity
+        let cmd = format!(
+            "*6\r\n$8\r\nTHROTTLE\r\n${}\r\n{}\r\n$3\r\n100\r\n$2\r\n10\r\n$2\r\n60\r\n$1\r\n1\r\n",
+            key.len(), key
+        );
+        commands.push(cmd.into_bytes());
+    }
+    
+    // Wait for all threads to be ready
+    barrier.wait().await;
+    
+    // Wait for start signal
+    while start_flag.load(Ordering::Acquire) == 0 {
+        tokio::task::yield_now().await;
+    }
+    
+    let mut latencies = Vec::with_capacity(requests_per_thread);
+    let mut read_buf = vec![0u8; 1024];
+    
+    // Send all requests
+    for command in commands {
+        let start = Instant::now();
+        
+        match stream.write_all(&command).await {
+            Ok(_) => {
+                // Read response (we expect an array response)
+                match stream.read(&mut read_buf).await {
+                    Ok(n) if n > 0 => {
+                        let latency = start.elapsed();
+                        latencies.push(latency);
+                        stats.total_requests.fetch_add(1, Ordering::Relaxed);
+                        stats
+                            .total_latency_us
+                            .fetch_add(latency.as_micros() as u64, Ordering::Relaxed);
+                        
+                        // Simple check if allowed (response starts with "*5\r\n:1")
+                        if n > 7 && &read_buf[0..7] == b"*5\r\n:1" {
+                            stats.successful.fetch_add(1, Ordering::Relaxed);
+                        } else {
+                            stats.rate_limited.fetch_add(1, Ordering::Relaxed);
+                        }
+                    }
+                    _ => {
+                        stats.failed.fetch_add(1, Ordering::Relaxed);
+                        stats.total_requests.fetch_add(1, Ordering::Relaxed);
+                    }
+                }
+            }
+            Err(_) => {
+                stats.failed.fetch_add(1, Ordering::Relaxed);
+                stats.total_requests.fetch_add(1, Ordering::Relaxed);
+            }
+        }
+    }
+    
+    // Send QUIT command
+    stream.write_all(b"*1\r\n$4\r\nQUIT\r\n").await?;
+    
+    Ok(latencies)
+}
+
 pub async fn run_performance_test(
     num_threads: usize,
     requests_per_thread: usize,
@@ -258,6 +339,17 @@ pub async fn run_performance_test(
                 }
                 Transport::Grpc => {
                     grpc_worker(
+                        thread_id,
+                        requests_per_thread,
+                        port,
+                        stats,
+                        barrier,
+                        start_flag,
+                    )
+                    .await
+                }
+                Transport::Redis => {
+                    redis_worker(
                         thread_id,
                         requests_per_thread,
                         port,
