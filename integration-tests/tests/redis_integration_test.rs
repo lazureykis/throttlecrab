@@ -9,7 +9,7 @@ use tokio::time::sleep;
 async fn test_redis_throttle_command() {
     // Start the server
     let mut server = Command::new("cargo")
-        .args(&[
+        .args([
             "run",
             "-p",
             "throttlecrab-server",
@@ -89,15 +89,16 @@ async fn test_redis_throttle_command() {
         .await
         .expect("Failed to QUIT");
 
-    // Kill the server
+    // Kill the server and wait for it to exit
     server.kill().expect("Failed to kill server");
+    let _ = server.wait().expect("Failed to wait for server to exit");
 }
 
 #[tokio::test]
 async fn test_redis_rate_limiting() {
     // Start the server
     let mut server = Command::new("cargo")
-        .args(&[
+        .args([
             "run",
             "-p",
             "throttlecrab-server",
@@ -156,6 +157,7 @@ async fn test_redis_rate_limiting() {
     assert_eq!(allowed_count, 3, "Expected 3 requests to be allowed");
     assert_eq!(denied_count, 2, "Expected 2 requests to be denied");
 
-    // Kill the server
+    // Kill the server and wait for it to exit
     server.kill().expect("Failed to kill server");
+    let _ = server.wait().expect("Failed to wait for server to exit");
 }
