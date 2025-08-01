@@ -17,7 +17,7 @@ Multi-platform Docker build script that supports both local builds and pushing t
 ```
 
 Features:
-- Multi-platform support (linux/amd64, linux/arm64, linux/arm/v7)
+- Multi-platform support (linux/amd64, linux/arm64)
 - Automatic version detection from `Cargo.toml`
 - Docker buildx management
 - Login verification before push
@@ -25,8 +25,7 @@ Features:
 
 Supported platforms:
 - `linux/amd64` - Standard x86_64 servers and cloud instances
-- `linux/arm64` - Apple Silicon, AWS Graviton, modern ARM servers
-- `linux/arm/v7` - Raspberry Pi, IoT devices, embedded systems
+- `linux/arm64` - Apple Silicon, AWS Graviton, modern ARM servers, Raspberry Pi 4/5
 
 ## Environment Variables
 

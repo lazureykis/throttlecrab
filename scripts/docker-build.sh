@@ -8,7 +8,7 @@ set -euo pipefail
 DOCKER_REGISTRY="docker.io"
 DOCKER_USERNAME="${DOCKER_USERNAME:-lazureykis}"
 IMAGE_NAME="throttlecrab"
-PLATFORMS="linux/amd64,linux/arm64,linux/arm/v7"
+PLATFORMS="linux/amd64,linux/arm64"
 
 # Colors for output
 RED='\033[0;31m'
