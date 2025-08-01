@@ -3,6 +3,13 @@
 //! This transport provides the highest performance by using a compact binary
 //! protocol with fixed-size fields and minimal parsing overhead.
 //!
+//! # Key Length Limitation
+//!
+//! The native protocol has a **maximum key length of 255 bytes** due to the
+//! protocol design using a single byte (u8) for key length. This is a protocol
+//! limitation, not a policy decision. HTTP and gRPC transports do not have
+//! this restriction.
+//!
 //! # Protocol Specification
 //!
 //! ## Request Format (34 bytes + variable key)
