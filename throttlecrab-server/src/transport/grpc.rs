@@ -176,7 +176,7 @@ impl RateLimiter for RateLimiterService {
             Err(e) => {
                 let latency_us = start.elapsed().as_micros() as u64;
                 self.metrics
-                    .record_request(MetricsTransport::Grpc, latency_us, false);
+                    .record_error(MetricsTransport::Grpc, latency_us);
                 return Err(Status::internal(format!("Rate limiter error: {e}")));
             }
         };

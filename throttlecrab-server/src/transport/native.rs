@@ -100,14 +100,15 @@ impl NativeTransport {
         limiter: RateLimiterHandle,
         metrics: Arc<Metrics>,
     ) -> Result<()> {
-        // Track connection
-        metrics.connection_opened(MetricsTransport::Native);
         // Pre-allocate buffers
         let mut read_buffer = BytesMut::with_capacity(READ_BUFFER_SIZE);
         let mut write_buffer = BytesMut::with_capacity(WRITE_BUFFER_SIZE);
 
         // Set TCP_NODELAY for lower latency
         socket.set_nodelay(true)?;
+
+        // Track connection after all potential failures
+        metrics.connection_opened(MetricsTransport::Native);
 
         // Fixed-size header buffer
         let mut header = [0u8; 34]; // Max size for fixed fields
@@ -178,6 +179,9 @@ impl NativeTransport {
                 Ok(resp) => resp,
                 Err(e) => {
                     tracing::error!("Rate limiter error: {}", e);
+                    let latency_us = start.elapsed().as_micros() as u64;
+                    metrics.record_error(MetricsTransport::Native, latency_us);
+
                     // Send error response
                     write_buffer.clear();
                     write_buffer.put_u8(0); // ok = false

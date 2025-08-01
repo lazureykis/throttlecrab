@@ -151,7 +151,7 @@ async fn handle_throttle(
             let latency_us = start.elapsed().as_micros() as u64;
             state
                 .metrics
-                .record_request(MetricsTransport::Http, latency_us, false);
+                .record_error(MetricsTransport::Http, latency_us);
             Err((
                 StatusCode::INTERNAL_SERVER_ERROR,
                 Json(HttpErrorResponse {

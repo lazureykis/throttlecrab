@@ -22,6 +22,7 @@ pub struct Metrics {
     /// Rate limiting decisions
     pub requests_allowed: AtomicU64,
     pub requests_denied: AtomicU64,
+    pub requests_errors: AtomicU64,
 
     /// Active connections by transport
     pub native_connections: AtomicUsize,
@@ -34,6 +35,10 @@ pub struct Metrics {
     pub latency_under_100ms: AtomicU64,
     pub latency_under_1s: AtomicU64,
     pub latency_over_1s: AtomicU64,
+
+    /// Histogram support
+    pub latency_sum_micros: AtomicU64,
+    pub latency_count: AtomicU64,
 
     /// Store metrics
     pub active_keys: AtomicUsize,
@@ -51,6 +56,7 @@ impl Metrics {
             grpc_requests: AtomicU64::new(0),
             requests_allowed: AtomicU64::new(0),
             requests_denied: AtomicU64::new(0),
+            requests_errors: AtomicU64::new(0),
             native_connections: AtomicUsize::new(0),
             http_connections: AtomicUsize::new(0),
             grpc_connections: AtomicUsize::new(0),
@@ -59,6 +65,8 @@ impl Metrics {
             latency_under_100ms: AtomicU64::new(0),
             latency_under_1s: AtomicU64::new(0),
             latency_over_1s: AtomicU64::new(0),
+            latency_sum_micros: AtomicU64::new(0),
+            latency_count: AtomicU64::new(0),
             active_keys: AtomicUsize::new(0),
             store_evictions: AtomicU64::new(0),
         }
@@ -90,6 +98,11 @@ impl Metrics {
             100000..=999999 => self.latency_under_1s.fetch_add(1, Ordering::Relaxed),
             _ => self.latency_over_1s.fetch_add(1, Ordering::Relaxed),
         };
+
+        // Update histogram metrics
+        self.latency_sum_micros
+            .fetch_add(latency_us, Ordering::Relaxed);
+        self.latency_count.fetch_add(1, Ordering::Relaxed);
     }
 
     /// Update active connection count
@@ -122,6 +135,33 @@ impl Metrics {
         self.store_evictions.fetch_add(1, Ordering::Relaxed);
     }
 
+    /// Record an internal error
+    pub fn record_error(&self, transport: Transport, latency_us: u64) {
+        self.total_requests.fetch_add(1, Ordering::Relaxed);
+        self.requests_errors.fetch_add(1, Ordering::Relaxed);
+
+        // Record transport-specific counter
+        match transport {
+            Transport::Native => self.native_requests.fetch_add(1, Ordering::Relaxed),
+            Transport::Http => self.http_requests.fetch_add(1, Ordering::Relaxed),
+            Transport::Grpc => self.grpc_requests.fetch_add(1, Ordering::Relaxed),
+        };
+
+        // Record latency bucket even for errors
+        match latency_us {
+            0..=999 => self.latency_under_1ms.fetch_add(1, Ordering::Relaxed),
+            1000..=9999 => self.latency_under_10ms.fetch_add(1, Ordering::Relaxed),
+            10000..=99999 => self.latency_under_100ms.fetch_add(1, Ordering::Relaxed),
+            100000..=999999 => self.latency_under_1s.fetch_add(1, Ordering::Relaxed),
+            _ => self.latency_over_1s.fetch_add(1, Ordering::Relaxed),
+        };
+
+        // Update histogram metrics for errors too
+        self.latency_sum_micros
+            .fetch_add(latency_us, Ordering::Relaxed);
+        self.latency_count.fetch_add(1, Ordering::Relaxed);
+    }
+
     /// Get server uptime in seconds
     pub fn uptime_seconds(&self) -> u64 {
         self.start_time.elapsed().as_secs()
@@ -129,7 +169,8 @@ impl Metrics {
 
     /// Export metrics in Prometheus text format
     pub fn export_prometheus(&self) -> String {
-        let mut output = String::with_capacity(2048);
+        // Estimate size: ~50 chars per metric line, ~30 metrics = ~1500 chars
+        let mut output = String::with_capacity(1500);
 
         // Add header
         output.push_str("# HELP throttlecrab_uptime_seconds Time since server start in seconds\n");
@@ -180,6 +221,13 @@ impl Metrics {
             self.requests_denied.load(Ordering::Relaxed)
         ));
 
+        output.push_str("# HELP throttlecrab_requests_errors Total internal errors\n");
+        output.push_str("# TYPE throttlecrab_requests_errors counter\n");
+        output.push_str(&format!(
+            "throttlecrab_requests_errors {}\n\n",
+            self.requests_errors.load(Ordering::Relaxed)
+        ));
+
         // Active connections
         output.push_str(
             "# HELP throttlecrab_connections_active Current active connections by transport\n",
@@ -225,8 +273,19 @@ impl Metrics {
                 + self.latency_under_1s.load(Ordering::Relaxed)
         ));
         output.push_str(&format!(
-            "throttlecrab_request_duration_bucket{{le=\"+Inf\"}} {}\n\n",
+            "throttlecrab_request_duration_bucket{{le=\"+Inf\"}} {}\n",
             self.total_requests.load(Ordering::Relaxed)
+        ));
+
+        // Add sum and count for proper histogram
+        let latency_sum_seconds =
+            self.latency_sum_micros.load(Ordering::Relaxed) as f64 / 1_000_000.0;
+        output.push_str(&format!(
+            "throttlecrab_request_duration_sum {latency_sum_seconds:.6}\n"
+        ));
+        output.push_str(&format!(
+            "throttlecrab_request_duration_count {}\n\n",
+            self.latency_count.load(Ordering::Relaxed)
         ));
 
         // Store metrics
@@ -273,6 +332,7 @@ mod tests {
         assert_eq!(metrics.total_requests.load(Ordering::Relaxed), 0);
         assert_eq!(metrics.requests_allowed.load(Ordering::Relaxed), 0);
         assert_eq!(metrics.requests_denied.load(Ordering::Relaxed), 0);
+        assert_eq!(metrics.requests_errors.load(Ordering::Relaxed), 0);
     }
 
     #[test]
