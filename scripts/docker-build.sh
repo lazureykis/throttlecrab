@@ -2,7 +2,11 @@
 set -euo pipefail
 
 # Script to build and push Docker images for throttlecrab
-# Usage: ./scripts/docker-build-push.sh [--push]
+# Usage: ./scripts/docker-build.sh [--push] [--platform PLATFORM]
+#
+# Options:
+#   --push              Push images to Docker Hub
+#   --platform PLATFORM Override platform for local builds (e.g., linux/amd64)
 
 # Configuration
 DOCKER_REGISTRY="docker.io"
@@ -16,15 +20,52 @@ GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 NC='\033[0m' # No Color
 
-# Check if --push flag is provided
+# Parse command line arguments
 PUSH_IMAGES=false
-if [[ "${1:-}" == "--push" ]]; then
-    PUSH_IMAGES=true
-fi
+OVERRIDE_PLATFORM=""
+
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        --push)
+            PUSH_IMAGES=true
+            shift
+            ;;
+        --platform)
+            OVERRIDE_PLATFORM="$2"
+            shift 2
+            ;;
+        -h|--help)
+            echo "Usage: $0 [OPTIONS]"
+            echo ""
+            echo "Options:"
+            echo "  --push              Build and push images to Docker Hub"
+            echo "  --platform PLATFORM Override platform for local builds (e.g., linux/amd64)"
+            echo "  -h, --help          Show this help message"
+            echo ""
+            echo "Examples:"
+            echo "  $0                  # Build for current platform locally"
+            echo "  $0 --push           # Build multi-platform and push to Docker Hub"
+            echo "  $0 --platform linux/amd64  # Build for specific platform locally"
+            exit 0
+            ;;
+        *)
+            echo -e "${RED}Unknown option: $1${NC}"
+            echo "Usage: $0 [--push] [--platform PLATFORM]"
+            echo "Run '$0 --help' for more information"
+            exit 1
+            ;;
+    esac
+done
 
 # Ensure we're in the project root
 if [[ ! -f "Cargo.toml" ]]; then
     echo -e "${RED}Error: This script must be run from the project root directory${NC}"
+    exit 1
+fi
+
+# Ensure throttlecrab's Cargo.toml exists
+if [[ ! -f "throttlecrab/Cargo.toml" ]]; then
+    echo -e "${RED}Error: throttlecrab/Cargo.toml not found. Are you in the project root?${NC}"
     exit 1
 fi
 
@@ -92,19 +133,25 @@ if [[ "${PUSH_IMAGES}" == "true" ]]; then
     
     # Verify Docker Hub authentication
     echo -e "${YELLOW}Verifying Docker Hub authentication...${NC}"
-    # Check if we're logged in to Docker Hub
-    if ! docker info 2>/dev/null | grep -q "Username:"; then
-        echo -e "${YELLOW}Not logged in to Docker Hub. Please authenticate:${NC}"
-        docker login ${DOCKER_REGISTRY}
+    # Try to get auth info from docker config
+    AUTH_CONFIG="${HOME}/.docker/config.json"
+    if [[ -f "$AUTH_CONFIG" ]] && grep -q "\"${DOCKER_REGISTRY}\"" "$AUTH_CONFIG" 2>/dev/null; then
+        echo -e "${GREEN}Docker Hub credentials found${NC}"
     else
-        echo -e "${GREEN}Already authenticated to Docker Hub${NC}"
+        echo -e "${YELLOW}Docker Hub credentials not found. Please authenticate:${NC}"
+        docker login ${DOCKER_REGISTRY}
     fi
 else
     echo -e "${YELLOW}Building images locally (use --push to push to registry)...${NC}"
     
     # Note: --load only works with single platform, so we'll build for current platform only
-    # Use a more reliable method to detect platform
-    CURRENT_PLATFORM="linux/$(uname -m | sed 's/x86_64/amd64/;s/aarch64/arm64/')"
+    if [[ -n "$OVERRIDE_PLATFORM" ]]; then
+        CURRENT_PLATFORM="$OVERRIDE_PLATFORM"
+        echo -e "${YELLOW}Using override platform: ${CURRENT_PLATFORM}${NC}"
+    else
+        # Use a more reliable method to detect platform
+        CURRENT_PLATFORM="linux/$(uname -m | sed 's/x86_64/amd64/;s/aarch64/arm64/')"
+    fi
 fi
 
 # Execute build directly without eval
@@ -136,7 +183,7 @@ if [[ $? -eq 0 ]]; then
         done
     else
         echo -e "${YELLOW}Images built locally. To push to Docker Hub, run:${NC}"
-        echo "  ./scripts/docker-build-push.sh --push"
+        echo "  ./scripts/docker-build.sh --push"
     fi
 else
     echo -e "${RED}✗ Build failed!${NC}"
