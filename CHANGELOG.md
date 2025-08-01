@@ -5,6 +5,22 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.0] - 2025-08-01
+
+### Added
+- Advanced metrics collection and observability for rate limiter insights (#40)
+- Redis/RESP protocol support for high-performance rate limiting (#38)
+- Comprehensive metrics system with performance monitoring (#36)
+- Local Docker build script replacing GitHub workflow (#39)
+
+### Changed
+- Simplified project structure and reduced redundancy (#34)
+- Updated documentation to fix broken links and outdated references (#33)
+- Added key length limitations and best practices documentation (#35)
+
+### Removed
+- Native transport protocol in favor of standardized protocols (#37)
+
 ## [0.3.0] - 2025-08-01
 
 ### Added
