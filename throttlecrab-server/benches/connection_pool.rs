@@ -9,14 +9,14 @@ fn benchmark_shared_connection_pool(c: &mut Criterion) {
     group.warm_up_time(Duration::from_secs(3));
 
     let runtime = Runtime::new().unwrap();
-    
+
     // Create a single shared client with a large connection pool
     let client = Arc::new(
         reqwest::Client::builder()
             .pool_max_idle_per_host(100)
             .pool_idle_timeout(None)
             .build()
-            .unwrap()
+            .unwrap(),
     );
 
     let url = "http://127.0.0.1:9091/throttle";
@@ -26,17 +26,17 @@ fn benchmark_shared_connection_pool(c: &mut Criterion) {
         group.throughput(Throughput::Elements(num_threads as u64));
         group.bench_function(&format!("threads_{}", num_threads), |b| {
             let mut counter = 0u64;
-            
+
             b.iter(|| {
                 runtime.block_on(async {
                     let mut handles = vec![];
-                    
+
                     for _ in 0..num_threads {
                         let client = client.clone();
                         let url = url.to_string();
                         let key = format!("bench_key_{}", counter);
                         counter += 1;
-                        
+
                         let handle = tokio::spawn(async move {
                             let resp = client
                                 .post(&url)
@@ -50,14 +50,14 @@ fn benchmark_shared_connection_pool(c: &mut Criterion) {
                                 .send()
                                 .await
                                 .unwrap();
-                            
+
                             let json: serde_json::Value = resp.json().await.unwrap();
                             json["allowed"].as_bool().unwrap()
                         });
-                        
+
                         handles.push(handle);
                     }
-                    
+
                     for handle in handles {
                         handle.await.unwrap();
                     }
@@ -74,10 +74,9 @@ fn connection_pool_benchmarks(c: &mut Criterion) {
 
     // Test connection
     let runtime = Runtime::new().unwrap();
-    let check_result = runtime.block_on(async { 
-        reqwest::get("http://127.0.0.1:9091/health").await 
-    });
-    
+    let check_result =
+        runtime.block_on(async { reqwest::get("http://127.0.0.1:9091/health").await });
+
     match check_result {
         Ok(_) => println!("Connected to HTTP server on port 9091"),
         Err(e) => {
