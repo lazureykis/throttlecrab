@@ -29,13 +29,12 @@ RUN adduser -D -u 1000 throttlecrab
 # Switch to non-root user
 USER throttlecrab
 
-# Expose ports (HTTP, gRPC, Native)
-EXPOSE 8080 50051 8072
+# Expose ports (HTTP, gRPC)
+EXPOSE 8080 50051
 
 # Set default environment variables
 ENV THROTTLECRAB_HTTP=true
 ENV THROTTLECRAB_GRPC=true
-ENV THROTTLECRAB_NATIVE=true
 ENV THROTTLECRAB_LOG_LEVEL=info
 
 # Run the server

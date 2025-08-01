@@ -7,12 +7,10 @@ services:
     ports:
       - "8080:8080"   # HTTP
       - "50051:50051" # gRPC
-      - "8072:8072"   # Native
     environment:
       # Transport configuration
       THROTTLECRAB_HTTP: "true"
       THROTTLECRAB_GRPC: "true"
-      THROTTLECRAB_NATIVE: "true"
       
       # Store configuration
       THROTTLECRAB_STORE: "adaptive"
