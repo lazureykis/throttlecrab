@@ -257,11 +257,61 @@ curl -X POST http://localhost:8080/throttle \
   }'
 ```
 
+**Key Length**: No restriction
+
+**Recommendation**: Use the shortest keys possible for better performance:
+- Shorter keys = less memory usage
+- Faster hashing and comparison
+- More keys fit in CPU cache
+- Example: prefer `u:123` over `user:123` or `uid_123` over `user_id_123`
+
 
 ### gRPC Protocol
 
 See [`throttlecrab-server/proto/throttlecrab.proto`](throttlecrab-server/proto/throttlecrab.proto) for the service definition.
 
+**Key Length**: No restriction
+
+**Recommendation**: Same as HTTP - use short, efficient keys
+
+
+### Native Binary Protocol
+
+High-performance binary protocol for maximum throughput.
+
+**Key Length**: Maximum 255 bytes (protocol limitation)
+
+
+## Key Design Best Practices
+
+While ThrottleCrab doesn't enforce key length limits (except for the native protocol's 255-byte limit), 
+following these practices will maximize performance:
+
+### Use Short Keys
+- **Good**: `u:123`, `ip:1.2.3.4`, `a:abc`
+- **Avoid**: `user_id:123`, `ip_address:1.2.3.4`, `api_key:abc`
+
+### Be Consistent
+- Pick a naming scheme and stick to it
+- Document your key format for your team
+
+### Memory Impact
+Each key is stored in memory with ~80-150 bytes overhead:
+- 10-char key: ~90 bytes total
+- 50-char key: ~130 bytes total  
+- 100-char key: ~180 bytes total
+
+With 1 million keys:
+- 10-char keys: ~90 MB
+- 50-char keys: ~130 MB
+- 100-char keys: ~180 MB
+
+### Performance Impact
+Shorter keys provide:
+- 2-3x faster hash computation
+- Better CPU cache utilization
+- Lower network bandwidth
+- Faster key comparisons
 
 ## Contributing
 

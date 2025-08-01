@@ -92,21 +92,22 @@ THROTTLECRAB_HTTP_PORT=8080 throttlecrab-server --http --http-port 7070
 
 ## Transport Comparison
 
-| Transport | Protocol | Throughput | Latency (P99) | Latency (P50) | Use Case |
-|-----------|----------|------------|---------------|---------------|----------|
-| Native | Binary | 183K req/s | 263 μs | 170 μs | Maximum performance |
-| HTTP | JSON | 173K req/s | 309 μs | 177 μs | Easy integration |
-| gRPC | Protobuf | 163K req/s | 370 μs | 186 μs | Service mesh |
+| Transport | Protocol | Throughput | Latency (P99) | Latency (P50) | Key Length Limit | Use Case |
+|-----------|----------|------------|---------------|---------------|------------------|----------|
+| Native | Binary | 183K req/s | 263 μs | 170 μs | 255 bytes | Maximum performance |
+| HTTP | JSON | 173K req/s | 309 μs | 177 μs | No limit | Easy integration |
+| gRPC | Protobuf | 163K req/s | 370 μs | 186 μs | No limit | Service mesh |
 
 ## Protocol Documentation
 
 ### Native Protocol
 
 Fixed-size binary protocol with minimal overhead:
-- Request: 88 bytes (including up to 64-byte key)
-- Response: 40 bytes
+- Request: 34 bytes + key length
+- Response: 34 bytes
 - No serialization overhead
 - Direct memory layout
+- **Key length limit: 255 bytes** (protocol uses u8 for length)
 
 For best performance, implement the native protocol in your application or use established HTTP clients with connection pooling.
 
@@ -122,12 +123,11 @@ For best performance, implement the native protocol in your application or use e
   "max_burst": 10,
   "count_per_period": 100,
   "period": 60,
-  "quantity": 1,
-  "timestamp": 1234567890123456789
+  "quantity": 1
 }
 ```
 
-Note: `timestamp` is optional (Unix nanoseconds). If not provided, the server uses the current time.
+Note: `quantity` is optional (defaults to 1).
 
 **Response** (JSON):
 ```json
