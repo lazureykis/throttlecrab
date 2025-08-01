@@ -1,14 +1,14 @@
 # ThrottleCrab Benchmark Results
 
-Last Updated: 2024-12-19
+Last Updated: 2025-08-01
 
 ## Executive Summary
 
 ThrottleCrab achieves exceptional performance through optimized storage implementations and efficient protocol design:
 
 - **Library Performance**: Up to 12.5M requests/second (21.6x faster than baseline)
-- **Server Performance**: 173K requests/second with HTTP protocol
-- **Latency**: Sub-millisecond P99 latency across all protocols (263-370 μs)
+- **Server Performance**: 185K requests/second with Redis protocol
+- **Latency**: Sub-millisecond P99 latency across all protocols (249-381 μs)
 - **Memory Efficiency**: ~100 bytes per active rate limit key
 
 ## Hardware Configuration
@@ -61,14 +61,15 @@ Real-world test results with 32 threads, 10K requests per thread (320K total):
 
 | Protocol | Throughput | Latency P50 | Latency P90 | Latency P99 | Latency P99.9 |
 |----------|------------|-------------|-------------|-------------|---------------|
-| HTTP/JSON | 173,940 req/s | 177 μs | 226 μs | 309 μs | 622 μs |
-| gRPC | 163,814 req/s | 186 μs | 265 μs | 370 μs | 539 μs |
+| Redis/RESP | 185,582 req/s | 168 μs | 205 μs | 249 μs | 775 μs |
+| HTTP/JSON | 173,544 req/s | 178 μs | 227 μs | 302 μs | 582 μs |
+| gRPC | 161,591 req/s | 190 μs | 269 μs | 381 μs | 570 μs |
 
 ### Performance Insights
 
-1. **Throughput**: All protocols achieve excellent throughput (163K-183K req/s)
-2. **Latency**: Sub-millisecond P99 latency across all protocols (263-370 μs)
-3. **HTTP Performance**: Excellent performance with standard tooling
+1. **Throughput**: All protocols achieve excellent throughput (161K-185K req/s)
+2. **Latency**: Sub-millisecond P99 latency across all protocols (249-381 μs)
+3. **Redis Performance**: Highest throughput with minimal protocol overhead
 4. **Consistency**: All protocols achieved 100% success rate with zero failures
 
 ### Test Configuration
@@ -87,11 +88,23 @@ Real-world test results with 32 threads, 10K requests per thread (320K total):
 
 ## Protocol Efficiency
 
-HTTP/JSON provides excellent performance with:
+### Redis/RESP
+- **Highest throughput**: 185K req/s with binary protocol
+- **Lowest latency**: 168 μs P50, 249 μs P99
+- **Redis compatibility**: Works with any Redis client library
+- **Minimal overhead**: Binary protocol without HTTP headers
 
+### HTTP/JSON
 - **Standard tooling**: Works with curl, Postman, etc.
 - **Connection pooling**: Reuse connections for efficiency
 - **Universal compatibility**: Any language or platform
+- **Excellent performance**: 173K req/s
+
+### gRPC
+- **Type safety**: Generated client/server code
+- **Streaming support**: Built-in bidirectional streaming
+- **Service mesh ready**: Works well in microservices
+- **Good performance**: 161K req/s
 
 ## Recommendations
 
@@ -111,21 +124,24 @@ HTTP/JSON provides excellent performance with:
 
 ### Protocol Selection Guide
 
-1. **Maximum Performance**: HTTP with connection pooling
-   - 173K requests/second
-   - Use established HTTP clients with pooling
+1. **Maximum Performance**: Redis/RESP
+   - 185K requests/second
+   - Binary protocol with minimal overhead
+   - Compatible with standard Redis clients
 
 2. **Easy Integration**: HTTP/JSON
    - Standard REST API
    - 173K requests/second
+   - Works with any HTTP client
 
 3. **Service Mesh**: gRPC
    - Type-safe clients
-   - 163K requests/second
+   - 161K requests/second
+   - Built-in streaming support
 
 ### Scaling Recommendations
 
-- **Single Instance**: Handles 150-180K req/s comfortably
+- **Single Instance**: Handles 160-185K req/s comfortably
 - **Horizontal Scaling**: Use client-side sharding for higher throughput
 - **Connection Pooling**: 32 connections work well for high concurrency
 - **Store Capacity**: Plan for 100 bytes per active key

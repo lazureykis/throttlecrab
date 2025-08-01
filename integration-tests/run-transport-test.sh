@@ -161,7 +161,7 @@ cd integration-tests && cargo build --release
 # Run tests based on transport selection
 if [ "$TRANSPORT" = "all" ]; then
     # Test all transports
-    for t in http grpc; do
+    for t in http grpc redis; do
         case $t in
             http) port=$HTTP_PORT ;;
             grpc) port=$GRPC_PORT ;;
