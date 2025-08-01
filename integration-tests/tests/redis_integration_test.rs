@@ -6,6 +6,7 @@ use std::time::Duration;
 use tokio::time::sleep;
 
 #[tokio::test]
+#[ignore = "Integration test - run with cargo test -- --ignored"]
 async fn test_redis_throttle_command() {
     // Start the server
     let mut server = Command::new("cargo")
@@ -95,6 +96,7 @@ async fn test_redis_throttle_command() {
 }
 
 #[tokio::test]
+#[ignore = "Integration test - run with cargo test -- --ignored"]
 async fn test_redis_rate_limiting() {
     // Start the server
     let mut server = Command::new("cargo")
