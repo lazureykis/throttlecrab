@@ -4,7 +4,7 @@
 [![Crates.io](https://img.shields.io/crates/v/throttlecrab.svg)](https://crates.io/crates/throttlecrab)
 [![Docker](https://img.shields.io/docker/v/lazureykis/throttlecrab?label=docker)](https://hub.docker.com/r/lazureykis/throttlecrab)
 [![Documentation](https://docs.rs/throttlecrab/badge.svg)](https://docs.rs/throttlecrab)
-[![License](https://img.shields.io/crates/l/throttlecrab.svg)](LICENSE-MIT)
+[![License](https://img.shields.io/crates/l/throttlecrab.svg)](LICENSE)
 
 A high-performance GCRA (Generic Cell Rate Algorithm) rate limiter for Rust. ThrottleCrab offers a pure Rust implementation with multiple storage backends and deployment options.
 
@@ -260,7 +260,7 @@ curl -X POST http://localhost:8080/throttle \
 
 ### gRPC Protocol
 
-See `proto/throttlecrab.proto` for the service definition.
+See [`throttlecrab-server/proto/throttlecrab.proto`](throttlecrab-server/proto/throttlecrab.proto) for the service definition.
 
 
 ## Contributing

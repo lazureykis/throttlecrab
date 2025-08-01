@@ -40,7 +40,7 @@
 └──────────────────────────────────────────────────────────┘
 ```
 
-### 1. Actor Message Types (`src/core/mod.rs`)
+### 1. Actor Message Types (`src/types.rs`)
 
 ```rust
 pub struct ThrottleRequest {
@@ -83,7 +83,7 @@ impl RateLimiterHandle {
 }
 ```
 
-### 2. Actor Implementation (`src/core/actor.rs`)
+### 2. Actor Implementation (`src/actor.rs`)
 
 ```rust
 pub struct RateLimiterActor {
@@ -199,21 +199,31 @@ struct HttpResponse {
 ### 4. Project Structure
 
 ```
-src/
+throttlecrab-server/src/
 ├── main.rs              # Binary entry point
 ├── lib.rs               # Library exports
-├── core/
-│   ├── mod.rs           # Core traits and types
-│   ├── gcra.rs          # GCRA algorithm implementation
-│   └── storage/
-│       ├── mod.rs       # Storage trait
-│       └── memory.rs    # In-memory storage
-├── transport/
-│   ├── mod.rs           # Transport trait
-│   ├── http.rs          # HTTP/JSON
-│   ├── grpc.rs          # gRPC
-│   └── native.rs        # Native binary protocol
-└── config.rs            # Configuration structs
+├── actor.rs             # Actor-based rate limiter
+├── actor_tests.rs       # Actor tests
+├── types.rs             # Shared types and messages
+├── store.rs             # Store factory
+├── config.rs            # Configuration structs
+└── transport/
+    ├── mod.rs           # Transport trait
+    ├── http.rs          # HTTP/JSON
+    ├── grpc.rs          # gRPC
+    └── native.rs        # Native binary protocol
+
+throttlecrab/src/
+├── lib.rs               # Library exports
+└── core/
+    ├── mod.rs           # Core types and errors
+    ├── rate_limiter.rs  # GCRA implementation
+    ├── rate/            # Rate calculation utilities
+    └── store/           # Storage implementations
+        ├── mod.rs       # Store trait
+        ├── adaptive_cleanup.rs  # Adaptive store
+        ├── periodic.rs          # Periodic store
+        └── probabilistic.rs     # Probabilistic store
 ```
 
 ### 5. Dependencies
@@ -223,13 +233,18 @@ src/
 # Core
 tokio = { version = "1", features = ["full"] }
 async-trait = "0.1"
-# No dependencies - pure Rust implementation
 anyhow = "1"
+throttlecrab = { version = "0.3", features = ["ahash"] }
 
 # HTTP/JSON
-hyper = { version = "0.14", features = ["full"] }
+axum = "0.7"
+tower = "0.5"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+
+# gRPC
+tonic = "0.14"
+prost = "0.14"
 
 # Utilities
 tracing = "0.1"
