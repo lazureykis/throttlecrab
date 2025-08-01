@@ -3,12 +3,12 @@ use std::sync::Arc;
 use std::time::Duration;
 use tokio::task::JoinSet;
 
-use super::transport_tests::{GrpcClient, HttpClient, NativeClient, Transport};
+use super::transport_tests::{GrpcClient, HttpClient, Transport};
 use super::workload::{WorkloadConfig, WorkloadGenerator, WorkloadStats};
 
 pub async fn run_multi_transport_test(workload_config: WorkloadConfig) -> Result<()> {
     println!("\n=== Multi-Transport Concurrent Test ===");
-    println!("Running all 4 transports simultaneously against a single server instance\n");
+    println!("Running all transports simultaneously against a single server instance\n");
 
     // Start server with all transports enabled
     let mut cmd = tokio::process::Command::new("cargo");
@@ -23,9 +23,6 @@ pub async fn run_multi_transport_test(workload_config: WorkloadConfig) -> Result
         .arg("--grpc")
         .arg("--grpc-port")
         .arg("28070")
-        .arg("--native")
-        .arg("--native-port")
-        .arg("28071")
         .arg("--store")
         .arg("adaptive")
         .arg("--store-capacity")
@@ -48,7 +45,6 @@ pub async fn run_multi_transport_test(workload_config: WorkloadConfig) -> Result
     let transports = vec![
         (Transport::Http, 28080),
         (Transport::Grpc, 28070),
-        (Transport::Native, 28071),
     ];
 
     let start_time = std::time::Instant::now();
@@ -88,15 +84,6 @@ pub async fn run_multi_transport_test(workload_config: WorkloadConfig) -> Result
                     }
                     Err(e) => Err(e),
                 },
-                Transport::Native => {
-                    let client = Arc::new(NativeClient::new(port, 50));
-                    generator
-                        .run(move |key| {
-                            let client = client.clone();
-                            async move { client.test_request(key).await }
-                        })
-                        .await
-                }
             };
 
             // Aggregate stats
@@ -160,7 +147,7 @@ pub async fn run_multi_transport_test(workload_config: WorkloadConfig) -> Result
     println!("  Total throughput: {total_rps:.2} requests/sec across all transports");
     println!(
         "  Average per transport: {:.2} requests/sec",
-        total_rps / 4.0
+        total_rps / 2.0
     );
 
     // Stop server
@@ -186,9 +173,6 @@ pub async fn run_transport_isolation_test() -> Result<()> {
         .arg("--grpc")
         .arg("--grpc-port")
         .arg("38070")
-        .arg("--native")
-        .arg("--native-port")
-        .arg("38071")
         .arg("--store")
         .arg("periodic")
         .arg("--log-level")
@@ -200,21 +184,19 @@ pub async fn run_transport_isolation_test() -> Result<()> {
     // Create pooled clients for all transports
     let http_client = Arc::new(HttpClient::new(38080));
     let grpc_client = GrpcClient::new(38070).await?;
-    let native_client = Arc::new(NativeClient::new(38071, 10));
 
     // Test with the same key across all transports
     let test_key = "shared_test_key".to_string();
     let mut limited_count = 0;
     let total_requests = 200;
 
-    println!("Sending {total_requests} requests with key '{test_key}' across all transports");
+    println!("Sending {total_requests} requests with key '{test_key}' across HTTP and gRPC transports");
 
     for i in 0..total_requests {
-        let transport_idx = i % 3;
+        let transport_idx = i % 2;
         let limited = match transport_idx {
             0 => http_client.test_request(test_key.clone()).await?,
             1 => grpc_client.clone().test_request(test_key.clone()).await?,
-            2 => native_client.test_request(test_key.clone()).await?,
             _ => unreachable!(),
         };
 

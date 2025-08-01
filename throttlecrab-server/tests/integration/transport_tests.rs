@@ -4,7 +4,6 @@ use std::time::Duration;
 use tokio::process::{Child, Command};
 use tokio::time::sleep;
 
-use super::connection_pool::NativeConnectionPool;
 use super::workload::{WorkloadConfig, WorkloadGenerator};
 
 pub struct ServerInstance {
@@ -17,7 +16,6 @@ pub struct ServerInstance {
 pub enum Transport {
     Http,
     Grpc,
-    Native,
 }
 
 impl ServerInstance {
@@ -59,7 +57,6 @@ impl Transport {
         match self {
             Transport::Http => "http",
             Transport::Grpc => "grpc",
-            Transport::Native => "native",
         }
     }
 }
@@ -148,11 +145,6 @@ pub async fn test_grpc_transport(port: u16, key: String) -> Result<bool> {
     client.test_request(key).await
 }
 
-pub async fn test_native_transport(port: u16, key: String) -> Result<bool> {
-    // For backward compatibility - uses connection pool
-    let client = NativePool::new(port, 10);
-    client.test_request(key).await
-}
 
 pub async fn run_transport_benchmark(
     transport: Transport,
@@ -168,7 +160,6 @@ pub async fn run_transport_benchmark(
     let port = match transport {
         Transport::Http => 18080,
         Transport::Grpc => 18070,
-        Transport::Native => 18071,
     };
 
     // Start server
@@ -200,15 +191,6 @@ pub async fn run_transport_benchmark(
                 })
                 .await?;
         }
-        Transport::Native => {
-            let client = Arc::new(NativePool::new(port, 50));
-            generator
-                .run(move |key| {
-                    let client = client.clone();
-                    async move { client.test_request(key).await }
-                })
-                .await?;
-        }
     }
 
     let duration = start.elapsed();
@@ -236,7 +218,7 @@ mod tests {
         };
 
         // Test each transport
-        for transport in [Transport::Http, Transport::Grpc, Transport::Native] {
+        for transport in [Transport::Http, Transport::Grpc] {
             run_transport_benchmark(transport, "periodic", workload.clone()).await?;
         }
 

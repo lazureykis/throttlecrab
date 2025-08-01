@@ -90,7 +90,6 @@ Real-world test results with 32 threads, 10K requests per thread (320K total):
 HTTP/JSON provides excellent performance with:
 
 - **Standard tooling**: Works with curl, Postman, etc.
-- **No key length limits**: Unlike binary protocols
 - **Connection pooling**: Reuse connections for efficiency
 - **Universal compatibility**: Any language or platform
 

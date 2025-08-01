@@ -69,7 +69,7 @@ GCRA works by tracking the "Theoretical Arrival Time" (TAT) of requests, ensurin
 
 ## Server
 
-Looking for a standalone rate limiting server? Check out [throttlecrab-server](https://crates.io/crates/throttlecrab-server) which provides HTTP, gRPC, and Native Binary interfaces.
+Looking for a standalone rate limiting server? Check out [throttlecrab-server](https://crates.io/crates/throttlecrab-server) which provides HTTP and gRPC interfaces.
 
 ## License
 
