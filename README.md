@@ -345,8 +345,8 @@ ThrottleCrab uses server-side timestamps for all rate limiting decisions.
 
 #### Vertical Scaling
 A single instance can handle:
-- 500K+ requests/second (native protocol)
-- 1M+ unique keys in memory
+- 100K+ requests/second on modern CPUs
+- Millions of unique keys in memory
 - Sub-millisecond P99 latency
 
 #### Horizontal Scaling
