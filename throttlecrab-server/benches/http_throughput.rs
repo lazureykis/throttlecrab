@@ -145,7 +145,6 @@ fn benchmark_http_connection_reuse(c: &mut Criterion) {
 
 fn http_throughput_benchmarks(c: &mut Criterion) {
     println!("Make sure server is running with: cargo run --release -- --http --http-port 9091");
-    println!("Waiting for server to start...");
     std::thread::sleep(Duration::from_secs(2));
 
     // Test connection
@@ -159,7 +158,9 @@ fn http_throughput_benchmarks(c: &mut Criterion) {
             eprintln!("   Error: {e}");
             eprintln!("\n📝 To run benchmarks, you need to start the server first:");
             eprintln!("\n   Option 1 - All transports (recommended):");
-            eprintln!("   cargo run --release -- --http --http-port 9091 --grpc --grpc-port 9093 --redis --redis-port 9092");
+            eprintln!(
+                "   cargo run --release -- --http --http-port 9091 --grpc --grpc-port 9093 --redis --redis-port 9092"
+            );
             eprintln!("\n   Option 2 - HTTP only:");
             eprintln!("   cargo run --release -- --http --http-port 9091");
             eprintln!("\n   Then in another terminal, run:");

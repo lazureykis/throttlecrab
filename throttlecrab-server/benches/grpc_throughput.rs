@@ -30,8 +30,6 @@ async fn make_grpc_request(
 fn grpc_throughput(c: &mut Criterion) {
     println!("Make sure to run the gRPC server:");
     println!("  Run: ./run-criterion-benchmarks.sh grpc_throughput");
-    println!("Waiting for server to start...");
-    std::thread::sleep(Duration::from_secs(2));
 
     let mut group = c.benchmark_group("grpc_throughput");
     group.measurement_time(Duration::from_secs(10));
@@ -47,7 +45,9 @@ fn grpc_throughput(c: &mut Criterion) {
             eprintln!("   Error: {e}");
             eprintln!("\n📝 To run benchmarks, you need to start the server first:");
             eprintln!("\n   Option 1 - All transports (recommended):");
-            eprintln!("   cargo run --release -- --http --http-port 9091 --grpc --grpc-port 9093 --redis --redis-port 9092");
+            eprintln!(
+                "   cargo run --release -- --http --http-port 9091 --grpc --grpc-port 9093 --redis --redis-port 9092"
+            );
             eprintln!("\n   Option 2 - gRPC only:");
             eprintln!("   cargo run --release -- --grpc --grpc-port 9093");
             eprintln!("\n   Then in another terminal, run:");
