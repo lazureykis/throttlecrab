@@ -3,7 +3,7 @@
 [![CI](https://github.com/lazureykis/throttlecrab/actions/workflows/ci.yml/badge.svg)](https://github.com/lazureykis/throttlecrab/actions/workflows/ci.yml)
 [![Crates.io](https://img.shields.io/crates/v/throttlecrab-server.svg)](https://crates.io/crates/throttlecrab-server)
 [![Documentation](https://docs.rs/throttlecrab-server/badge.svg)](https://docs.rs/throttlecrab-server)
-[![License](https://img.shields.io/crates/l/throttlecrab-server.svg)](LICENSE-MIT)
+[![License](https://img.shields.io/crates/l/throttlecrab-server.svg)](../LICENSE)
 
 A high-performance rate limiting server with multiple protocol support, built on [throttlecrab](https://crates.io/crates/throttlecrab).
 
@@ -142,7 +142,7 @@ Note: `timestamp` is optional (Unix nanoseconds). If not provided, the server us
 
 ### gRPC Protocol
 
-See `proto/throttlecrab.proto` for the service definition. Use any gRPC client library to connect.
+See [`proto/throttlecrab.proto`](proto/throttlecrab.proto) for the service definition. Use any gRPC client library to connect.
 
 ## Client Integration
 
@@ -244,8 +244,7 @@ throttlecrab-server --grpc --native \
 
 Licensed under either of:
 
-- Apache License, Version 2.0 ([LICENSE-APACHE](../LICENSE-APACHE) or http://www.apache.org/licenses/LICENSE-2.0)
-- MIT license ([LICENSE-MIT](../LICENSE-MIT) or http://opensource.org/licenses/MIT)
+- MIT license ([LICENSE](../LICENSE) or http://opensource.org/licenses/MIT)
 
 at your option.
 
