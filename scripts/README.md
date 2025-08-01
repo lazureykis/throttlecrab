@@ -2,35 +2,27 @@
 
 This directory contains utility scripts for building and managing ThrottleCrab.
 
-## Docker Build Scripts
+## Docker Build Script
 
-### docker-quick-push.sh
+### docker-push.sh
 
-Fast Docker build script optimized for local development. Builds only for your current platform.
-
-```bash
-# Build locally
-./scripts/docker-quick-push.sh
-
-# Build and push to Docker Hub
-./scripts/docker-quick-push.sh --push
-```
-
-### docker-build-push.sh
-
-Full-featured Docker build script with multi-platform support (linux/amd64, linux/arm64).
+Multi-platform Docker build script that supports both local builds and pushing to Docker Hub.
 
 ```bash
 # Build locally (current platform only)
-./scripts/docker-build-push.sh
+./scripts/docker-push.sh
 
 # Build and push multi-platform images to Docker Hub
-./scripts/docker-build-push.sh --push
+./scripts/docker-push.sh --push
 ```
 
-## Usage Tips
+Features:
+- Multi-platform support (linux/amd64, linux/arm64)
+- Automatic version detection from `Cargo.toml`
+- Docker buildx management
+- Login verification before push
+- Tags images as both `version` and `latest`
 
-- Use `docker-quick-push.sh` for rapid iteration during development
-- Use `docker-build-push.sh --push` for official releases with multi-platform support
-- Both scripts automatically detect the version from `Cargo.toml`
-- Images are tagged as both `version` and `latest`
+## Environment Variables
+
+- `DOCKER_USERNAME`: Override the default Docker Hub username (default: lazureykis)

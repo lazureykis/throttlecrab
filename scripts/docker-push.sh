@@ -47,17 +47,22 @@ if ! docker info > /dev/null 2>&1; then
 fi
 
 # Setup Docker buildx builder
-if docker buildx ls | grep -q "throttlecrab-builder"; then
-    echo -e "${YELLOW}Using existing throttlecrab-builder${NC}"
-    docker buildx use throttlecrab-builder
+BUILDER_NAME="throttlecrab-builder"
+
+# Check if builder exists by trying to inspect it
+if docker buildx inspect ${BUILDER_NAME} >/dev/null 2>&1; then
+    echo -e "${YELLOW}Using existing ${BUILDER_NAME}${NC}"
+    docker buildx use ${BUILDER_NAME}
 else
     echo -e "${YELLOW}Creating Docker buildx builder...${NC}"
-    if ! docker buildx create --name throttlecrab-builder --use; then
+    if ! docker buildx create --name ${BUILDER_NAME} --use; then
         echo -e "${RED}Error: Failed to create buildx builder${NC}"
         exit 1
     fi
-    docker buildx inspect --bootstrap
 fi
+
+# Ensure builder is bootstrapped
+docker buildx inspect ${BUILDER_NAME} --bootstrap >/dev/null 2>&1
 
 # Build tags
 TAGS=(
