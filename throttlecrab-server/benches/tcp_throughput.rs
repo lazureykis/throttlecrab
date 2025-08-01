@@ -5,7 +5,7 @@ use std::net::TcpStream;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::thread;
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use std::time::Duration;
 
 /// Native protocol request format
 struct Request {
@@ -15,7 +15,6 @@ struct Request {
     rate: i64,
     period: i64,
     quantity: i64,
-    timestamp: i64,
 }
 
 fn make_request(stream: &mut TcpStream, key: &str) -> bool {
@@ -26,24 +25,19 @@ fn make_request(stream: &mut TcpStream, key: &str) -> bool {
         rate: 1000,
         period: 60,
         quantity: 1,
-        timestamp: SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap()
-            .as_nanos() as i64,
     };
 
     // Send native protocol request
     let key_bytes = request.key.as_bytes();
     let key_len = key_bytes.len().min(255) as u8;
 
-    // Write fixed header (42 bytes)
+    // Write fixed header (34 bytes)
     stream.write_all(&[request.cmd]).unwrap(); // cmd: u8
     stream.write_all(&[key_len]).unwrap(); // key_len: u8
     stream.write_all(&request.burst.to_le_bytes()).unwrap(); // burst: i64
     stream.write_all(&request.rate.to_le_bytes()).unwrap(); // rate: i64
     stream.write_all(&request.period.to_le_bytes()).unwrap(); // period: i64
     stream.write_all(&request.quantity.to_le_bytes()).unwrap(); // quantity: i64
-    stream.write_all(&request.timestamp.to_le_bytes()).unwrap(); // timestamp: i64
 
     // Write key
     stream.write_all(&key_bytes[..key_len as usize]).unwrap();
