@@ -60,9 +60,10 @@ async fn main() -> Result<()> {
 
     // Create shared metrics instance
     let metrics = Arc::new(Metrics::new());
-    
+
     // Create the rate limiter actor with the configured store
-    let limiter = store::create_rate_limiter(&config.store, config.buffer_size, Arc::clone(&metrics));
+    let limiter =
+        store::create_rate_limiter(&config.store, config.buffer_size, Arc::clone(&metrics));
 
     // Create a set to manage multiple transport tasks
     let mut transport_tasks = JoinSet::new();

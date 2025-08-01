@@ -54,7 +54,11 @@ use throttlecrab::{AdaptiveStore, PeriodicStore, ProbabilisticStore};
 /// let metrics = Arc::new(Metrics::new());
 /// let limiter = create_rate_limiter(&config, 10_000, metrics);
 /// ```
-pub fn create_rate_limiter(config: &StoreConfig, buffer_size: usize, metrics: Arc<Metrics>) -> RateLimiterHandle {
+pub fn create_rate_limiter(
+    config: &StoreConfig,
+    buffer_size: usize,
+    metrics: Arc<Metrics>,
+) -> RateLimiterHandle {
     match config.store_type {
         StoreType::Periodic => {
             let store = PeriodicStore::builder()

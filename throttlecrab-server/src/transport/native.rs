@@ -95,7 +95,11 @@ impl NativeTransport {
     ///
     /// Processes rate limit requests from the client until the connection
     /// is closed or an error occurs.
-    async fn handle_connection(mut socket: TcpStream, limiter: RateLimiterHandle, metrics: Arc<Metrics>) -> Result<()> {
+    async fn handle_connection(
+        mut socket: TcpStream,
+        limiter: RateLimiterHandle,
+        metrics: Arc<Metrics>,
+    ) -> Result<()> {
         // Track connection
         metrics.connection_opened(MetricsTransport::Native);
         // Pre-allocate buffers
@@ -199,7 +203,7 @@ impl NativeTransport {
 
             socket.write_all(&write_buffer).await?;
             socket.flush().await?;
-            
+
             // Record metrics
             let latency_us = start.elapsed().as_micros() as u64;
             metrics.record_request(MetricsTransport::Native, latency_us, response.allowed);

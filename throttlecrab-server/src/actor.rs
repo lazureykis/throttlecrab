@@ -50,6 +50,7 @@ pub enum RateLimiterMessage {
 #[derive(Clone)]
 pub struct RateLimiterHandle {
     tx: mpsc::Sender<RateLimiterMessage>,
+    #[allow(dead_code)] // Will be used for future metrics queries
     pub metrics: Arc<Metrics>,
 }
 
@@ -98,7 +99,11 @@ impl RateLimiterActor {
     /// # Returns
     ///
     /// A [`RateLimiterHandle`] for communicating with the actor
-    pub fn spawn_periodic(buffer_size: usize, store: PeriodicStore, metrics: Arc<Metrics>) -> RateLimiterHandle {
+    pub fn spawn_periodic(
+        buffer_size: usize,
+        store: PeriodicStore,
+        metrics: Arc<Metrics>,
+    ) -> RateLimiterHandle {
         let (tx, rx) = mpsc::channel(buffer_size);
         let metrics_clone = Arc::clone(&metrics);
 
@@ -120,7 +125,11 @@ impl RateLimiterActor {
     /// # Returns
     ///
     /// A [`RateLimiterHandle`] for communicating with the actor
-    pub fn spawn_probabilistic(buffer_size: usize, store: ProbabilisticStore, metrics: Arc<Metrics>) -> RateLimiterHandle {
+    pub fn spawn_probabilistic(
+        buffer_size: usize,
+        store: ProbabilisticStore,
+        metrics: Arc<Metrics>,
+    ) -> RateLimiterHandle {
         let (tx, rx) = mpsc::channel(buffer_size);
         let metrics_clone = Arc::clone(&metrics);
 
@@ -142,7 +151,11 @@ impl RateLimiterActor {
     /// # Returns
     ///
     /// A [`RateLimiterHandle`] for communicating with the actor
-    pub fn spawn_adaptive(buffer_size: usize, store: AdaptiveStore, metrics: Arc<Metrics>) -> RateLimiterHandle {
+    pub fn spawn_adaptive(
+        buffer_size: usize,
+        store: AdaptiveStore,
+        metrics: Arc<Metrics>,
+    ) -> RateLimiterHandle {
         let (tx, rx) = mpsc::channel(buffer_size);
         let metrics_clone = Arc::clone(&metrics);
 
@@ -201,7 +214,11 @@ impl StoreType {
     }
 }
 
-async fn run_actor(mut rx: mpsc::Receiver<RateLimiterMessage>, mut store_type: StoreType, _metrics: Arc<Metrics>) {
+async fn run_actor(
+    mut rx: mpsc::Receiver<RateLimiterMessage>,
+    mut store_type: StoreType,
+    _metrics: Arc<Metrics>,
+) {
     while let Some(msg) = rx.recv().await {
         match msg {
             RateLimiterMessage::Throttle {

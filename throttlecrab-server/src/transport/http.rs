@@ -45,7 +45,13 @@ use crate::metrics::{Metrics, Transport as MetricsTransport};
 use crate::types::{ThrottleRequest as InternalRequest, ThrottleResponse};
 use anyhow::Result;
 use async_trait::async_trait;
-use axum::{Router, extract::State, http::StatusCode, response::Json, routing::{get, post}};
+use axum::{
+    Router,
+    extract::State,
+    http::StatusCode,
+    response::Json,
+    routing::{get, post},
+};
 use serde::{Deserialize, Serialize};
 use std::net::SocketAddr;
 use std::sync::Arc;
@@ -119,7 +125,7 @@ async fn handle_throttle(
     Json(req): Json<HttpThrottleRequest>,
 ) -> Result<Json<ThrottleResponse>, (StatusCode, Json<HttpErrorResponse>)> {
     let start = Instant::now();
-    
+
     // Always use server timestamp
     let timestamp = SystemTime::now();
 
@@ -135,13 +141,17 @@ async fn handle_throttle(
     match state.limiter.throttle(internal_req).await {
         Ok(response) => {
             let latency_us = start.elapsed().as_micros() as u64;
-            state.metrics.record_request(MetricsTransport::Http, latency_us, response.allowed);
+            state
+                .metrics
+                .record_request(MetricsTransport::Http, latency_us, response.allowed);
             Ok(Json(response))
         }
         Err(e) => {
             tracing::error!("Rate limiter error: {}", e);
             let latency_us = start.elapsed().as_micros() as u64;
-            state.metrics.record_request(MetricsTransport::Http, latency_us, false);
+            state
+                .metrics
+                .record_request(MetricsTransport::Http, latency_us, false);
             Err((
                 StatusCode::INTERNAL_SERVER_ERROR,
                 Json(HttpErrorResponse {
@@ -152,8 +162,6 @@ async fn handle_throttle(
     }
 }
 
-async fn handle_metrics(
-    State(state): State<Arc<AppState>>,
-) -> Result<String, StatusCode> {
+async fn handle_metrics(State(state): State<Arc<AppState>>) -> Result<String, StatusCode> {
     Ok(state.metrics.export_prometheus())
 }

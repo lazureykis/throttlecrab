@@ -2,8 +2,8 @@
 mod tests {
     use crate::actor::RateLimiterActor;
     use crate::types::ThrottleRequest;
-    use throttlecrab::PeriodicStore;
     use std::sync::Arc;
+    use throttlecrab::PeriodicStore;
 
     #[tokio::test]
     async fn test_basic_rate_limiting() {

@@ -110,7 +110,7 @@ impl GrpcTransport {
 #[async_trait]
 impl Transport for GrpcTransport {
     async fn start(self, limiter: RateLimiterHandle) -> Result<()> {
-        let service = RateLimiterService { 
+        let service = RateLimiterService {
             limiter,
             metrics: Arc::clone(&self.metrics),
         };
@@ -166,18 +166,17 @@ impl RateLimiter for RateLimiterService {
         };
 
         // Call the rate limiter
-        let result = match self
-            .limiter
-            .throttle(actor_request)
-            .await {
+        let result = match self.limiter.throttle(actor_request).await {
             Ok(result) => {
                 let latency_us = start.elapsed().as_micros() as u64;
-                self.metrics.record_request(MetricsTransport::Grpc, latency_us, result.allowed);
+                self.metrics
+                    .record_request(MetricsTransport::Grpc, latency_us, result.allowed);
                 result
             }
             Err(e) => {
                 let latency_us = start.elapsed().as_micros() as u64;
-                self.metrics.record_request(MetricsTransport::Grpc, latency_us, false);
+                self.metrics
+                    .record_request(MetricsTransport::Grpc, latency_us, false);
                 return Err(Status::internal(format!("Rate limiter error: {e}")));
             }
         };
