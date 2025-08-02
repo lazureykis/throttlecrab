@@ -228,10 +228,17 @@ For best performance, use short keys:
 - ❌ Avoid: `user_id:123`, `ip_address:1.2.3.4`
 
 ### Memory Usage
-Each key uses ~80-150 bytes. With 1M keys:
-- 10-char keys: ~90 MB
-- 50-char keys: ~130 MB
-- 100-char keys: ~180 MB
+Each entry stores:
+- Key string: varies by length
+- Value: i64 (8 bytes) + Option<SystemTime> (24 bytes) = 32 bytes
+- HashMap overhead: ~32 bytes per entry
+
+Total per entry: ~64 bytes + key length
+
+With 1M keys:
+- 10-char keys: ~74 MB
+- 50-char keys: ~114 MB  
+- 100-char keys: ~164 MB
 
 ### Scaling
 - **Vertical**: Single instance handles 180K+ req/s
