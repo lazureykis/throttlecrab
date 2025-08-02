@@ -1,4 +1,4 @@
-# ThrottleCrab
+# ThrottleCrab 🦀
 
 [![CI](https://github.com/lazureykis/throttlecrab/actions/workflows/ci.yml/badge.svg)](https://github.com/lazureykis/throttlecrab/actions/workflows/ci.yml)
 [![Crates.io](https://img.shields.io/crates/v/throttlecrab.svg)](https://crates.io/crates/throttlecrab)
@@ -6,246 +6,151 @@
 [![Documentation](https://docs.rs/throttlecrab/badge.svg)](https://docs.rs/throttlecrab)
 [![License](https://img.shields.io/crates/l/throttlecrab.svg)](LICENSE)
 
-A high-performance GCRA (Generic Cell Rate Algorithm) rate limiter for Rust. ThrottleCrab offers a pure Rust implementation with multiple storage backends and deployment options.
+High-performance rate limiting for Rust applications. Choose between an embedded library for Rust projects or a standalone server for any stack.
 
-## Project Structure
+## Choose Your Path
 
-This workspace contains three crates:
+### 🚀 Need rate limiting in 30 seconds?
 
-| Crate | Description | Use Case |
-|-------|-------------|----------|
-| [`throttlecrab`](./throttlecrab) | Core rate limiting library | Embed rate limiting in your Rust application |
-| [`throttlecrab-server`](./throttlecrab-server) | Standalone server with multiple protocols | Distributed rate limiting service |
+```bash
+# Install and run the server
+cargo install throttlecrab-server
+throttlecrab-server --http --http-port 8080
 
-## Quick Start
+# Test it with curl
+curl -X POST http://localhost:8080/throttle \
+  -H "Content-Type: application/json" \
+  -d '{"key": "test", "max_burst": 3, "count_per_period": 10, "period": 60}'
+```
 
-### As a Library
+### 📦 Building a Rust application?
+
+```toml
+[dependencies]
+throttlecrab = "0.4"
+```
 
 ```rust
 use throttlecrab::{RateLimiter, AdaptiveStore};
 use std::time::SystemTime;
 
-// Create a rate limiter with adaptive store (best performance)
 let mut limiter = RateLimiter::new(AdaptiveStore::new());
-
-// Check rate limit: 10 burst, 100 requests per 60 seconds
 let (allowed, result) = limiter
     .rate_limit("user:123", 10, 100, 60, 1, SystemTime::now())
     .unwrap();
 
 if allowed {
-    println!("Request allowed! Remaining: {}", result.remaining);
+    println!("✅ Request allowed! {} remaining", result.remaining);
 } else {
-    println!("Rate limited! Retry after: {} seconds", result.retry_after);
+    println!("❌ Rate limited! Retry in {}s", result.retry_after);
 }
 ```
 
-### As a Server
+### 🐳 Want to use Docker?
 
 ```bash
-# Install the server
-cargo install throttlecrab-server
-
-# Run with HTTP for easy integration
-throttlecrab-server --http --http-port 8080
-
-# Or run with Redis protocol for maximum performance
-throttlecrab-server --redis --redis-port 6379
-
-# Or run with multiple protocols
-throttlecrab-server --http --grpc --redis
-
+docker run -d -p 8080:8080 lazureykis/throttlecrab:latest
 ```
 
-### Client Integration
+## What is ThrottleCrab?
 
-The HTTP/JSON protocol makes it easy to integrate with any programming language or tool:
+ThrottleCrab implements the **Generic Cell Rate Algorithm (GCRA)** for smooth, precise rate limiting without sudden bursts or unfair rejections. It's available as:
 
-```bash
-# Check rate limit with curl
-curl -X POST http://localhost:8080/throttle \
-  -H "Content-Type: application/json" \
-  -d '{
-    "key": "user:123",
-    "max_burst": 10,
-    "count_per_period": 100,
-    "period": 60,
-    "quantity": 1
-  }'
+- **`throttlecrab`** - Embedded Rust library for in-process rate limiting
+- **`throttlecrab-server`** - Standalone server supporting HTTP, gRPC, and Redis protocols
 
-# Response:
-# {
-#   "allowed": true,
-#   "limit": 10,
-#   "remaining": 9,
-#   "retry_after": 0,
-#   "reset_after": 60
-# }
+## Quick Examples
+
+### HTTP API (Any Language)
+
+```python
+import requests
+
+# Check rate limit
+response = requests.post('http://localhost:8080/throttle', json={
+    'key': 'user:123',
+    'max_burst': 10,
+    'count_per_period': 100,
+    'period': 60
+})
+
+result = response.json()
+if result['allowed']:
+    print(f"✅ Request allowed! {result['remaining']} remaining")
+else:
+    print(f"❌ Rate limited! Retry in {result['retry_after']}s")
 ```
 
-The `quantity` parameter is optional (defaults to 1) and allows you to check/consume multiple tokens at once.
-
-#### Redis Protocol
-
-For maximum performance, use the Redis protocol with any Redis client:
+### Redis Protocol (Maximum Performance)
 
 ```python
 import redis
 
-# Connect to ThrottleCrab Redis interface
 r = redis.Redis(host='localhost', port=6379)
-
-# Check rate limit using THROTTLE command
-# THROTTLE key max_burst count_per_period period [quantity]
-result = r.execute_command('THROTTLE', 'user:123', 10, 100, 60, 1)
-
-# Result: [allowed, limit, remaining, reset_after, retry_after]
-# Example: [1, 10, 9, 60, 0]
-allowed = result[0] == 1
-remaining = result[2]
+result = r.execute_command('THROTTLE', 'user:123', 10, 100, 60)
+# Returns: [allowed (0/1), limit, remaining, reset_after, retry_after]
 ```
 
-For production applications, use connection pooling with your chosen protocol.
+### JavaScript/Node.js
 
-## Features
+```javascript
+const response = await fetch('http://localhost:8080/throttle', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+        key: 'user:123',
+        max_burst: 10,
+        count_per_period: 100,
+        period: 60
+    })
+});
 
-### Core Library (`throttlecrab`)
-- **GCRA Algorithm**: Smooth rate limiting without sudden spikes or drops
-- **Multiple Store Types**:
-  - `AdaptiveStore`: Self-tuning cleanup intervals
-  - `PeriodicStore`: Fixed interval cleanup
-  - `ProbabilisticStore`: Random sampling cleanup
-- **Zero Dependencies**: Pure Rust implementation
-- **Thread-Safe**: Can be used with `Arc<Mutex<>>` for concurrent access
-
-### Server (`throttlecrab-server`)
-- **Multiple Protocols**:
-  - **Redis/RESP**: Redis-compatible protocol for highest performance
-  - **HTTP/JSON**: REST API for easy integration
-  - **gRPC**: Service mesh and microservices
-- **Shared State**: All protocols share the same rate limiter store
-- **Production Ready**: Health checks, Prometheus metrics, configurable logging
-- **Advanced Observability**: Comprehensive metrics including denial rates, capacity usage, and key distribution insights
-- **Flexible Deployment**: Docker, systemd, or standalone binary
+const result = await response.json();
+console.log(result.allowed ? '✅ Allowed' : '❌ Rate limited');
+```
 
 ## Performance
 
-### Store Type Performance
+| Protocol | Throughput | P99 Latency | P50 Latency |
+|----------|------------|-------------|-------------|
+| Redis    | 184K req/s | 275 μs      | 170 μs      |
+| HTTP     | 175K req/s | 327 μs      | 176 μs      |
+| gRPC     | 163K req/s | 377 μs      | 188 μs      |
 
-| Store Type | Best For | Cleanup Strategy | Memory Usage |
-|------------|----------|------------------|---------------|
-| Adaptive | Variable workloads | Self-tuning intervals | Dynamic |
-| Periodic | Predictable load | Fixed intervals | Predictable |
-| Probabilistic | High throughput | Random sampling | Efficient |
+You can run the same benchmark yourself with `cd integration-tests && ./run-transport-test.sh -t all -T 32 -r 10000`
 
-## When to Use
+## Server Installation Options
 
-- **Library**: For Rust applications with embedded rate limiting
-- **Server**: For distributed systems and microservices needing centralized rate limiting
-
-
-
-## Getting Started
-
-### Installation
-
-```toml
-# For library usage
-[dependencies]
-throttlecrab = "0.2"
-```
-
-### Running the Server
-
+### Binary
 ```bash
-# Install
 cargo install throttlecrab-server
-
-# Run with HTTP protocol
-throttlecrab-server --http --http-port 8080 --store adaptive
-
-# Run with multiple protocols
-throttlecrab-server --http --grpc \
-    --http-port 8080 \
-    --grpc-port 50051
-
-# Run with custom configuration
-throttlecrab-server --http \
-    --store adaptive \
-    --store-capacity 1000000 \
-    --log-level info
+throttlecrab-server --http --http-port 8080
 ```
 
-### Docker Deployment
-
-#### Using Pre-built Image
-
-Docker images are automatically built and pushed to Docker Hub via GitHub Actions for every release.
-
+### Docker
 ```bash
-# Pull the latest image
-docker pull lazureykis/throttlecrab:latest
-
-# Run with default settings (all protocols enabled)
-docker run -d \
-  --name throttlecrab \
-  -p 8080:8080 \
-  -p 50051:50051 \
-  -p 8072:8072 \
-  lazureykis/throttlecrab:latest
-
-# Run with custom configuration
-docker run -d \
-  --name throttlecrab \
-  -p 8080:8080 \
+docker run -d -p 8080:8080 -p 6379:6379 \
   -e THROTTLECRAB_HTTP=true \
-  -e THROTTLECRAB_GRPC=false \
-  -e THROTTLECRAB_STORE=adaptive \
-  -e THROTTLECRAB_STORE_CAPACITY=1000000 \
-  -e THROTTLECRAB_LOG_LEVEL=info \
+  -e THROTTLECRAB_REDIS=true \
   lazureykis/throttlecrab:latest
 ```
 
-#### Using Docker Compose
-
+### Docker Compose
 ```yaml
-# docker-compose.yml
 version: '3.8'
-
 services:
   throttlecrab:
     image: lazureykis/throttlecrab:latest
-    container_name: throttlecrab-server
     ports:
       - "8080:8080"   # HTTP
+      - "6379:6379"   # Redis
       - "50051:50051" # gRPC
     environment:
-      THROTTLECRAB_STORE: "adaptive"
-      THROTTLECRAB_STORE_CAPACITY: "100000"
-      THROTTLECRAB_LOG_LEVEL: "info"
+      THROTTLECRAB_LOG_LEVEL: info
     restart: unless-stopped
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
-      interval: 30s
-      timeout: 3s
-      retries: 3
 ```
 
-Then run:
-```bash
-docker-compose up -d
-```
-
-#### Building Your Own Image
-
-```dockerfile
-# Use the provided Dockerfile in the repository
-docker build -t my-throttlecrab .
-docker run -d -p 8080:8080 my-throttlecrab
-```
-
-### Systemd Service
-
+### Systemd
 ```ini
 [Unit]
 Description=ThrottleCrab Rate Limiting Server
@@ -253,198 +158,98 @@ After=network.target
 
 [Service]
 Type=simple
-User=throttlecrab
-ExecStart=/usr/local/bin/throttlecrab-server --http --http-port 8080 --store adaptive
+ExecStart=/usr/local/bin/throttlecrab-server --http --redis
 Restart=always
-RestartSec=5
 
 [Install]
 WantedBy=multi-user.target
 ```
 
-## Protocol Documentation
+## Configuration
 
-### HTTP REST API
-
-**Endpoint**: `POST /throttle`
+All options can be set via CLI flags or environment variables:
 
 ```bash
-curl -X POST http://localhost:8080/throttle \
-  -H "Content-Type: application/json" \
-  -d '{
-    "key": "user:123",
-    "max_burst": 10,
-    "count_per_period": 100,
-    "period": 60
-  }'
+# CLI flags
+throttlecrab-server --http --http-port 8080 --store adaptive
+
+# Environment variables
+export THROTTLECRAB_HTTP=true
+export THROTTLECRAB_HTTP_PORT=8080
+export THROTTLECRAB_STORE=adaptive
+throttlecrab-server
 ```
 
-**Key Length**: No restriction
+### Store Types
 
-**Recommendation**: Use the shortest keys possible for better performance:
-- Shorter keys = less memory usage
-- Faster hashing and comparison
-- More keys fit in CPU cache
-- Example: prefer `u:123` over `user:123` or `uid_123` over `user_id_123`
+| Store | Best For | Cleanup Strategy |
+|-------|----------|------------------|
+| `adaptive` | Variable load (default) | Self-tuning |
+| `periodic` | Predictable load | Fixed intervals |
+| `probabilistic` | High throughput | Random sampling |
 
+## Monitoring
 
-### gRPC Protocol
+- **Health**: `GET /health`
+- **Metrics**: `GET /metrics` (Prometheus format)
 
-See [`throttlecrab-server/proto/throttlecrab.proto`](throttlecrab-server/proto/throttlecrab.proto) for the service definition.
+Key metrics:
+- `throttlecrab_requests_total` - Total requests
+- `throttlecrab_denial_rate` - Current denial rate (0.0-1.0)
+- `throttlecrab_request_duration_bucket` - Latency histogram
 
-**Key Length**: No restriction
+## Protocol Reference
 
-**Recommendation**: Same as HTTP - use short, efficient keys
+### HTTP API
+```bash
+POST /throttle
+{
+  "key": "string",           # Unique identifier
+  "max_burst": 10,          # Maximum burst capacity
+  "count_per_period": 100,  # Allowed requests per period
+  "period": 60,             # Period in seconds
+  "quantity": 1             # Optional, default 1
+}
+```
 
+### Redis Commands
+```
+THROTTLE key max_burst count_per_period period [quantity]
+PING
+QUIT
+```
 
+### gRPC
+See [`throttlecrab-server/proto/throttlecrab.proto`](throttlecrab-server/proto/throttlecrab.proto)
 
-## Key Design Best Practices
+## Advanced Topics
 
-While ThrottleCrab doesn't enforce key length limits,
-following these practices will maximize performance:
+### Key Design
+For best performance, use short keys:
+- ✅ Good: `u:123`, `ip:1.2.3.4`
+- ❌ Avoid: `user_id:123`, `ip_address:1.2.3.4`
 
-### Use Short Keys
-- **Good**: `u:123`, `ip:1.2.3.4`, `a:abc`
-- **Avoid**: `user_id:123`, `ip_address:1.2.3.4`, `api_key:abc`
+### Memory Usage
+Each entry stores:
+- Key string: varies by length
+- Value: i64 (8 bytes) + Option<SystemTime> (24 bytes) = 32 bytes
+- HashMap overhead: ~32 bytes per entry
 
-### Be Consistent
-- Pick a naming scheme and stick to it
-- Document your key format for your team
+Total per entry: ~64 bytes + key length
 
-### Memory Impact
-Each key is stored in memory with ~80-150 bytes overhead:
-- 10-char key: ~90 bytes total
-- 50-char key: ~130 bytes total
-- 100-char key: ~180 bytes total
+With 1M keys:
+- 10-char keys: ~74 MB
+- 50-char keys: ~114 MB
+- 100-char keys: ~164 MB
 
-With 1 million keys:
-- 10-char keys: ~90 MB
-- 50-char keys: ~130 MB
-- 100-char keys: ~180 MB
-
-### Performance Impact
-Shorter keys provide:
-- 2-3x faster hash computation
-- Better CPU cache utilization
-- Lower network bandwidth
-- Faster key comparisons
+### Scaling
+- **Vertical**: Single instance handles 180K+ req/s
+- **Horizontal**: Use client-side sharding by key
 
 ## Contributing
 
-Contributions are welcome! Please feel free to submit a Pull Request.
-
-## Production Deployment
-
-### Performance Tuning
-
-```bash
-# Example production configuration
-throttlecrab-server \
-    --http --http-port 8080 \
-    --store adaptive \
-    --store-capacity 1000000 \
-    --buffer-size 100000 \
-    --log-level warn
-```
-
-### Monitoring
-
-- **Health Check**: `GET /health` returns 200 OK
-- **Metrics**: Prometheus-compatible metrics via `GET /metrics`
-- **Resource Usage**: Monitor memory usage based on active keys
-
-## Metrics and Observability
-
-ThrottleCrab Server provides comprehensive metrics for monitoring rate limiter performance and behavior. All metrics are exposed in Prometheus format at the `/metrics` endpoint (HTTP only).
-
-### Available Metrics
-
-#### System Metrics
-- `throttlecrab_uptime_seconds`: Server uptime in seconds
-- `throttlecrab_requests_total`: Total number of requests processed
-- `throttlecrab_requests_by_transport{transport="http|grpc|redis"}`: Requests by transport type
-- `throttlecrab_connections_active{transport="http|grpc|redis"}`: Active connections per transport
-
-#### Rate Limiting Metrics
-- `throttlecrab_requests_allowed`: Total allowed requests across all keys
-- `throttlecrab_requests_denied`: Total denied requests across all keys
-- `throttlecrab_active_keys`: Number of active rate limit keys in the store
-- `throttlecrab_store_evictions`: Total key evictions from the store
-
-#### Performance Metrics
-- `throttlecrab_request_duration_bucket`: Request latency histogram (in microseconds)
-  - Buckets: 50μs, 100μs, 250μs, 500μs, 1ms, 2.5ms, 5ms, 10ms, 25ms, 50ms, 100ms
-- `throttlecrab_request_duration_sum`: Total time spent processing requests
-- `throttlecrab_request_duration_count`: Total number of requests in the histogram
-
-#### Advanced Metrics (v0.4.0+)
-- `throttlecrab_denial_rate`: Current denial rate (0.0-1.0)
-- `throttlecrab_avg_remaining_ratio`: Average remaining capacity ratio across all keys
-- `throttlecrab_requests_near_limit`: Number of keys using >90% of their capacity
-- `throttlecrab_total_capacity_used`: Sum of all tokens consumed
-- `throttlecrab_total_capacity_available`: Sum of all token limits
-- `throttlecrab_key_distribution_bucket`: Distribution of request counts per key
-  - Buckets: 1, 10, 100, 1K, 10K, 100K, 1M requests
-
-### Prometheus Integration
-
-```yaml
-# prometheus.yml
-scrape_configs:
-  - job_name: 'throttlecrab'
-    static_configs:
-      - targets: ['localhost:8080']
-    metrics_path: '/metrics'
-    scrape_interval: 15s
-```
-
-### Grafana Dashboard
-
-Key metrics to monitor:
-1. **Request Rate**: `rate(throttlecrab_requests_total[1m])`
-2. **Denial Rate**: `throttlecrab_denial_rate`
-3. **P99 Latency**: `histogram_quantile(0.99, throttlecrab_request_duration_bucket)`
-4. **Active Keys**: `throttlecrab_active_keys`
-5. **Keys Near Limit**: `throttlecrab_requests_near_limit`
-
-### Alerting Examples
-
-```yaml
-# Prometheus alerting rules
-groups:
-  - name: throttlecrab
-    rules:
-      - alert: HighDenialRate
-        expr: throttlecrab_denial_rate > 0.1
-        for: 5m
-        annotations:
-          summary: "High rate limit denial rate ({{ $value }})"
-      
-      - alert: ManyKeysNearLimit
-        expr: throttlecrab_requests_near_limit > 1000
-        for: 5m
-        annotations:
-          summary: "{{ $value }} keys are near their rate limit"
-```
-
-## Time Handling
-
-ThrottleCrab uses server-side timestamps for all rate limiting decisions.
-
-### Scaling Strategies
-
-#### Vertical Scaling
-A single instance can handle:
-- 180K+ requests/second on modern CPUs (Redis protocol)
-- 170K+ requests/second with HTTP
-- 160K+ requests/second with gRPC
-- Millions of unique keys in memory
-- Sub-millisecond P99 latency
-
-#### Horizontal Scaling
-For extreme scale, deploy multiple instances and use client-side sharding based on the rate limit key.
-
+Contributions welcome! Please feel free to submit a Pull Request.
 
 ## License
 
-Licensed under the MIT license ([LICENSE](LICENSE)).
+[MIT](LICENSE)
