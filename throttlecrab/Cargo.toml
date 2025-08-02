@@ -5,10 +5,12 @@ authors.workspace = true
 edition.workspace = true
 description = "A high-performance GCRA (Generic Cell Rate Algorithm) rate limiter library"
 readme = "README.md"
+homepage = "https://github.com/lazureykis/throttlecrab"
 repository.workspace = true
 license.workspace = true
-keywords = ["rate-limiter", "gcra", "throttle", "rate-limiting", "algorithm"]
-categories = ["algorithms", "data-structures", "no-std"]
+documentation = "https://docs.rs/throttlecrab"
+keywords = ["rate-limiting", "api-protection", "throttle", "gcra", "rate-limiter"]
+categories = ["algorithms", "network-programming", "web-programming", "concurrency"]
 
 [dependencies]
 ahash = { workspace = true, optional = true }

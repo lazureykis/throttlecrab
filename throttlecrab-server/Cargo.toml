@@ -5,10 +5,12 @@ authors.workspace = true
 edition.workspace = true
 description = "A high-performance rate limiting server with multiple protocol support"
 readme = "README.md"
+homepage = "https://github.com/lazureykis/throttlecrab"
 repository.workspace = true
 license.workspace = true
-keywords = ["rate-limiter", "server", "grpc", "http", "api"]
-categories = ["network-programming", "web-programming::http-server"]
+documentation = "https://docs.rs/throttlecrab-server"
+keywords = ["rate-limiting", "ratelimit", "rate-limit", "gcra", "server", "api-protection", "redis", "grpc"]
+categories = ["network-programming", "web-programming::http-server", "web-programming"]
 
 [[bin]]
 name = "throttlecrab-server"
