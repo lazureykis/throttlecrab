@@ -7,6 +7,7 @@ description = "A high-performance GCRA (Generic Cell Rate Algorithm) rate limite
 readme = "README.md"
 repository.workspace = true
 license.workspace = true
+documentation = "https://docs.rs/throttlecrab"
 keywords = ["rate-limiting", "api-protection", "throttle", "gcra", "rate-limiter"]
 categories = ["algorithms", "network-programming", "web-programming", "concurrency"]
 
