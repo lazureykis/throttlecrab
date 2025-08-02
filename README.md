@@ -117,6 +117,8 @@ console.log(result.allowed ? '✅ Allowed' : '❌ Rate limited');
 | HTTP     | 175K req/s | 327 μs      | 176 μs      |
 | gRPC     | 163K req/s | 377 μs      | 188 μs      |
 
+You can run the same benchmark yourself with `cd integration-tests && ./run-transport-test.sh -t all -T 32 -r 10000`
+
 ## Server Installation Options
 
 ### Binary
@@ -237,7 +239,7 @@ Total per entry: ~64 bytes + key length
 
 With 1M keys:
 - 10-char keys: ~74 MB
-- 50-char keys: ~114 MB  
+- 50-char keys: ~114 MB
 - 100-char keys: ~164 MB
 
 ### Scaling
