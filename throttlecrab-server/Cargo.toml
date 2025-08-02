@@ -7,8 +7,8 @@ description = "A high-performance rate limiting server with multiple protocol su
 readme = "README.md"
 repository.workspace = true
 license.workspace = true
-keywords = ["rate-limiter", "server", "grpc", "http", "api"]
-categories = ["network-programming", "web-programming::http-server"]
+keywords = ["rate-limiting", "server", "api-protection", "redis", "grpc"]
+categories = ["network-programming", "web-programming::http-server", "web-programming"]
 
 [[bin]]
 name = "throttlecrab-server"
