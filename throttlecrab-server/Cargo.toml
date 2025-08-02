@@ -5,6 +5,7 @@ authors.workspace = true
 edition.workspace = true
 description = "A high-performance rate limiting server with multiple protocol support"
 readme = "README.md"
+homepage = "https://github.com/lazureykis/throttlecrab"
 repository.workspace = true
 license.workspace = true
 documentation = "https://docs.rs/throttlecrab-server"
