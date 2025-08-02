@@ -6,7 +6,7 @@
 [![Documentation](https://docs.rs/throttlecrab/badge.svg)](https://docs.rs/throttlecrab)
 [![License](https://img.shields.io/crates/l/throttlecrab.svg)](LICENSE)
 
-High-performance rate limiting for Rust applications. Choose between an embedded library for Rust projects or a standalone server for any stack.
+High-performance rate limiting for any application. Choose between an embedded Rust library or a standalone server supporting HTTP, gRPC, and Redis protocols.
 
 ## Choose Your Path
 
