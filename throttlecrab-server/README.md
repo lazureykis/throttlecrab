@@ -2,6 +2,7 @@
 
 [![CI](https://github.com/lazureykis/throttlecrab/actions/workflows/ci.yml/badge.svg)](https://github.com/lazureykis/throttlecrab/actions/workflows/ci.yml)
 [![Crates.io](https://img.shields.io/crates/v/throttlecrab-server.svg)](https://crates.io/crates/throttlecrab-server)
+[![Docker](https://img.shields.io/docker/v/lazureykis/throttlecrab?label=docker)](https://hub.docker.com/r/lazureykis/throttlecrab)
 [![Documentation](https://docs.rs/throttlecrab-server/badge.svg)](https://docs.rs/throttlecrab-server)
 [![License](https://img.shields.io/crates/l/throttlecrab-server.svg)](../LICENSE)
 
@@ -9,7 +10,7 @@ A high-performance rate limiting server with multiple protocol support, built on
 
 ## Features
 
-- **Multiple protocols**: HTTP (JSON) and gRPC
+- **Multiple protocols**: HTTP (JSON), gRPC, and Redis/RESP
 - **High performance**: Lock-free shared state with Tokio async runtime
 - **Production ready**: Health checks, metrics endpoint, configurable logging, systemd support
 - **Flexible deployment**: Docker, binary, or source installation
@@ -18,53 +19,34 @@ A high-performance rate limiting server with multiple protocol support, built on
 
 ## Installation
 
-Install the server binary with cargo:
-
 ```bash
 cargo install throttlecrab-server
 ```
 
-Or build from source:
+## Quick Start
+
+Start the server and make rate-limited requests:
 
 ```bash
-git clone https://github.com/lazureykis/throttlecrab
-cd throttlecrab/throttlecrab-server
-cargo build --release
-./target/release/throttlecrab-server
-```
+# Start the server with HTTP transport
+throttlecrab-server --http --http-port 8080
 
-## Usage
+# In another terminal, make requests with curl
+# First request - allowed
+curl -X POST http://localhost:8080/throttle \
+  -H "Content-Type: application/json" \
+  -d '{"key": "api-key-123", "max_burst": 3, "count_per_period": 10, "period": 60}'
 
-Start the throttlecrab server (at least one transport must be specified):
+# Response:
+# {"allowed":true,"limit":3,"remaining":2,"reset_after":60,"retry_after":0}
 
-```bash
-# Run with HTTP transport
-throttlecrab-server --http
+# Make more requests to see rate limiting in action
+curl -X POST http://localhost:8080/throttle \
+  -H "Content-Type: application/json" \
+  -d '{"key": "api-key-123", "max_burst": 3, "count_per_period": 10, "period": 60}'
 
-# Run with HTTP transport on custom port
-throttlecrab-server --http --http-port 7070
-
-# Run multiple transports simultaneously
-throttlecrab-server --http --grpc
-
-# Specify different hosts and ports for each transport
-throttlecrab-server --http --http-host 0.0.0.0 --http-port 8080 \
-                    --grpc --grpc-port 50051
-
-# Configure store type and parameters
-throttlecrab-server --http --store adaptive \
-                    --store-min-interval 5 \
-                    --store-max-interval 300 \
-                    --store-max-operations 1000000
-
-# Use periodic store with custom cleanup interval
-throttlecrab-server --http --store periodic --store-cleanup-interval 600
-
-# Use probabilistic store
-throttlecrab-server --grpc --store probabilistic --store-cleanup-probability 5000
-
-# Set custom buffer size and log level
-throttlecrab-server --http --buffer-size 50000 --log-level debug
+# Response when rate limited:
+# {"allowed":false,"limit":3,"remaining":0,"reset_after":58,"retry_after":6}
 ```
 
 ### Environment Variables
@@ -76,6 +58,9 @@ All CLI arguments can be configured via environment variables with the `THROTTLE
 export THROTTLECRAB_HTTP=true
 export THROTTLECRAB_HTTP_HOST=0.0.0.0
 export THROTTLECRAB_HTTP_PORT=8080
+export THROTTLECRAB_REDIS=true
+export THROTTLECRAB_REDIS_HOST=0.0.0.0
+export THROTTLECRAB_REDIS_PORT=6379
 
 # Store configuration
 export THROTTLECRAB_STORE=adaptive
@@ -91,12 +76,15 @@ THROTTLECRAB_HTTP_PORT=8080 throttlecrab-server --http --http-port 7070
 # Server will use port 7070 (CLI takes precedence)
 ```
 
-## Transport Comparison
+## Transport Performance Comparison
 
-| Transport | Protocol | Throughput | Latency (P99) | Latency (P50) | Use Case |
-|-----------|----------|------------|---------------|---------------|-----------|
-| HTTP | JSON | 173K req/s | 309 μs | 177 μs | Easy integration |
-| gRPC | Protobuf | 163K req/s | 370 μs | 186 μs | Service mesh |
+| Transport | Protocol | Throughput | Latency (P99) | Latency (P50) |
+|-----------|----------|------------|---------------|---------------|
+| HTTP | JSON | 175K req/s | 327 μs | 176 μs |
+| gRPC | Protobuf | 163K req/s | 377 μs | 188 μs |
+| Redis | RESP | 184K req/s | 275 μs | 170 μs |
+
+You can run tests on you hardware with `cd integration-tests && ./run-transport-test.sh -t all -T 32 -r 10000`
 
 ## Protocol Documentation
 
@@ -132,63 +120,42 @@ Note: `quantity` is optional (defaults to 1).
 
 See [`proto/throttlecrab.proto`](proto/throttlecrab.proto) for the service definition. Use any gRPC client library to connect.
 
+### Redis Protocol
+
+The server implements Redis Serialization Protocol (RESP), making it compatible with any Redis client.
+
+**Port**: Default 6379 (configurable with `--redis-port`)
+
+**Commands**:
+- `THROTTLE key max_burst count_per_period period [quantity]` - Check rate limit
+- `PING` - Health check
+- `QUIT` - Close connection
+
+**Example using redis-cli**:
+```bash
+redis-cli -p 6379
+> THROTTLE user:123 10 100 60
+1) (integer) 1    # allowed (1=yes, 0=no)
+2) (integer) 10   # limit
+3) (integer) 9    # remaining
+4) (integer) 60   # reset_after (seconds)
+5) (integer) 0    # retry_after (seconds)
+```
+
+**Example using Redis client libraries**:
+```python
+import redis
+
+r = redis.Redis(host='localhost', port=6379)
+result = r.execute_command('THROTTLE', 'user:123', 10, 100, 60)
+# result: [1, 10, 9, 60, 0]
+```
+
 ## Client Integration
 
-### Rust
-Use established HTTP clients like `reqwest` for reliable production deployments:
-```toml
-[dependencies]
-reqwest = { version = "0.12", features = ["json"] }
-```
+Use any HTTP client, gRPC client library, or Redis client to connect to throttlecrab-server. See `examples/` directory for implementation examples.
 
-### Other Languages
-- **Go**: Use gRPC with generated client
-- **Python**: Use HTTP/JSON API
-- **Node.js**: Use HTTP/JSON API
-- **Java**: Use gRPC with generated client
-
-See `examples/` directory for implementation examples.
-
-## Running Benchmarks
-
-### Criterion Benchmarks
-
-The project includes several Criterion benchmarks that require running servers. Use the provided script:
-
-```bash
-# Run all benchmarks
-./run-criterion-benchmarks.sh
-
-# Run specific benchmark
-./run-criterion-benchmarks.sh tcp_throughput
-./run-criterion-benchmarks.sh connection_pool
-./run-criterion-benchmarks.sh protocol_comparison
-./run-criterion-benchmarks.sh grpc_throughput
-```
-
-The script will:
-1. Build the server in release mode
-2. Start required servers (HTTP on port 9092, gRPC on port 9093)
-3. Run the benchmarks
-4. Clean up servers on exit
-
-Results are saved in `target/criterion/`.
-
-## Production Deployment
-
-### Performance Tuning
-
-```bash
-# Optimal settings for production
-throttlecrab-server \
-    --http --http-port 8080 \
-    --store adaptive \
-    --store-capacity 1000000 \
-    --buffer-size 100000 \
-    --log-level warn
-```
-
-### Monitoring
+## Monitoring
 
 - **Health endpoint**: `GET /health` (available on HTTP port)
 - **Metrics endpoint**: `GET /metrics` (Prometheus format, available on HTTP port)
@@ -224,66 +191,24 @@ throttlecrab-server \
 - `throttlecrab_key_distribution_bucket`: Distribution of request counts per key
   - Buckets: 1, 10, 100, 1000, 10000, 100000, 1000000 requests
 
-#### Metrics Usage Examples
+#### Example Prometheus Queries
 
-```bash
-# Check denial rate
-curl -s http://localhost:8080/metrics | grep throttlecrab_denial_rate
-
-# Monitor P99 latency with Prometheus query
+```promql
+# Monitor P99 latency
 histogram_quantile(0.99, rate(throttlecrab_request_duration_bucket[5m]))
 
 # Alert on high denial rate
 throttlecrab_denial_rate > 0.1
-
-# Track keys approaching limits
-throttlecrab_requests_near_limit > 100
 ```
 
-### Store Configuration
+### Store Types
 
 | Store Type | Use Case | Cleanup Strategy |
 |------------|----------|------------------|
-| `standard` | Small datasets | Every operation |
 | `periodic` | Predictable load | Fixed intervals |
 | `probabilistic` | High throughput | Random sampling |
 | `adaptive` | Variable load | Self-tuning |
 
-### Example Configurations
-
-#### High-throughput API
-```bash
-throttlecrab-server --http \
-    --store adaptive \
-    --store-capacity 5000000 \
-    --buffer-size 500000
-```
-
-#### Web Service
-```bash
-throttlecrab-server --http --http-port 8080 \
-    --store periodic \
-    --store-cleanup-interval 300
-```
-
-#### Microservices
-```bash
-throttlecrab-server --grpc --http \
-    --grpc-port 50051 \
-    --http-port 8080 \
-    --store probabilistic
-```
-
 ## License
 
-Licensed under either of:
-
-- MIT license ([LICENSE](../LICENSE) or http://opensource.org/licenses/MIT)
-
-at your option.
-
-## Contribution
-
-Unless you explicitly state otherwise, any contribution intentionally submitted
-for inclusion in the work by you, as defined in the Apache-2.0 license, shall be
-dual licensed as above, without any additional terms or conditions.
+[MIT](../LICENSE)
