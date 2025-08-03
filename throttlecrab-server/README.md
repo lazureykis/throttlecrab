@@ -84,7 +84,7 @@ THROTTLECRAB_HTTP_PORT=8080 throttlecrab-server --http --http-port 7070
 | gRPC | Protobuf | 163K req/s | 377 μs | 188 μs |
 | Redis | RESP | 184K req/s | 275 μs | 170 μs |
 
-You can run tests on you hardware with `cd integration-tests && ./run-transport-test.sh -t all -T 32 -r 10000`
+You can run tests on your hardware with `cd integration-tests && ./run-transport-test.sh -t all -T 32 -r 10000`
 
 ## Protocol Documentation
 
