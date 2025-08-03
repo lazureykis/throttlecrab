@@ -22,7 +22,7 @@ Add this to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-throttlecrab = "0.2"
+throttlecrab = "0.4"
 ```
 
 ## Usage
@@ -73,4 +73,4 @@ Looking for a standalone rate limiting server? Check out [throttlecrab-server](h
 
 ## License
 
-Licensed under the MIT license ([LICENSE](../LICENSE) or http://opensource.org/licenses/MIT)
+MIT(./LICENSE)
