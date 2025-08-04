@@ -195,8 +195,9 @@ throttlecrab-server
 
 Key metrics:
 - `throttlecrab_requests_total` - Total requests
-- `throttlecrab_denial_rate` - Current denial rate (0.0-1.0)
-- `throttlecrab_request_duration_bucket` - Latency histogram
+- `throttlecrab_requests_allowed` - Allowed requests
+- `throttlecrab_requests_denied` - Denied requests
+- `throttlecrab_top_denied_keys` - Top denied keys
 
 ## Protocol Reference
 

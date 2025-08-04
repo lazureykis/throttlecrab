@@ -55,7 +55,7 @@ use axum::{
 use serde::{Deserialize, Serialize};
 use std::net::SocketAddr;
 use std::sync::Arc;
-use std::time::{Instant, SystemTime};
+use std::time::SystemTime;
 
 /// HTTP request format for rate limiting
 #[derive(Debug, Serialize, Deserialize)]
@@ -124,8 +124,6 @@ async fn handle_throttle(
     State(state): State<Arc<AppState>>,
     Json(req): Json<HttpThrottleRequest>,
 ) -> Result<Json<ThrottleResponse>, (StatusCode, Json<HttpErrorResponse>)> {
-    let start = Instant::now();
-
     // Always use server timestamp
     let timestamp = SystemTime::now();
 
@@ -140,10 +138,8 @@ async fn handle_throttle(
 
     match state.limiter.throttle(internal_req).await {
         Ok(response) => {
-            let latency_us = start.elapsed().as_micros() as u64;
             state.metrics.record_request_with_key(
                 MetricsTransport::Http,
-                latency_us,
                 response.allowed,
                 &req.key,
             );
@@ -151,10 +147,7 @@ async fn handle_throttle(
         }
         Err(e) => {
             tracing::error!("Rate limiter error: {}", e);
-            let latency_us = start.elapsed().as_micros() as u64;
-            state
-                .metrics
-                .record_error(MetricsTransport::Http, latency_us);
+            state.metrics.record_error(MetricsTransport::Http);
             Err((
                 StatusCode::INTERNAL_SERVER_ERROR,
                 Json(HttpErrorResponse {
