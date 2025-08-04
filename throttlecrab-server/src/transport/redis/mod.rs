@@ -36,7 +36,7 @@ use anyhow::{Context, Result};
 use async_trait::async_trait;
 use std::net::SocketAddr;
 use std::sync::Arc;
-use std::time::{Duration, Instant, SystemTime};
+use std::time::{Duration, SystemTime};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::{TcpListener, TcpStream};
 use tokio::time::timeout;
@@ -153,8 +153,6 @@ pub(super) async fn process_command(
     limiter: &RateLimiterHandle,
     metrics: &Arc<Metrics>,
 ) -> RespValue {
-    let start = Instant::now();
-
     // Parse command from array
     let command_array = match value {
         RespValue::Array(arr) => arr,
@@ -192,9 +190,6 @@ pub(super) async fn process_command(
         ),
     };
 
-    let duration = start.elapsed();
-    let latency_us = duration.as_micros() as u64;
-
     // Check if the request was allowed (for THROTTLE commands)
     let allowed = match &result {
         RespValue::Array(values) if values.len() >= 5 => {
@@ -204,9 +199,9 @@ pub(super) async fn process_command(
     };
 
     if let Some(key) = key_opt {
-        metrics.record_request_with_key(MetricsTransport::Redis, latency_us, allowed, &key);
+        metrics.record_request_with_key(MetricsTransport::Redis, allowed, &key);
     } else {
-        metrics.record_request(MetricsTransport::Redis, latency_us, allowed);
+        metrics.record_request(MetricsTransport::Redis, allowed);
     }
 
     result

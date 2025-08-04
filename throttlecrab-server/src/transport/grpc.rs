@@ -73,7 +73,7 @@ use anyhow::Result;
 use async_trait::async_trait;
 use std::net::SocketAddr;
 use std::sync::Arc;
-use std::time::{Instant, SystemTime};
+use std::time::SystemTime;
 use tonic::{Request, Response, Status, transport::Server};
 
 // Include the generated protobuf code
@@ -149,7 +149,6 @@ impl RateLimiter for RateLimiterService {
         &self,
         request: Request<ThrottleRequest>,
     ) -> Result<Response<ThrottleResponse>, Status> {
-        let start = Instant::now();
         let req = request.into_inner();
 
         // Use server timestamp
@@ -168,19 +167,15 @@ impl RateLimiter for RateLimiterService {
         // Call the rate limiter
         let result = match self.limiter.throttle(actor_request).await {
             Ok(result) => {
-                let latency_us = start.elapsed().as_micros() as u64;
                 self.metrics.record_request_with_key(
                     MetricsTransport::Grpc,
-                    latency_us,
                     result.allowed,
                     &req.key,
                 );
                 result
             }
             Err(e) => {
-                let latency_us = start.elapsed().as_micros() as u64;
-                self.metrics
-                    .record_error(MetricsTransport::Grpc, latency_us);
+                self.metrics.record_error(MetricsTransport::Grpc);
                 return Err(Status::internal(format!("Rate limiter error: {e}")));
             }
         };
