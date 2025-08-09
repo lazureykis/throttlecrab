@@ -110,16 +110,6 @@ async fn main() -> Result<()> {
         });
     }
 
-    tracing::info!(
-        "ThrottleCrab server started with store type: {:?}",
-        config.store.store_type
-    );
-    tracing::info!(
-        "Store capacity: {}, Buffer size: {}",
-        config.store.capacity,
-        config.buffer_size
-    );
-
     // Wait for all transport tasks to complete (they run indefinitely)
     while let Some(result) = transport_tasks.join_next().await {
         match result {
@@ -136,6 +126,16 @@ async fn main() -> Result<()> {
             }
         }
     }
+
+    tracing::info!(
+        "ThrottleCrab server started with store type: {:?}",
+        config.store.store_type
+    );
+    tracing::info!(
+        "Store capacity: {}, Buffer size: {}",
+        config.store.capacity,
+        config.buffer_size
+    );
 
     Ok(())
 }
