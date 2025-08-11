@@ -50,7 +50,7 @@ axum = { workspace = true }
 tower = { workspace = true }
 
 [build-dependencies]
-tonic-build = "0.14.0"
+tonic-build = "0.14.1"
 tonic-prost-build = "0.14.0"
 
 [dev-dependencies]
