@@ -144,13 +144,13 @@ async fn test_redis_rate_limiting() {
             .await
             .expect("Failed to execute command");
 
-        if let Value::Array(values) = result {
-            if let Value::Int(allowed) = &values[0] {
-                if *allowed == 1 {
-                    allowed_count += 1;
-                } else {
-                    denied_count += 1;
-                }
+        if let Value::Array(values) = result
+            && let Value::Int(allowed) = &values[0]
+        {
+            if *allowed == 1 {
+                allowed_count += 1;
+            } else {
+                denied_count += 1;
             }
         }
     }

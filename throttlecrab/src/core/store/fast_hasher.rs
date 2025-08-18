@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 use super::Store;
 use std::collections::HashMap;
 use std::hash::{BuildHasher, Hasher};

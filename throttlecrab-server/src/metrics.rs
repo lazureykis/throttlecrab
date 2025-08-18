@@ -110,10 +110,8 @@ impl Metrics {
         self.record_request(transport, allowed);
 
         // Update top denied keys if request was denied
-        if !allowed {
-            if let Ok(mut top_keys) = self.top_denied_keys.lock() {
-                top_keys.update(key.to_string());
-            }
+        if !allowed && let Ok(mut top_keys) = self.top_denied_keys.lock() {
+            top_keys.update(key.to_string());
         }
     }
 
