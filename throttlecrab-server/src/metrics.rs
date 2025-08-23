@@ -11,7 +11,16 @@ use std::time::Instant;
 /// Maximum length allowed for rate limit keys
 const MAX_KEY_LENGTH: usize = 256;
 
+/// Maximum number of denied keys that can be tracked
+/// This prevents excessive memory usage (at 10k keys with 3x growth factor,
+/// we could have up to 30k entries temporarily)
+const MAX_DENIED_KEYS_LIMIT: usize = 10_000;
+
 /// Tracks top N denied keys using HashMap for counts
+///
+/// Uses a grow-then-cleanup strategy where the HashMap can grow to 3x the
+/// configured max_size before triggering cleanup. This amortizes the cost
+/// of sorting operations.
 pub(crate) struct TopDeniedKeys {
     counts: HashMap<String, u64>,
     max_size: usize,
@@ -84,14 +93,37 @@ pub struct Metrics {
     pub requests_denied: AtomicU64,
     pub requests_errors: AtomicU64,
 
-    /// Top denied keys tracking
-    pub(crate) top_denied_keys: Mutex<TopDeniedKeys>,
+    /// Top denied keys tracking (None if disabled)
+    pub(crate) top_denied_keys: Option<Mutex<TopDeniedKeys>>,
 }
 
-impl Metrics {
-    /// Create a new metrics instance
+/// Builder for configuring Metrics
+pub struct MetricsBuilder {
+    max_denied_keys: usize,
+}
+
+impl MetricsBuilder {
+    /// Create a new builder with default settings
     pub fn new() -> Self {
         Self {
+            max_denied_keys: 100,
+        }
+    }
+
+    /// Set the maximum number of denied keys to track
+    ///
+    /// Note: Set to 0 to disable denied keys tracking entirely (best performance).
+    /// Non-zero values will be capped at 10,000 to prevent excessive memory usage.
+    /// The actual memory usage can be up to 3x this value temporarily due to the
+    /// grow-then-cleanup strategy used for performance.
+    pub fn max_denied_keys(mut self, count: usize) -> Self {
+        self.max_denied_keys = count.clamp(0, MAX_DENIED_KEYS_LIMIT);
+        self
+    }
+
+    /// Build the Metrics instance
+    pub fn build(self) -> Metrics {
+        Metrics {
             start_time: Instant::now(),
             total_requests: AtomicU64::new(0),
             http_requests: AtomicU64::new(0),
@@ -100,8 +132,30 @@ impl Metrics {
             requests_allowed: AtomicU64::new(0),
             requests_denied: AtomicU64::new(0),
             requests_errors: AtomicU64::new(0),
-            top_denied_keys: Mutex::new(TopDeniedKeys::new(100)),
+            top_denied_keys: if self.max_denied_keys == 0 {
+                None
+            } else {
+                Some(Mutex::new(TopDeniedKeys::new(self.max_denied_keys)))
+            },
         }
+    }
+}
+
+impl Default for MetricsBuilder {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl Metrics {
+    /// Create a builder for configuring metrics
+    pub fn builder() -> MetricsBuilder {
+        MetricsBuilder::new()
+    }
+
+    /// Create a new metrics instance with default settings
+    pub fn new() -> Self {
+        MetricsBuilder::new().build()
     }
 
     /// Record a request with key information
@@ -109,8 +163,11 @@ impl Metrics {
         // Update all the metrics that don't need the key
         self.record_request(transport, allowed);
 
-        // Update top denied keys if request was denied
-        if !allowed && let Ok(mut top_keys) = self.top_denied_keys.lock() {
+        // Update top denied keys if request was denied and tracking is enabled
+        if !allowed
+            && let Some(ref top_denied_keys) = self.top_denied_keys
+            && let Ok(mut top_keys) = top_denied_keys.lock()
+        {
             top_keys.update(key.to_string());
         }
     }
@@ -233,17 +290,19 @@ impl Metrics {
             self.requests_errors.load(Ordering::Relaxed)
         ));
 
-        // Top denied keys
-        output.push_str("# HELP throttlecrab_top_denied_keys Top keys by denial count\n");
-        output.push_str("# TYPE throttlecrab_top_denied_keys gauge\n");
-        if let Ok(top_keys) = self.top_denied_keys.lock() {
-            for (rank, (key, count)) in top_keys.get_top().iter().enumerate() {
-                output.push_str(&format!(
-                    "throttlecrab_top_denied_keys{{key=\"{}\",rank=\"{}\"}} {}\n",
-                    Self::escape_prometheus_label(key),
-                    rank + 1,
-                    count
-                ));
+        // Top denied keys (only if tracking is enabled)
+        if let Some(ref top_denied_keys) = self.top_denied_keys {
+            output.push_str("# HELP throttlecrab_top_denied_keys Top keys by denial count\n");
+            output.push_str("# TYPE throttlecrab_top_denied_keys gauge\n");
+            if let Ok(top_keys) = top_denied_keys.lock() {
+                for (rank, (key, count)) in top_keys.get_top().iter().enumerate() {
+                    output.push_str(&format!(
+                        "throttlecrab_top_denied_keys{{key=\"{}\",rank=\"{}\"}} {}\n",
+                        Self::escape_prometheus_label(key),
+                        rank + 1,
+                        count
+                    ));
+                }
             }
         }
 
