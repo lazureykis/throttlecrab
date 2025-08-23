@@ -315,10 +315,10 @@ pub struct Args {
     #[arg(
         long,
         value_name = "COUNT",
-        help = "Maximum number of denied keys to track in metrics (max: 10000)",
+        help = "Maximum number of denied keys to track in metrics (0 to disable, max: 10000)",
         default_value_t = 100,
         env = "THROTTLECRAB_MAX_DENIED_KEYS",
-        value_parser = clap::value_parser!(u32).range(1..=10000)
+        value_parser = clap::value_parser!(u32).range(0..=10000)
     )]
     pub max_denied_keys: u32,
     #[arg(
@@ -513,7 +513,7 @@ impl Config {
         println!("General Configuration:");
         println!("  THROTTLECRAB_BUFFER_SIZE=<size>       Channel buffer size [default: 100000]");
         println!(
-            "  THROTTLECRAB_MAX_DENIED_KEYS=<count>  Maximum denied keys to track (1-10000) [default: 100]"
+            "  THROTTLECRAB_MAX_DENIED_KEYS=<count>  Maximum denied keys to track (0=disabled, max: 10000) [default: 100]"
         );
         println!(
             "  THROTTLECRAB_LOG_LEVEL=<level>        Log level: error, warn, info, debug, trace [default: info]"
