@@ -5,6 +5,22 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.4] - 2025-08-23
+
+### Added
+- Configurable maximum denied keys tracking via `--max-denied-keys` CLI flag and `THROTTLECRAB_MAX_DENIED_KEYS` environment variable
+- Ability to completely disable denied keys tracking by setting max-denied-keys to 0 for maximum performance
+- Builder pattern for Metrics configuration allowing future extensibility
+- Safety limit of 10,000 keys maximum to prevent excessive memory usage
+
+### Changed
+- Refactored Metrics to use builder pattern for cleaner and more extensible configuration
+- Made top_denied_keys field optional (Option<Mutex<TopDeniedKeys>>) to eliminate overhead when disabled
+- Improved performance when denied keys tracking is disabled (no mutex locks, no string allocations, no HashMap operations)
+
+### Fixed
+- Added proper validation and error messages for max-denied-keys configuration values
+
 ## [0.4.3] - 2025-08-04
 
 ### Changed
