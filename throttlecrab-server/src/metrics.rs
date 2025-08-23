@@ -88,10 +88,28 @@ pub struct Metrics {
     pub(crate) top_denied_keys: Mutex<TopDeniedKeys>,
 }
 
-impl Metrics {
-    /// Create a new metrics instance
+/// Builder for configuring Metrics
+pub struct MetricsBuilder {
+    max_denied_keys: usize,
+}
+
+impl MetricsBuilder {
+    /// Create a new builder with default settings
     pub fn new() -> Self {
         Self {
+            max_denied_keys: 100,
+        }
+    }
+
+    /// Set the maximum number of denied keys to track
+    pub fn max_denied_keys(mut self, count: usize) -> Self {
+        self.max_denied_keys = count;
+        self
+    }
+
+    /// Build the Metrics instance
+    pub fn build(self) -> Metrics {
+        Metrics {
             start_time: Instant::now(),
             total_requests: AtomicU64::new(0),
             http_requests: AtomicU64::new(0),
@@ -100,8 +118,26 @@ impl Metrics {
             requests_allowed: AtomicU64::new(0),
             requests_denied: AtomicU64::new(0),
             requests_errors: AtomicU64::new(0),
-            top_denied_keys: Mutex::new(TopDeniedKeys::new(100)),
+            top_denied_keys: Mutex::new(TopDeniedKeys::new(self.max_denied_keys)),
         }
+    }
+}
+
+impl Default for MetricsBuilder {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl Metrics {
+    /// Create a builder for configuring metrics
+    pub fn builder() -> MetricsBuilder {
+        MetricsBuilder::new()
+    }
+
+    /// Create a new metrics instance with default settings
+    pub fn new() -> Self {
+        MetricsBuilder::new().build()
     }
 
     /// Record a request with key information

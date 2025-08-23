@@ -59,7 +59,11 @@ async fn main() -> Result<()> {
         .init();
 
     // Create shared metrics instance
-    let metrics = Arc::new(Metrics::new());
+    let metrics = Arc::new(
+        Metrics::builder()
+            .max_denied_keys(config.max_denied_keys)
+            .build(),
+    );
 
     // Create the rate limiter actor with the configured store
     let limiter =

@@ -45,6 +45,8 @@ pub struct Config {
     pub store: StoreConfig,
     /// Channel buffer size for actor communication
     pub buffer_size: usize,
+    /// Maximum number of denied keys to track in metrics
+    pub max_denied_keys: usize,
     /// Logging level (error, warn, info, debug, trace)
     pub log_level: String,
 }
@@ -312,6 +314,14 @@ pub struct Args {
     pub buffer_size: usize,
     #[arg(
         long,
+        value_name = "COUNT",
+        help = "Maximum number of denied keys to track in metrics",
+        default_value_t = 100,
+        env = "THROTTLECRAB_MAX_DENIED_KEYS"
+    )]
+    pub max_denied_keys: usize,
+    #[arg(
+        long,
         value_name = "LEVEL",
         help = "Log level: error, warn, info, debug, trace",
         default_value = "info",
@@ -372,6 +382,7 @@ impl Config {
                 max_operations: args.store_max_operations,
             },
             buffer_size: args.buffer_size,
+            max_denied_keys: args.max_denied_keys,
             log_level: args.log_level,
         };
 
@@ -501,6 +512,9 @@ impl Config {
         println!("General Configuration:");
         println!("  THROTTLECRAB_BUFFER_SIZE=<size>       Channel buffer size [default: 100000]");
         println!(
+            "  THROTTLECRAB_MAX_DENIED_KEYS=<count>  Maximum denied keys to track [default: 100]"
+        );
+        println!(
             "  THROTTLECRAB_LOG_LEVEL=<level>        Log level: error, warn, info, debug, trace [default: info]"
         );
         println!();
@@ -564,6 +578,7 @@ mod tests {
                 max_operations: 1_000_000,
             },
             buffer_size: 100_000,
+            max_denied_keys: 100,
             log_level: "info".to_string(),
         };
 
@@ -592,6 +607,7 @@ mod tests {
                 max_operations: 1_000_000,
             },
             buffer_size: 100_000,
+            max_denied_keys: 100,
             log_level: "info".to_string(),
         };
 
@@ -623,6 +639,7 @@ mod tests {
                 max_operations: 2_000_000,
             },
             buffer_size: 50_000,
+            max_denied_keys: 100,
             log_level: "debug".to_string(),
         };
 
