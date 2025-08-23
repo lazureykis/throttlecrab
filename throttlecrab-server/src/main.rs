@@ -61,7 +61,7 @@ async fn main() -> Result<()> {
     // Create shared metrics instance
     let metrics = Arc::new(
         Metrics::builder()
-            .max_denied_keys(config.max_denied_keys)
+            .max_denied_keys(config.max_denied_keys as usize)
             .build(),
     );
 

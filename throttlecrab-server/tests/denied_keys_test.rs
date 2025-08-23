@@ -85,3 +85,28 @@ fn test_denied_keys_with_multiple_denials() {
     assert!(prometheus.contains("rank=\"2\""));
     assert!(prometheus.contains("rank=\"3\""));
 }
+
+#[test]
+fn test_max_denied_keys_limit() {
+    // Test that the limit is capped at 10,000 even if we request more
+    let metrics = Arc::new(
+        Metrics::builder()
+            .max_denied_keys(20_000) // Request more than the limit
+            .build()
+    );
+    
+    // Add 15,000 different denied keys
+    for i in 0..15_000 {
+        metrics.record_request_with_key(
+            Transport::Http,
+            false,
+            &format!("user:{}", i),
+        );
+    }
+    
+    let prometheus = metrics.export_prometheus();
+    let denied_keys_count = prometheus.matches("throttlecrab_top_denied_keys{").count();
+    
+    // Should be capped at 10,000 (the maximum allowed)
+    assert!(denied_keys_count <= 10_000);
+}

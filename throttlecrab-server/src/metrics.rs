@@ -11,7 +11,16 @@ use std::time::Instant;
 /// Maximum length allowed for rate limit keys
 const MAX_KEY_LENGTH: usize = 256;
 
+/// Maximum number of denied keys that can be tracked
+/// This prevents excessive memory usage (at 10k keys with 3x growth factor,
+/// we could have up to 30k entries temporarily)
+const MAX_DENIED_KEYS_LIMIT: usize = 10_000;
+
 /// Tracks top N denied keys using HashMap for counts
+/// 
+/// Uses a grow-then-cleanup strategy where the HashMap can grow to 3x the
+/// configured max_size before triggering cleanup. This amortizes the cost
+/// of sorting operations.
 pub(crate) struct TopDeniedKeys {
     counts: HashMap<String, u64>,
     max_size: usize,
@@ -102,8 +111,12 @@ impl MetricsBuilder {
     }
 
     /// Set the maximum number of denied keys to track
+    /// 
+    /// Note: The value will be capped at 10,000 to prevent excessive memory usage.
+    /// The actual memory usage can be up to 3x this value temporarily due to the
+    /// grow-then-cleanup strategy used for performance.
     pub fn max_denied_keys(mut self, count: usize) -> Self {
-        self.max_denied_keys = count;
+        self.max_denied_keys = count.min(MAX_DENIED_KEYS_LIMIT);
         self
     }
 
