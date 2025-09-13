@@ -200,48 +200,11 @@ jobs:
         env:
           CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
 
-      - name: Generate changelog
-        id: changelog
-        run: |
-          VERSION="${{ steps.version.outputs.version }}"
-          PREVIOUS_TAG="${{ steps.previous_tag.outputs.previous_tag }}"
-
-          echo "Generating changelog from $PREVIOUS_TAG to v$VERSION"
-
-          # Generate changelog
-          cat > CHANGELOG.md << EOF
-          ## What's Changed
-
-          EOF
-
-          # Add commits since last tag (exclude the version bump commit)
-          git log --pretty=format:"* %s" "$PREVIOUS_TAG"..HEAD~1 >> CHANGELOG.md
-
-          echo "" >> CHANGELOG.md
-          echo "" >> CHANGELOG.md
-          echo "## Installation" >> CHANGELOG.md
-          echo "" >> CHANGELOG.md
-          echo "\`\`\`bash" >> CHANGELOG.md
-          echo "# Install the server" >> CHANGELOG.md
-          echo "cargo install throttlecrab-server" >> CHANGELOG.md
-          echo "" >> CHANGELOG.md
-          echo "# Or add the library to your project" >> CHANGELOG.md
-          echo "cargo add throttlecrab" >> CHANGELOG.md
-          echo "\`\`\`" >> CHANGELOG.md
-          echo "" >> CHANGELOG.md
-          echo "**Full Changelog**: https://github.com/${{ github.repository }}/compare/$PREVIOUS_TAG...v$VERSION" >> CHANGELOG.md
-
-          # Save changelog content for release
-          echo "CHANGELOG_CONTENT<<EOF" >> $GITHUB_OUTPUT
-          cat CHANGELOG.md >> $GITHUB_OUTPUT
-          echo "EOF" >> $GITHUB_OUTPUT
-
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: v${{ steps.version.outputs.version }}
           name: v${{ steps.version.outputs.version }}
-          body: ${{ steps.changelog.outputs.CHANGELOG_CONTENT }}
           generate_release_notes: true
           make_latest: true
         env:
