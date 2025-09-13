@@ -106,6 +106,12 @@ jobs:
           sed -i "s/throttlecrab = { path = \"\.\.\/throttlecrab\", version = \"[^\"]*\"/throttlecrab = { path = \"..\/throttlecrab\", version = \"$VERSION\"/" throttlecrab-server/Cargo.toml
           echo "✅ Updated throttlecrab-server to version $VERSION"
 
+      - name: Update Cargo.lock
+        run: |
+          echo "🔄 Updating Cargo.lock with new versions..."
+          cargo update --workspace
+          echo "✅ Cargo.lock updated"
+
       - name: Verify version updates
         run: |
           VERSION="${{ steps.version.outputs.version }}"
@@ -166,9 +172,9 @@ jobs:
       - name: Commit version changes
         run: |
           VERSION="${{ steps.version.outputs.version }}"
-          git add throttlecrab/Cargo.toml throttlecrab-server/Cargo.toml
+          git add throttlecrab/Cargo.toml throttlecrab-server/Cargo.toml Cargo.lock
           git commit -m "chore: bump version to $VERSION"
-          echo "✅ Committed version changes"
+          echo "✅ Committed version changes and updated Cargo.lock"
 
       - name: Create and push tag
         run: |
