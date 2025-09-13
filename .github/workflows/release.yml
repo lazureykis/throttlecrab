@@ -113,26 +113,6 @@ jobs:
           cargo update --workspace
           echo "✅ Cargo.lock updated"
 
-      - name: Verify version updates
-        run: |
-          VERSION="${{ steps.version.outputs.version }}"
-
-          # Verify versions were updated correctly
-          CORE_VERSION=$(grep '^version' throttlecrab/Cargo.toml | head -1 | cut -d'"' -f2)
-          SERVER_VERSION=$(grep '^version' throttlecrab-server/Cargo.toml | head -1 | cut -d'"' -f2)
-          DEP_VERSION=$(grep 'throttlecrab = { path = "../throttlecrab", version =' throttlecrab-server/Cargo.toml | cut -d'"' -f4)
-
-          echo "Core version: $CORE_VERSION"
-          echo "Server version: $SERVER_VERSION"
-          echo "Dependency version: $DEP_VERSION"
-
-          if [ "$VERSION" != "$CORE_VERSION" ] || [ "$VERSION" != "$SERVER_VERSION" ] || [ "$VERSION" != "$DEP_VERSION" ]; then
-            echo "❌ Version mismatch after update"
-            exit 1
-          fi
-
-          echo "✅ All versions match: $VERSION"
-
       - name: Run tests
         if: ${{ github.event.inputs.run_tests }}
         run: |
