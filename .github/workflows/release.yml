@@ -76,6 +76,7 @@ jobs:
           fi
 
           echo "version=$NEW_VERSION" >> $GITHUB_OUTPUT
+          echo "current_version=$CURRENT_VERSION" >> $GITHUB_OUTPUT
           echo "✅ Version calculated and validated: $NEW_VERSION"
 
       - name: Install protoc
@@ -227,7 +228,7 @@ jobs:
             • Brief description of change
             • Another change description
 
-            **Full Changelog**: https://github.com/${{ github.repository }}/compare/${{ steps.previous_tag.outputs.previous_tag }}...v${{ steps.version.outputs.version }}
+            **Full Changelog**: https://github.com/${{ github.repository }}/compare/v${{ steps.version.outputs.current_version }}...v${{ steps.version.outputs.version }}
 
             Rules:
             - Start immediately with "## Changes"
@@ -237,7 +238,7 @@ jobs:
             - NO text before "## Changes"
             - NO explanations after the Full Changelog link
 
-            If there are no meaningful changes, use: "## Changes\n\n• Maintenance release\n\n**Full Changelog**: ..."
+            If there are no meaningful changes, use: "## Changes\n\n• Maintenance release\n\n**Full Changelog**: https://github.com/${{ github.repository }}/compare/v${{ steps.version.outputs.current_version }}...v${{ steps.version.outputs.version }}"
 
       - name: Store Claude execution log as artifact
         uses: actions/upload-artifact@v4
