@@ -592,7 +592,7 @@ mod tests {
         let config = Config {
             transports: TransportConfig {
                 http: Some(HttpConfig {
-                    host: "127.0.0.1".to_string(),
+                    host: "0.0.0.0".to_string(),
                     port: 8080,
                 }),
                 grpc: None,
