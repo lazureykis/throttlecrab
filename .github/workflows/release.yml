@@ -269,29 +269,31 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build binaries for multiple architectures
+      - name: Build binary for linux/amd64
         run: |
-          echo "🔨 Building throttlecrab-server binaries for Docker..."
-
-          # Build for AMD64 (x86_64)
-          echo "Building for linux/amd64..."
+          echo "🔨 Building throttlecrab-server for linux/amd64..."
           rustup target add x86_64-unknown-linux-musl
           cargo build --release --target x86_64-unknown-linux-musl -p throttlecrab-server
           mkdir -p ./binaries/amd64
           cp target/x86_64-unknown-linux-musl/release/throttlecrab-server ./binaries/amd64/
+          echo "✅ AMD64 binary ready"
 
-          # Build for ARM64 (aarch64)
-          echo "Building for linux/arm64..."
-          rustup target add aarch64-unknown-linux-musl
-          # Install cross-compilation tools (consolidating apt-get update)
+      - name: Install cross-compilation tools for ARM64
+        run: |
+          echo "📦 Installing cross-compilation tools for ARM64..."
           sudo apt-get update
           sudo apt-get install -y gcc-aarch64-linux-gnu
+          echo "✅ ARM64 cross-compilation tools installed"
+
+      - name: Build binary for linux/arm64
+        run: |
+          echo "🔨 Building throttlecrab-server for linux/arm64..."
+          rustup target add aarch64-unknown-linux-musl
           export CARGO_TARGET_AARCH64_UNKNOWN_LINUX_MUSL_LINKER=aarch64-linux-gnu-gcc
           cargo build --release --target aarch64-unknown-linux-musl -p throttlecrab-server
           mkdir -p ./binaries/arm64
           cp target/aarch64-unknown-linux-musl/release/throttlecrab-server ./binaries/arm64/
-
-          echo "✅ Docker binaries built for both architectures"
+          echo "✅ ARM64 binary ready"
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
