@@ -235,12 +235,27 @@ jobs:
           echo "response: ${{ steps.claude-changelog.outputs.response }}"
           echo "All outputs: ${{ toJSON(steps.claude-changelog.outputs) }}"
 
+      - name: Extract changelog from execution file
+        id: extract-changelog
+        run: |
+          EXECUTION_FILE="${{ steps.claude-changelog.outputs.execution_file }}"
+          if [ -f "$EXECUTION_FILE" ]; then
+            echo "Reading changelog from: $EXECUTION_FILE"
+            CHANGELOG=$(jq -r '.result' "$EXECUTION_FILE")
+            echo "changelog<<EOF" >> $GITHUB_OUTPUT
+            echo "$CHANGELOG" >> $GITHUB_OUTPUT
+            echo "EOF" >> $GITHUB_OUTPUT
+          else
+            echo "Execution file not found: $EXECUTION_FILE"
+            echo "changelog=Error: Could not find Claude execution results" >> $GITHUB_OUTPUT
+          fi
+
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: v${{ steps.version.outputs.version }}
           name: v${{ steps.version.outputs.version }}
-          body: ${{ steps.claude-changelog.outputs.result }}
+          body: ${{ steps.extract-changelog.outputs.changelog }}
           make_latest: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
