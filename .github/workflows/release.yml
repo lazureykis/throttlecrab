@@ -215,19 +215,25 @@ jobs:
           mode: agent
           allowed_tools: "Edit,MultiEdit,Glob,Grep,Read,Write,Bash(git log:*),Bash(git tag:*),Bash(git show:*)"
           direct_prompt: |
-            Generate a concise changelog for version ${{ steps.version.outputs.version }} based on the git commits since the previous tag ${{ steps.previous_tag.outputs.previous_tag }}.
+            Generate a changelog for version ${{ steps.version.outputs.version }} based on the git commits since the previous tag ${{ steps.previous_tag.outputs.previous_tag }}.
 
-            Requirements:
-            - Write in markdown format
-            - Keep it short and user-focused
+            IMPORTANT: Your response must be ONLY the changelog content, with no introduction, explanation, or markdown code blocks.
+
+            Format requirements:
+            - Start directly with "## Changes" or similar heading
+            - Use markdown format with bullet points (•)
             - Group changes by type (Features, Bug Fixes, Performance, etc.)
             - Exclude version bump commits and CI changes
             - Focus on what users will notice
-            - Use bullet points
             - Maximum 8 lines for the changes
             - End with: "**Full Changelog**: https://github.com/${{ github.repository }}/compare/${{ steps.previous_tag.outputs.previous_tag }}...v${{ steps.version.outputs.version }}"
 
-            Look at the git log and create a professional changelog that highlights the most important changes for users of this Rust rate limiting library.
+            Do NOT include:
+            - "Based on the analysis..." or similar introductions
+            - ```markdown code blocks
+            - Any explanatory text before or after the changelog
+
+            Return ONLY the changelog content that should appear in the GitHub release.
 
       - run: cat ${{ steps.claude-changelog.outputs.execution_file }}
 
