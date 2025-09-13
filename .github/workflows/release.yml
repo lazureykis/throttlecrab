@@ -217,23 +217,27 @@ jobs:
           direct_prompt: |
             Generate a changelog for version ${{ steps.version.outputs.version }} based on the git commits since the previous tag ${{ steps.previous_tag.outputs.previous_tag }}.
 
-            IMPORTANT: Your response must be ONLY the changelog content, with no introduction, explanation, or markdown code blocks.
+            CRITICAL: Return ONLY the changelog markdown. No analysis, no explanation, no introduction text.
 
-            Format requirements:
-            - Start directly with "## Changes" or similar heading
-            - Use markdown format with bullet points (•)
-            - Group changes by type (Features, Bug Fixes, Performance, etc.)
-            - Exclude version bump commits and CI changes
-            - Focus on what users will notice
-            - Maximum 8 lines for the changes
-            - End with: "**Full Changelog**: https://github.com/${{ github.repository }}/compare/${{ steps.previous_tag.outputs.previous_tag }}...v${{ steps.version.outputs.version }}"
+            Your entire response must be EXACTLY this format:
 
-            Do NOT include:
-            - "Based on the analysis..." or similar introductions
-            - ```markdown code blocks
-            - Any explanatory text before or after the changelog
+            ## Changes
 
-            Return ONLY the changelog content that should appear in the GitHub release.
+            ### Category Name
+            • Brief description of change
+            • Another change description
+
+            **Full Changelog**: https://github.com/${{ github.repository }}/compare/${{ steps.previous_tag.outputs.previous_tag }}...v${{ steps.version.outputs.version }}
+
+            Rules:
+            - Start immediately with "## Changes"
+            - Use bullet points (•)
+            - Exclude version bumps and CI-only changes
+            - Maximum 6 lines of changes
+            - NO text before "## Changes"
+            - NO explanations after the Full Changelog link
+
+            If there are no meaningful changes, use: "## Changes\n\n• Maintenance release\n\n**Full Changelog**: ..."
 
       - name: Store Claude execution log as artifact
         uses: actions/upload-artifact@v4
@@ -257,6 +261,12 @@ jobs:
               echo "jq extraction failed, trying grep fallback..."
               CHANGELOG=$(grep -o '"result": "[^"]*"' "$EXECUTION_FILE" | tail -n1 | sed 's/"result": "//' | sed 's/"$//' | sed 's/\\n/\n/g')
             fi
+
+            # Clean up any unwanted text - extract from "## Changes" onwards
+            if [[ "$CHANGELOG" =~ ##[[:space:]]*Changes ]]; then
+              CHANGELOG=$(echo "$CHANGELOG" | sed -n '/## Changes/,$p')
+            fi
+
             echo "changelog<<EOF" >> $GITHUB_OUTPUT
             echo "$CHANGELOG" >> $GITHUB_OUTPUT
             echo "EOF" >> $GITHUB_OUTPUT
