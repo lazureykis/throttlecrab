@@ -251,7 +251,13 @@ jobs:
           if [ -f "$EXECUTION_FILE" ]; then
             echo "Reading changelog from: $EXECUTION_FILE"
             # Extract result from the last object with type "result" in the JSON array
-            CHANGELOG=$(jq -r '.[] | select(.type == "result") | .result' "$EXECUTION_FILE" | tail -n1)
+            CHANGELOG=$(jq -r '.[] | select(.type == "result") | .result' "$EXECUTION_FILE" 2>/dev/null | tail -n1)
+
+            # Fallback: if jq fails (malformed JSON), try grep extraction
+            if [ -z "$CHANGELOG" ] || [ "$CHANGELOG" = "null" ]; then
+              echo "jq extraction failed, trying grep fallback..."
+              CHANGELOG=$(grep -o '"result": "[^"]*"' "$EXECUTION_FILE" | tail -n1 | sed 's/"result": "//' | sed 's/"$//' | sed 's/\\n/\n/g')
+            fi
             echo "changelog<<EOF" >> $GITHUB_OUTPUT
             echo "$CHANGELOG" >> $GITHUB_OUTPUT
             echo "EOF" >> $GITHUB_OUTPUT
