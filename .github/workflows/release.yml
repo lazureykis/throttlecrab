@@ -254,7 +254,7 @@ jobs:
           if [ -f "$EXECUTION_FILE" ]; then
             echo "Reading changelog from: $EXECUTION_FILE"
             # Extract result from the last object with type "result" in the JSON array
-            CHANGELOG=$(jq -r '.[] | select(.type == "result") | .result' "$EXECUTION_FILE" 2>/dev/null | tail -n1)
+            CHANGELOG=$(jq -r '.[] | select(.type == "result") | .result' "$EXECUTION_FILE" 2>/dev/null)
 
             # Fallback: if jq fails (malformed JSON), try grep extraction
             if [ -z "$CHANGELOG" ] || [ "$CHANGELOG" = "null" ]; then
