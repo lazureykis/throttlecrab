@@ -235,15 +235,6 @@ jobs:
 
             Return ONLY the changelog content that should appear in the GitHub release.
 
-      - run: cat ${{ steps.claude-changelog.outputs.execution_file }}
-
-      - name: Debug Claude outputs
-        run: |
-          echo "Claude action outputs:"
-          echo "result: ${{ steps.claude-changelog.outputs.result }}"
-          echo "response: ${{ steps.claude-changelog.outputs.response }}"
-          echo "All outputs: ${{ toJSON(steps.claude-changelog.outputs) }}"
-
       - name: Extract changelog from execution file
         id: extract-changelog
         run: |
