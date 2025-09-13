@@ -263,7 +263,7 @@ jobs:
             fi
 
             # Clean up any unwanted text - extract from "## Changes" onwards
-            if [[ "$CHANGELOG" =~ ##[[:space:]]*Changes ]]; then
+            if echo "$CHANGELOG" | grep -q "## Changes"; then
               CHANGELOG=$(echo "$CHANGELOG" | sed -n '/## Changes/,$p')
             fi
 
