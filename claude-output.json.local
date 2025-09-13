@@ -1,0 +1,137 @@
+[
+  {
+    "type": "system",
+    "subtype": "init",
+    "cwd": "/home/runner/work/throttlecrab/throttlecrab",
+    "session_id": "1a45f9a5-092a-4bf4-b99f-70946d8fcdc4",
+    "tools": [
+      "Task",
+      "Bash",
+      "Glob",
+      "Grep",
+      "LS",
+      "ExitPlanMode",
+      "Read",
+      "Edit",
+      "MultiEdit",
+      "Write",
+      "NotebookEdit",
+      "TodoWrite",
+      "BashOutput",
+      "KillBash"
+    ],
+    "mcp_servers": [],
+    "model": "claude-sonnet-4-20250514",
+    "permissionMode": "default",
+    "slash_commands": [
+      "add-dir",
+      "agents",
+      "clear",
+      "compact",
+      "config",
+      "context",
+      "cost",
+      "doctor",
+      "exit",
+      "help",
+      "ide",
+      "init",
+      "install-github-app",
+      {
+        "name": "Bash",
+        "input": {
+          "command": "git log --oneline --all",
+          "description": "Get all commits to understand repository history"
+        }
+        }
+      ],
+      "stop_reason": null,
+      "stop_sequence": null,
+      "usage": {
+        "input_tokens": 7,
+        "cache_creation_input_tokens": 117,
+        "cache_read_input_tokens": 14898,
+        "cache_creation": {
+          "ephemeral_5m_input_tokens": 117,
+          "ephemeral_1h_input_tokens": 0
+        },
+        "output_tokens": 37,
+        "service_tier": "standard"
+      }
+    },
+    "parent_tool_use_id": null,
+    "session_id": "1a45f9a5-092a-4bf4-b99f-70946d8fcdc4",
+    "uuid": "9219b46e-aee1-42e9-9007-6fa8523d2f38"
+  },
+  {
+    "type": "user",
+    "message": {
+      "role": "user",
+      "content": [
+        {
+          "tool_use_id": "toolu_0187LPThYJdMWsUfu1obPbnz",
+          "type": "tool_result",
+          "content": "d3ba9a7 chore: bump version to 0.4.16\nd1fdc60 Improve Claude changelog prompt for cleaner output",
+          "is_error": false
+        }
+      ]
+    },
+    "parent_tool_use_id": null,
+    "session_id": "1a45f9a5-092a-4bf4-b99f-70946d8fcdc4",
+    "uuid": "b3581833-6954-40bb-8702-05ed41972681"
+  },
+  {
+    "type": "assistant",
+    "message": {
+      "id": "msg_01WUXMZAFVFy6LHJDmyxiTRS",
+      "type": "message",
+      "role": "assistant",
+      "model": "claude-sonnet-4-20250514",
+      "content": [
+        {
+          "type": "text",
+          "text": "## Changes\n\n### Improvements\n• Improve Claude changelog prompt for cleaner output\n\n**Full Changelog**: https://github.com/lazureykis/throttlecrab/compare/d1fdc604fe1714b8ed92f8ef8035f77d94304385...v0.4.16"
+        }
+      ],
+      "stop_reason": null,
+      "stop_sequence": null,
+      "usage": {
+        "input_tokens": 6,
+        "cache_creation_input_tokens": 129,
+        "cache_read_input_tokens": 15015,
+        "cache_creation": {
+          "ephemeral_5m_input_tokens": 129,
+          "ephemeral_1h_input_tokens": 0
+        },
+        "output_tokens": 1,
+        "service_tier": "standard"
+      }
+    },
+    "parent_tool_use_id": null,
+    "session_id": "1a45f9a5-092a-4bf4-b99f-70946d8fcdc4",
+    "uuid": "930c6846-7f5d-4b08-ab09-6ed49999d2a2"
+  },
+  {
+    "type": "result",
+    "subtype": "success",
+    "is_error": false,
+    "duration_ms": 23034,
+    "duration_api_ms": 26266,
+    "num_turns": 11,
+    "result": "## Changes\n\n### Improvements\n• Improve Claude changelog prompt for cleaner output\n\n**Full Changelog**: https://github.com/lazureykis/throttlecrab/compare/d1fdc604fe1714b8ed92f8ef8035f77d94304385...v0.4.16",
+    "session_id": "1a45f9a5-092a-4bf4-b99f-70946d8fcdc4",
+    "total_cost_usd": 0.06177295,
+    "usage": {
+      "input_tokens": 6,
+      "cache_creation_input_tokens": 129,
+      "cache_read_input_tokens": 15015,
+      "output_tokens": 74,
+      "server_tool_use": {
+        "web_search_requests": 0
+      },
+      "service_tier": "standard"
+    },
+    "permission_denials": [],
+    "uuid": "5be246f2-d9f4-474f-99d6-316e092f380c"
+  }
+]
