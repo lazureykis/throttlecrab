@@ -235,6 +235,14 @@ jobs:
 
             Return ONLY the changelog content that should appear in the GitHub release.
 
+      - name: Store Claude execution log as artifact
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: claude-execution-log-v${{ steps.version.outputs.version }}
+          path: ${{ steps.claude-changelog.outputs.execution_file }}
+          retention-days: 30
+
       - name: Extract changelog from execution file
         id: extract-changelog
         run: |
