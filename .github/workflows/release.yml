@@ -1,112 +1,92 @@
 name: Release
 
 on:
-  push:
-    tags:
-      - 'v*'
+  workflow_dispatch:
+    inputs:
+      version_bump:
+        description: 'What kind of version increase should be used'
+        required: false
+        default: 'patch'
+        type: choice
+        options:
+          - patch
+          - minor
+          - major
+      run_tests:
+        description: 'Run tests before publishing'
+        required: false
+        default: true
+        type: boolean
+      dry_run:
+        description: 'Dry run (skip publishing to crates.io and GitHub release)'
+        required: false
+        type: boolean
+        default: false
 
 env:
   CARGO_TERM_COLOR: always
 
 jobs:
-  verify:
-    name: Verify Release
-    runs-on: ubuntu-latest
-    steps:
-      - name: Install protoc
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y protobuf-compiler
-          protoc --version
-
-      - uses: actions/checkout@v5
-
-      - name: Install Rust
-        uses: dtolnay/rust-toolchain@stable
-
-      - name: Cache dependencies
-        uses: Swatinem/rust-cache@v2
-
-      - name: Check version tags match Cargo.toml
-        run: |
-          TAG_VERSION=${GITHUB_REF#refs/tags/v}
-          CORE_VERSION=$(grep '^version' throttlecrab/Cargo.toml | head -1 | cut -d'"' -f2)
-          SERVER_VERSION=$(grep '^version' throttlecrab-server/Cargo.toml | head -1 | cut -d'"' -f2)
-
-          if [ "$TAG_VERSION" != "$CORE_VERSION" ]; then
-            echo "Tag version ($TAG_VERSION) doesn't match throttlecrab version ($CORE_VERSION)"
-            exit 1
-          fi
-
-          if [ "$TAG_VERSION" != "$SERVER_VERSION" ]; then
-            echo "Tag version ($TAG_VERSION) doesn't match throttlecrab-server version ($SERVER_VERSION)"
-            exit 1
-          fi
-
-          echo "✓ Version check passed"
-
-      - name: Run tests
-        run: cargo test --all --verbose
-
-      - name: Run clippy
-        run: cargo clippy --all-targets --all-features -- -D warnings
-
-      - name: Check formatting
-        run: cargo fmt --all -- --check
-
-      - name: Build release
-        run: cargo build --all --release --verbose
-
-  create-release:
-    name: Create GitHub Release
-    needs: verify
+  release:
+    name: Release
     runs-on: ubuntu-latest
     permissions:
       contents: write
     steps:
       - uses: actions/checkout@v5
-
-      - name: Create Release
-        uses: softprops/action-gh-release@v2
         with:
-          # draft: true
-          generate_release_notes: true
-          name: ${{ github.ref_name }}
-          body: |
-            ## What's Changed
+          token: ${{ secrets.GITHUB_TOKEN }}
 
-            <!-- Add notable changes here -->
+      - name: Configure Git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
-            ## Installation
+      - name: Calculate version
+        id: version
+        run: |
+          CURRENT_VERSION=$(grep '^version' throttlecrab/Cargo.toml | head -1 | cut -d'"' -f2)
+          BUMP_TYPE="${{ github.event.inputs.version_bump }}"
+          echo "Current version: $CURRENT_VERSION"
+          echo "Calculating $BUMP_TYPE version bump from $CURRENT_VERSION"
 
-            ```bash
-            # Install the server
-            cargo install throttlecrab-server
+          # Parse current version
+          IFS='.' read -r MAJOR MINOR PATCH <<< "$CURRENT_VERSION"
 
-            # Or add the library to your project
-            cargo add throttlecrab
-            ```
+          case "$BUMP_TYPE" in
+            patch)
+              NEW_VERSION="$MAJOR.$MINOR.$((PATCH + 1))"
+              ;;
+            minor)
+              NEW_VERSION="$MAJOR.$((MINOR + 1)).0"
+              ;;
+            major)
+              NEW_VERSION="$((MAJOR + 1)).0.0"
+              ;;
+          esac
 
-            ## Verifying the Release
+          echo "Calculated new version: $NEW_VERSION"
 
-            The release artifacts can be verified using the SHA256 checksums below.
+          # Validate semantic version format
+          if ! echo "$NEW_VERSION" | grep -E '^[0-9]+\.[0-9]+\.[0-9]+$'; then
+            echo "❌ Invalid version format. Expected semantic versioning (e.g., 0.4.5)"
+            exit 1
+          fi
 
-            **Full Changelog**: https://github.com/${{ github.repository }}/compare/v0.1.0...${{ github.ref_name }}
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Check if tag already exists
+          if git tag -l | grep -q "v$NEW_VERSION"; then
+            echo "❌ Tag v$NEW_VERSION already exists. Version has already been released."
+            exit 1
+          fi
 
-  publish-crates:
-    name: Publish to crates.io
-    needs: create-release
-    runs-on: ubuntu-latest
-    steps:
+          echo "version=$NEW_VERSION" >> $GITHUB_OUTPUT
+          echo "✅ Version calculated and validated: $NEW_VERSION"
+
       - name: Install protoc
         run: |
           sudo apt-get update
           sudo apt-get install -y protobuf-compiler
           protoc --version
-
-      - uses: actions/checkout@v5
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
@@ -114,16 +94,255 @@ jobs:
       - name: Cache dependencies
         uses: Swatinem/rust-cache@v2
 
-      - name: Publish throttlecrab
+      - name: Update throttlecrab version
         run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          # More robust version update - match the exact line
+          sed -i "1,5s/^version = \"[^\"]*\"/version = \"$VERSION\"/" throttlecrab/Cargo.toml
+          echo "✅ Updated throttlecrab to version $VERSION"
+
+      - name: Update throttlecrab-server version and dependency
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          # Update server version - match the exact line in first few lines
+          sed -i "1,5s/^version = \"[^\"]*\"/version = \"$VERSION\"/" throttlecrab-server/Cargo.toml
+          # Update dependency reference - more precise pattern
+          sed -i "s/throttlecrab = { path = \"\.\.\/throttlecrab\", version = \"[^\"]*\"/throttlecrab = { path = \"..\/throttlecrab\", version = \"$VERSION\"/" throttlecrab-server/Cargo.toml
+          echo "✅ Updated throttlecrab-server to version $VERSION"
+
+      - name: Verify version updates
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+
+          # Verify versions were updated correctly
+          CORE_VERSION=$(grep '^version' throttlecrab/Cargo.toml | head -1 | cut -d'"' -f2)
+          SERVER_VERSION=$(grep '^version' throttlecrab-server/Cargo.toml | head -1 | cut -d'"' -f2)
+          DEP_VERSION=$(grep 'throttlecrab = { path = "../throttlecrab", version =' throttlecrab-server/Cargo.toml | cut -d'"' -f4)
+
+          echo "Core version: $CORE_VERSION"
+          echo "Server version: $SERVER_VERSION"
+          echo "Dependency version: $DEP_VERSION"
+
+          if [ "$VERSION" != "$CORE_VERSION" ] || [ "$VERSION" != "$SERVER_VERSION" ] || [ "$VERSION" != "$DEP_VERSION" ]; then
+            echo "❌ Version mismatch after update"
+            exit 1
+          fi
+
+          echo "✅ All versions match: $VERSION"
+
+      - name: Run tests
+        if: ${{ github.event.inputs.run_tests }}
+        run: |
+          echo "🧪 Running tests..."
+          cargo test --all --verbose
+
+      - name: Run clippy
+        if: ${{ github.event.inputs.run_tests }}
+        run: |
+          echo "🔍 Running clippy..."
+          cargo clippy --all-targets --all-features -- -D warnings
+
+      - name: Check formatting
+        if: ${{ github.event.inputs.run_tests }}
+        run: |
+          echo "🎨 Checking formatting..."
+          cargo fmt --all -- --check
+
+      - name: Build release
+        run: |
+          echo "🔨 Building release..."
+          cargo build --all --release --verbose
+
+      - name: Get previous tag for changelog
+        id: previous_tag
+        run: |
+          # Get the latest tag before we create the new one
+          PREVIOUS_TAG=$(git tag -l --sort=-version:refname | head -1)
+
+          if [ -z "$PREVIOUS_TAG" ]; then
+            echo "No previous tag found, will use first commit"
+            PREVIOUS_TAG=$(git rev-list --max-parents=0 HEAD)
+          fi
+
+          echo "previous_tag=$PREVIOUS_TAG" >> $GITHUB_OUTPUT
+          echo "✅ Previous tag/commit for changelog: $PREVIOUS_TAG"
+
+      - name: Commit version changes
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          git add throttlecrab/Cargo.toml throttlecrab-server/Cargo.toml
+          git commit -m "chore: bump version to $VERSION"
+          echo "✅ Committed version changes"
+
+      - name: Create and push tag
+        if: ${{ !github.event.inputs.dry_run }}
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          git tag "v$VERSION"
+          git push origin main
+          git push origin "v$VERSION"
+          echo "✅ Created and pushed tag v$VERSION"
+
+      - name: Create tag (dry run)
+        if: ${{ github.event.inputs.dry_run }}
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          git tag "v$VERSION"
+          echo "🏃‍♂️ DRY RUN: Created local tag v$VERSION (not pushed)"
+
+      - name: Publish throttlecrab to crates.io
+        if: ${{ !github.event.inputs.dry_run }}
+        run: |
+          echo "📦 Publishing throttlecrab to crates.io..."
           cd throttlecrab
           cargo publish --token ${{ secrets.CARGO_REGISTRY_TOKEN }}
+          echo "✅ throttlecrab published"
         env:
           CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
 
-      - name: Publish throttlecrab-server
+      - name: Publish throttlecrab (dry run)
+        if: ${{ github.event.inputs.dry_run }}
         run: |
+          echo "🏃‍♂️ DRY RUN: Would publish throttlecrab to crates.io"
+          cd throttlecrab
+          cargo publish --dry-run
+
+      - name: Wait for crates.io propagation
+        if: ${{ !github.event.inputs.dry_run }}
+        run: |
+          echo "⏳ Waiting 30 seconds for crates.io propagation..."
+          sleep 30
+
+      - name: Publish throttlecrab-server to crates.io
+        if: ${{ !github.event.inputs.dry_run }}
+        run: |
+          echo "📦 Publishing throttlecrab-server to crates.io..."
           cd throttlecrab-server
           cargo publish --token ${{ secrets.CARGO_REGISTRY_TOKEN }}
+          echo "✅ throttlecrab-server published"
         env:
           CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+
+      - name: Publish throttlecrab-server (dry run)
+        if: ${{ github.event.inputs.dry_run }}
+        run: |
+          echo "🏃‍♂️ DRY RUN: Would publish throttlecrab-server to crates.io"
+          cd throttlecrab-server
+          cargo publish --dry-run
+
+      - name: Generate changelog
+        id: changelog
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          PREVIOUS_TAG="${{ steps.previous_tag.outputs.previous_tag }}"
+
+          echo "Generating changelog from $PREVIOUS_TAG to v$VERSION"
+
+          # Generate changelog
+          cat > CHANGELOG.md << EOF
+          ## What's Changed
+
+          EOF
+
+          # Add commits since last tag (exclude the version bump commit)
+          git log --pretty=format:"* %s" "$PREVIOUS_TAG"..HEAD~1 >> CHANGELOG.md
+
+          echo "" >> CHANGELOG.md
+          echo "" >> CHANGELOG.md
+          echo "## Installation" >> CHANGELOG.md
+          echo "" >> CHANGELOG.md
+          echo "\`\`\`bash" >> CHANGELOG.md
+          echo "# Install the server" >> CHANGELOG.md
+          echo "cargo install throttlecrab-server" >> CHANGELOG.md
+          echo "" >> CHANGELOG.md
+          echo "# Or add the library to your project" >> CHANGELOG.md
+          echo "cargo add throttlecrab" >> CHANGELOG.md
+          echo "\`\`\`" >> CHANGELOG.md
+          echo "" >> CHANGELOG.md
+          echo "**Full Changelog**: https://github.com/${{ github.repository }}/compare/$PREVIOUS_TAG...v$VERSION" >> CHANGELOG.md
+
+          # Save changelog content for release
+          echo "CHANGELOG_CONTENT<<EOF" >> $GITHUB_OUTPUT
+          cat CHANGELOG.md >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: Create GitHub Release
+        if: ${{ !github.event.inputs.dry_run }}
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ steps.version.outputs.version }}
+          name: v${{ steps.version.outputs.version }}
+          body: ${{ steps.changelog.outputs.CHANGELOG_CONTENT }}
+          generate_release_notes: true
+          make_latest: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Create GitHub Release (dry run)
+        if: ${{ github.event.inputs.dry_run }}
+        run: |
+          echo "🏃‍♂️ DRY RUN: Would create GitHub release v${{ steps.version.outputs.version }}"
+          echo "Changelog content:"
+          echo "${{ steps.changelog.outputs.CHANGELOG_CONTENT }}"
+
+      - name: Cleanup on failure
+        if: failure() && !github.event.inputs.dry_run
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          echo "🚨 Release failed! Attempting cleanup..."
+
+          # Try to delete the tag if it was created
+          if git tag -l | grep -q "v$VERSION"; then
+            echo "Deleting local tag v$VERSION"
+            git tag -d "v$VERSION" || true
+
+            # Try to delete remote tag (might not exist if push failed)
+            echo "Attempting to delete remote tag v$VERSION"
+            git push --delete origin "v$VERSION" 2>/dev/null || echo "Remote tag not found or already deleted"
+          fi
+
+          echo "⚠️  NOTE: Manual cleanup may be required:"
+          echo "- Check if version commit needs to be reverted"
+          echo "- Verify crates.io publication status"
+          echo "- Review any partial GitHub releases"
+
+      - name: Summary
+        if: success()
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          DRY_RUN="${{ github.event.inputs.dry_run }}"
+          RUN_TESTS="${{ github.event.inputs.run_tests }}"
+
+          if [ "$DRY_RUN" = "true" ]; then
+            echo "## 🏃‍♂️ Dry Run Complete!"
+            echo ""
+            echo "✅ Version would be bumped to $VERSION"
+            if [ "$RUN_TESTS" = "true" ]; then
+              echo "✅ Tests, clippy, and formatting checks passed"
+            else
+              echo "⚠️  Tests were skipped"
+            fi
+            echo "✅ Local tag v$VERSION created (not pushed)"
+            echo "✅ Crates would be validated with --dry-run"
+            echo "✅ GitHub release would be created with changelog"
+            echo ""
+            echo "🚀 **Ready for real release!** Re-run without dry_run to publish."
+          else
+            echo "## 🎉 Release Complete!"
+            echo ""
+            echo "✅ Version bumped to $VERSION"
+            if [ "$RUN_TESTS" = "true" ]; then
+              echo "✅ Tests, clippy, and formatting checks passed"
+            else
+              echo "⚠️  Tests were skipped"
+            fi
+            echo "✅ Tag v$VERSION created and pushed"
+            echo "✅ throttlecrab v$VERSION published to crates.io"
+            echo "✅ throttlecrab-server v$VERSION published to crates.io"
+            echo "✅ GitHub release v$VERSION created with changelog"
+            echo ""
+            echo "🔗 **Links:**"
+            echo "- [GitHub Release](https://github.com/${{ github.repository }}/releases/tag/v$VERSION)"
+            echo "- [throttlecrab on crates.io](https://crates.io/crates/throttlecrab)"
+            echo "- [throttlecrab-server on crates.io](https://crates.io/crates/throttlecrab-server)"
+          fi
