@@ -228,6 +228,8 @@ jobs:
 
             Look at the git log and create a professional changelog that highlights the most important changes for users of this Rust rate limiting library.
 
+      - run: cat ${{ steps.claude-changelog.outputs.execution_file }}
+
       - name: Debug Claude outputs
         run: |
           echo "Claude action outputs:"
