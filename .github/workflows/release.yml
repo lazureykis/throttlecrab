@@ -200,12 +200,31 @@ jobs:
         env:
           CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
 
+      - name: Generate changelog with Claude
+        id: claude-changelog
+        uses: anthropics/claude-code-action@beta
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          direct_prompt: |
+            Generate a concise changelog for version ${{ steps.version.outputs.version }} based on the git commits since the previous tag ${{ steps.previous_tag.outputs.previous_tag }}.
+
+            Requirements:
+            - Write in markdown format
+            - Keep it short and user-focused
+            - Group changes by type (Features, Bug Fixes, Performance, etc.)
+            - Exclude version bump commits and CI changes
+            - Focus on what users will notice
+            - Use bullet points
+            - Maximum 10 lines total
+
+            Look at the git log and create a professional changelog that highlights the most important changes for users of this Rust rate limiting library.
+
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: v${{ steps.version.outputs.version }}
           name: v${{ steps.version.outputs.version }}
-          generate_release_notes: true
+          body: ${{ steps.claude-changelog.outputs.response }}
           make_latest: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
