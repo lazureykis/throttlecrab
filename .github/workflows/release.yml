@@ -17,11 +17,6 @@ on:
         required: false
         default: true
         type: boolean
-      dry_run:
-        description: 'Dry run (skip publishing to crates.io and GitHub release)'
-        required: false
-        type: boolean
-        default: false
 
 env:
   CARGO_TERM_COLOR: always
@@ -175,7 +170,6 @@ jobs:
           echo "✅ Committed version changes"
 
       - name: Create and push tag
-        if: ${{ !github.event.inputs.dry_run }}
         run: |
           VERSION="${{ steps.version.outputs.version }}"
           git tag "v$VERSION"
@@ -183,15 +177,7 @@ jobs:
           git push origin "v$VERSION"
           echo "✅ Created and pushed tag v$VERSION"
 
-      - name: Create tag (dry run)
-        if: ${{ github.event.inputs.dry_run }}
-        run: |
-          VERSION="${{ steps.version.outputs.version }}"
-          git tag "v$VERSION"
-          echo "🏃‍♂️ DRY RUN: Created local tag v$VERSION (not pushed)"
-
       - name: Publish throttlecrab to crates.io
-        if: ${{ !github.event.inputs.dry_run }}
         run: |
           echo "📦 Publishing throttlecrab to crates.io..."
           cd throttlecrab
@@ -200,21 +186,12 @@ jobs:
         env:
           CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
 
-      - name: Publish throttlecrab (dry run)
-        if: ${{ github.event.inputs.dry_run }}
-        run: |
-          echo "🏃‍♂️ DRY RUN: Would publish throttlecrab to crates.io"
-          cd throttlecrab
-          cargo publish --dry-run
-
       - name: Wait for crates.io propagation
-        if: ${{ !github.event.inputs.dry_run }}
         run: |
           echo "⏳ Waiting 30 seconds for crates.io propagation..."
           sleep 30
 
       - name: Publish throttlecrab-server to crates.io
-        if: ${{ !github.event.inputs.dry_run }}
         run: |
           echo "📦 Publishing throttlecrab-server to crates.io..."
           cd throttlecrab-server
@@ -222,13 +199,6 @@ jobs:
           echo "✅ throttlecrab-server published"
         env:
           CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
-
-      - name: Publish throttlecrab-server (dry run)
-        if: ${{ github.event.inputs.dry_run }}
-        run: |
-          echo "🏃‍♂️ DRY RUN: Would publish throttlecrab-server to crates.io"
-          cd throttlecrab-server
-          cargo publish --dry-run
 
       - name: Generate changelog
         id: changelog
@@ -267,7 +237,6 @@ jobs:
           echo "EOF" >> $GITHUB_OUTPUT
 
       - name: Create GitHub Release
-        if: ${{ !github.event.inputs.dry_run }}
         uses: softprops/action-gh-release@v2
         with:
           tag_name: v${{ steps.version.outputs.version }}
@@ -278,15 +247,8 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Create GitHub Release (dry run)
-        if: ${{ github.event.inputs.dry_run }}
-        run: |
-          echo "🏃‍♂️ DRY RUN: Would create GitHub release v${{ steps.version.outputs.version }}"
-          echo "Changelog content:"
-          echo "${{ steps.changelog.outputs.CHANGELOG_CONTENT }}"
-
       - name: Cleanup on failure
-        if: failure() && !github.event.inputs.dry_run
+        if: failure()
         run: |
           VERSION="${{ steps.version.outputs.version }}"
           echo "🚨 Release failed! Attempting cleanup..."
@@ -310,39 +272,22 @@ jobs:
         if: success()
         run: |
           VERSION="${{ steps.version.outputs.version }}"
-          DRY_RUN="${{ github.event.inputs.dry_run }}"
           RUN_TESTS="${{ github.event.inputs.run_tests }}"
 
-          if [ "$DRY_RUN" = "true" ]; then
-            echo "## 🏃‍♂️ Dry Run Complete!"
-            echo ""
-            echo "✅ Version would be bumped to $VERSION"
-            if [ "$RUN_TESTS" = "true" ]; then
-              echo "✅ Tests, clippy, and formatting checks passed"
-            else
-              echo "⚠️  Tests were skipped"
-            fi
-            echo "✅ Local tag v$VERSION created (not pushed)"
-            echo "✅ Crates would be validated with --dry-run"
-            echo "✅ GitHub release would be created with changelog"
-            echo ""
-            echo "🚀 **Ready for real release!** Re-run without dry_run to publish."
+          echo "## 🎉 Release Complete!"
+          echo ""
+          echo "✅ Version bumped to $VERSION"
+          if [ "$RUN_TESTS" = "true" ]; then
+            echo "✅ Tests, clippy, and formatting checks passed"
           else
-            echo "## 🎉 Release Complete!"
-            echo ""
-            echo "✅ Version bumped to $VERSION"
-            if [ "$RUN_TESTS" = "true" ]; then
-              echo "✅ Tests, clippy, and formatting checks passed"
-            else
-              echo "⚠️  Tests were skipped"
-            fi
-            echo "✅ Tag v$VERSION created and pushed"
-            echo "✅ throttlecrab v$VERSION published to crates.io"
-            echo "✅ throttlecrab-server v$VERSION published to crates.io"
-            echo "✅ GitHub release v$VERSION created with changelog"
-            echo ""
-            echo "🔗 **Links:**"
-            echo "- [GitHub Release](https://github.com/${{ github.repository }}/releases/tag/v$VERSION)"
-            echo "- [throttlecrab on crates.io](https://crates.io/crates/throttlecrab)"
-            echo "- [throttlecrab-server on crates.io](https://crates.io/crates/throttlecrab-server)"
+            echo "⚠️  Tests were skipped"
           fi
+          echo "✅ Tag v$VERSION created and pushed"
+          echo "✅ throttlecrab v$VERSION published to crates.io"
+          echo "✅ throttlecrab-server v$VERSION published to crates.io"
+          echo "✅ GitHub release v$VERSION created with changelog"
+          echo ""
+          echo "🔗 **Links:**"
+          echo "- [GitHub Release](https://github.com/${{ github.repository }}/releases/tag/v$VERSION)"
+          echo "- [throttlecrab on crates.io](https://crates.io/crates/throttlecrab)"
+          echo "- [throttlecrab-server on crates.io](https://crates.io/crates/throttlecrab-server)"
