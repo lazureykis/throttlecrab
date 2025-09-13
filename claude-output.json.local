@@ -37,12 +37,261 @@
       "ide",
       "init",
       "install-github-app",
-      {
-        "name": "Bash",
-        "input": {
-          "command": "git log --oneline --all",
-          "description": "Get all commits to understand repository history"
+      "mcp",
+      "memory",
+      "migrate-installer",
+      "model",
+      "output-style",
+      "output-style:new",
+      "pr-comments",
+      "release-notes",
+      "resume",
+      "status",
+      "statusline",
+      "bug",
+      "review",
+      "security-review",
+      "upgrade",
+      "vim",
+      "permissions",
+      "hooks",
+      "export",
+      "logout",
+      "login",
+      "bashes"
+    ],
+    "apiKeySource": "none",
+    "output_style": "default",
+    "uuid": "b6455f96-96b3-4466-aef9-3c5244b1de1b"
+  },
+  {
+    "type": "assistant",
+    "message": {
+      "id": "msg_01FQpW2UooMkN8dZ1M4bYAYe",
+      "type": "message",
+      "role": "assistant",
+      "model": "claude-sonnet-4-20250514",
+      "content": [
+        {
+          "type": "tool_use",
+          "id": "toolu_012FYAfCZeW3Q67ShtLLsBE6",
+          "name": "Bash",
+          "input": {
+            "command": "git log --oneline d1fdc604fe1714b8ed92f8ef8035f77d94304385..HEAD",
+            "description": "Get git commits since the previous tag for changelog"
+          }
         }
+      ],
+      "stop_reason": null,
+      "stop_sequence": null,
+      "usage": {
+        "input_tokens": 3,
+        "cache_creation_input_tokens": 6692,
+        "cache_read_input_tokens": 7801,
+        "cache_creation": {
+          "ephemeral_5m_input_tokens": 6692,
+          "ephemeral_1h_input_tokens": 0
+        },
+        "output_tokens": 1,
+        "service_tier": "standard"
+      }
+    },
+    "parent_tool_use_id": null,
+    "session_id": "1a45f9a5-092a-4bf4-b99f-70946d8fcdc4",
+    "uuid": "1b5e4bac-f688-4d78-8542-124a14e27f17"
+  },
+  {
+    "type": "user",
+    "message": {
+      "role": "user",
+      "content": [
+        {
+          "tool_use_id": "toolu_012FYAfCZeW3Q67ShtLLsBE6",
+          "type": "tool_result",
+          "content": "d3ba9a7 chore: bump version to 0.4.16",
+          "is_error": false
+        }
+      ]
+    },
+    "parent_tool_use_id": null,
+    "session_id": "1a45f9a5-092a-4bf4-b99f-70946d8fcdc4",
+    "uuid": "f606a628-18a0-4299-b6b9-60ee999293ab"
+  },
+  {
+    "type": "assistant",
+    "message": {
+      "id": "msg_014rsYgDajHD1g7uVZBFagBm",
+      "type": "message",
+      "role": "assistant",
+      "model": "claude-sonnet-4-20250514",
+      "content": [
+        {
+          "type": "tool_use",
+          "id": "toolu_019qGqxCvtb2VS3uEGGhKAP8",
+          "name": "Bash",
+          "input": {
+            "command": "git log --oneline v0.4.15..HEAD",
+            "description": "Get commits since previous version tag"
+          }
+        }
+      ],
+      "stop_reason": null,
+      "stop_sequence": null,
+      "usage": {
+        "input_tokens": 6,
+        "cache_creation_input_tokens": 135,
+        "cache_read_input_tokens": 14493,
+        "cache_creation": {
+          "ephemeral_5m_input_tokens": 135,
+          "ephemeral_1h_input_tokens": 0
+        },
+        "output_tokens": 24,
+        "service_tier": "standard"
+      }
+    },
+    "parent_tool_use_id": null,
+    "session_id": "1a45f9a5-092a-4bf4-b99f-70946d8fcdc4",
+    "uuid": "62cb8c7c-43c8-4e05-90f8-f3facb49ba1b"
+  },
+  {
+    "type": "user",
+    "message": {
+      "role": "user",
+      "content": [
+        {
+          "type": "tool_result",
+          "content": "fatal: ambiguous argument 'v0.4.15..HEAD': unknown revision or path not in the working tree.\nUse '--' to separate paths from revisions, like this:\n'git <command> [<revision>...] -- [<file>...]'",
+          "is_error": true,
+          "tool_use_id": "toolu_019qGqxCvtb2VS3uEGGhKAP8"
+        }
+      ]
+    },
+    "parent_tool_use_id": null,
+    "session_id": "1a45f9a5-092a-4bf4-b99f-70946d8fcdc4",
+    "uuid": "c46e2429-f854-4400-a7e6-74dc12a4abac"
+  },
+  {
+    "type": "assistant",
+    "message": {
+      "id": "msg_01C2vfP8KYJ5xACyBS1XVhBL",
+      "type": "message",
+      "role": "assistant",
+      "model": "claude-sonnet-4-20250514",
+      "content": [
+        {
+          "type": "tool_use",
+          "id": "toolu_0131capUueML7oN5QyBfFPaU",
+          "name": "Bash",
+          "input": {
+            "command": "git tag --sort=-version:refname | head -5",
+            "description": "List recent tags to find previous version"
+          }
+        }
+      ],
+      "stop_reason": null,
+      "stop_sequence": null,
+      "usage": {
+        "input_tokens": 7,
+        "cache_creation_input_tokens": 164,
+        "cache_read_input_tokens": 14628,
+        "cache_creation": {
+          "ephemeral_5m_input_tokens": 164,
+          "ephemeral_1h_input_tokens": 0
+        },
+        "output_tokens": 31,
+        "service_tier": "standard"
+      }
+    },
+    "parent_tool_use_id": null,
+    "session_id": "1a45f9a5-092a-4bf4-b99f-70946d8fcdc4",
+    "uuid": "c2ea090d-546f-4668-8670-17e009eff871"
+  },
+  {
+    "type": "user",
+    "message": {
+      "role": "user",
+      "content": [
+        {
+          "tool_use_id": "toolu_0131capUueML7oN5QyBfFPaU",
+          "type": "tool_result",
+          "content": "v0.4.16",
+          "is_error": false
+        }
+      ]
+    },
+    "parent_tool_use_id": null,
+    "session_id": "1a45f9a5-092a-4bf4-b99f-70946d8fcdc4",
+    "uuid": "d0c7259a-34f6-4ee2-8972-6b52ad31dc47"
+  },
+  {
+    "type": "assistant",
+    "message": {
+      "id": "msg_0192fTFHm1cZAKDwTKWcPta1",
+      "type": "message",
+      "role": "assistant",
+      "model": "claude-sonnet-4-20250514",
+      "content": [
+        {
+          "type": "tool_use",
+          "id": "toolu_01EFazdmghnAaLy4D7cbySP1",
+          "name": "Bash",
+          "input": {
+            "command": "git log --oneline --before=\"2025-01-13\"",
+            "description": "Get all commits before recent date to find actual changes"
+          }
+        }
+      ],
+      "stop_reason": null,
+      "stop_sequence": null,
+      "usage": {
+        "input_tokens": 6,
+        "cache_creation_input_tokens": 106,
+        "cache_read_input_tokens": 14792,
+        "cache_creation": {
+          "ephemeral_5m_input_tokens": 106,
+          "ephemeral_1h_input_tokens": 0
+        },
+        "output_tokens": 24,
+        "service_tier": "standard"
+      }
+    },
+    "parent_tool_use_id": null,
+    "session_id": "1a45f9a5-092a-4bf4-b99f-70946d8fcdc4",
+    "uuid": "787ae08b-0a41-46d5-bb35-8dc051fa95f7"
+  },
+  {
+    "type": "user",
+    "message": {
+      "role": "user",
+      "content": [
+        {
+          "tool_use_id": "toolu_01EFazdmghnAaLy4D7cbySP1",
+          "type": "tool_result",
+          "content": "",
+          "is_error": false
+        }
+      ]
+    },
+    "parent_tool_use_id": null,
+    "session_id": "1a45f9a5-092a-4bf4-b99f-70946d8fcdc4",
+    "uuid": "ce61dacc-cf03-479d-bd19-295a625dc70d"
+  },
+  {
+    "type": "assistant",
+    "message": {
+      "id": "msg_01F7hSEo7JVVQvRpmG4Tmxt9",
+      "type": "message",
+      "role": "assistant",
+      "model": "claude-sonnet-4-20250514",
+      "content": [
+        {
+          "type": "tool_use",
+          "id": "toolu_0187LPThYJdMWsUfu1obPbnz",
+          "name": "Bash",
+          "input": {
+            "command": "git log --oneline --all",
+            "description": "Get all commits to understand repository history"
+          }
         }
       ],
       "stop_reason": null,
