@@ -156,8 +156,7 @@ jobs:
         run: |
           VERSION="${{ steps.version.outputs.version }}"
           git tag "v$VERSION"
-          git push origin main
-          git push origin "v$VERSION"
+          git push origin main "v$VERSION"
           echo "✅ Created and pushed tag v$VERSION"
 
       - name: Publish throttlecrab to crates.io
