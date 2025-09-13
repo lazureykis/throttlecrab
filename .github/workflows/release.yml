@@ -262,13 +262,21 @@ jobs:
               CHANGELOG=$(grep -o '"result": "[^"]*"' "$EXECUTION_FILE" | tail -n1 | sed 's/"result": "//' | sed 's/"$//' | sed 's/\\n/\n/g')
             fi
 
+            # Convert \n escape sequences to actual newlines
+            CHANGELOG=$(echo "$CHANGELOG" | sed 's/\\n/\n/g')
+
             # Clean up any unwanted text - extract from "## Changes" onwards
             if echo "$CHANGELOG" | grep -q "## Changes"; then
               CHANGELOG=$(echo "$CHANGELOG" | sed -n '/## Changes/,$p')
             fi
 
+            # Debug: show what we extracted
+            echo "Extracted changelog:"
+            echo "$CHANGELOG"
+            echo "--- End of changelog ---"
+
             echo "changelog<<EOF" >> $GITHUB_OUTPUT
-            echo "$CHANGELOG" >> $GITHUB_OUTPUT
+            printf '%s\n' "$CHANGELOG" >> $GITHUB_OUTPUT
             echo "EOF" >> $GITHUB_OUTPUT
           else
             echo "Execution file not found: $EXECUTION_FILE"
