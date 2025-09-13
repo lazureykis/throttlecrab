@@ -275,6 +275,7 @@ jobs:
             org.opencontainers.image.source=https://github.com/${{ github.repository }}
           provenance: false
           sbom: false
+          outputs: type=registry,progress=plain
 
       - name: Verify Docker images
         run: |
