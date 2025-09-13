@@ -151,11 +151,6 @@ jobs:
           echo "🎨 Checking formatting..."
           cargo fmt --all -- --check
 
-      - name: Build release
-        run: |
-          echo "🔨 Building release..."
-          cargo build --all --release --verbose
-
       - name: Get previous tag for changelog
         id: previous_tag
         run: |
