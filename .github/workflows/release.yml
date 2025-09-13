@@ -228,6 +228,13 @@ jobs:
 
             Look at the git log and create a professional changelog that highlights the most important changes for users of this Rust rate limiting library.
 
+      - name: Debug Claude outputs
+        run: |
+          echo "Claude action outputs:"
+          echo "result: ${{ steps.claude-changelog.outputs.result }}"
+          echo "response: ${{ steps.claude-changelog.outputs.response }}"
+          echo "All outputs: ${{ toJSON(steps.claude-changelog.outputs) }}"
+
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
