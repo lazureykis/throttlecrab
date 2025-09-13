@@ -4,6 +4,8 @@
 
 # Build artifacts
 target/
+!target/amd64/
+!target/arm64/
 **/*.rs.bk
 *.pdb
 

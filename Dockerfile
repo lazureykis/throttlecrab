@@ -17,7 +17,7 @@ FROM scratch
 ARG TARGETARCH
 
 # Copy pre-built static binary for the target architecture
-COPY ./binaries/${TARGETARCH}/throttlecrab-server /throttlecrab-server
+COPY target/${TARGETARCH}/throttlecrab-server /throttlecrab-server
 
 # Expose ports (HTTP, gRPC, Redis)
 EXPOSE 8080 50051 6379

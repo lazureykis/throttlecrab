@@ -274,8 +274,8 @@ jobs:
           echo "🔨 Building throttlecrab-server for linux/amd64..."
           rustup target add x86_64-unknown-linux-musl
           cargo build --release --target x86_64-unknown-linux-musl -p throttlecrab-server
-          mkdir -p ./binaries/amd64
-          cp target/x86_64-unknown-linux-musl/release/throttlecrab-server ./binaries/amd64/
+          mkdir -p target/amd64
+          cp target/x86_64-unknown-linux-musl/release/throttlecrab-server target/amd64/
           echo "✅ AMD64 binary ready"
 
       - name: Install cross-compilation tools for ARM64
@@ -291,8 +291,8 @@ jobs:
           rustup target add aarch64-unknown-linux-musl
           export CARGO_TARGET_AARCH64_UNKNOWN_LINUX_MUSL_LINKER=aarch64-linux-gnu-gcc
           cargo build --release --target aarch64-unknown-linux-musl -p throttlecrab-server
-          mkdir -p ./binaries/arm64
-          cp target/aarch64-unknown-linux-musl/release/throttlecrab-server ./binaries/arm64/
+          mkdir -p target/arm64
+          cp target/aarch64-unknown-linux-musl/release/throttlecrab-server target/arm64/
           echo "✅ ARM64 binary ready"
 
       - name: Set up Docker Buildx
