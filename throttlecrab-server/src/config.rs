@@ -186,7 +186,7 @@ pub struct Args {
         long,
         value_name = "HOST",
         help = "HTTP host",
-        default_value = "127.0.0.1",
+        default_value = "0.0.0.0",
         env = "THROTTLECRAB_HTTP_HOST"
     )]
     pub http_host: String,
@@ -206,7 +206,7 @@ pub struct Args {
         long,
         value_name = "HOST",
         help = "gRPC host",
-        default_value = "127.0.0.1",
+        default_value = "0.0.0.0",
         env = "THROTTLECRAB_GRPC_HOST"
     )]
     pub grpc_host: String,
@@ -230,7 +230,7 @@ pub struct Args {
         long,
         value_name = "HOST",
         help = "Redis host",
-        default_value = "127.0.0.1",
+        default_value = "0.0.0.0",
         env = "THROTTLECRAB_REDIS_HOST"
     )]
     pub redis_host: String,
@@ -468,15 +468,15 @@ impl Config {
 
         println!("Transport Configuration:");
         println!("  THROTTLECRAB_HTTP=true|false          Enable HTTP transport");
-        println!("  THROTTLECRAB_HTTP_HOST=<host>         HTTP host [default: 127.0.0.1]");
+        println!("  THROTTLECRAB_HTTP_HOST=<host>         HTTP host [default: 0.0.0.0]");
         println!("  THROTTLECRAB_HTTP_PORT=<port>         HTTP port [default: 8080]");
         println!();
         println!("  THROTTLECRAB_GRPC=true|false          Enable gRPC transport");
-        println!("  THROTTLECRAB_GRPC_HOST=<host>         gRPC host [default: 127.0.0.1]");
+        println!("  THROTTLECRAB_GRPC_HOST=<host>         gRPC host [default: 0.0.0.0]");
         println!("  THROTTLECRAB_GRPC_PORT=<port>         gRPC port [default: 8070]");
         println!();
         println!("  THROTTLECRAB_REDIS=true|false         Enable Redis protocol transport");
-        println!("  THROTTLECRAB_REDIS_HOST=<host>        Redis host [default: 127.0.0.1]");
+        println!("  THROTTLECRAB_REDIS_HOST=<host>        Redis host [default: 0.0.0.0]");
         println!("  THROTTLECRAB_REDIS_PORT=<port>        Redis port [default: 6379]");
         println!();
 
