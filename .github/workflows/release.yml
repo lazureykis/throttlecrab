@@ -217,23 +217,6 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      - name: Prepare Docker build
-        run: |
-          echo "🐳 Preparing multi-platform Docker build..."
-          VERSION="${{ steps.version.outputs.version }}"
-          DOCKERHUB_USERNAME="${{ secrets.DOCKERHUB_USERNAME }}"
-
-          echo "📋 Build configuration:"
-          echo "  - Version: $VERSION"
-          echo "  - Registry: $DOCKERHUB_USERNAME/throttlecrab"
-          echo "  - Platforms: linux/amd64, linux/arm64"
-          echo "  - Tags: $VERSION, latest"
-          echo "  - Pre-built binaries ready"
-          echo ""
-
-          echo "📁 Binary verification:"
-          ls -la ./binaries/*/throttlecrab-server
-
       - name: Build and push Docker images
         uses: docker/build-push-action@v6
         with:
@@ -251,18 +234,6 @@ jobs:
           provenance: false
           sbom: false
           outputs: type=registry,progress=plain
-
-      - name: Verify Docker images
-        run: |
-          echo "✅ Docker images successfully built and pushed!"
-          echo ""
-          echo "🔗 Available images:"
-          echo "  - ${{ secrets.DOCKERHUB_USERNAME }}/throttlecrab:${{ steps.version.outputs.version }}"
-          echo "  - ${{ secrets.DOCKERHUB_USERNAME }}/throttlecrab:latest"
-          echo ""
-          echo "📦 Pull commands:"
-          echo "  docker pull ${{ secrets.DOCKERHUB_USERNAME }}/throttlecrab:${{ steps.version.outputs.version }}"
-          echo "  docker pull ${{ secrets.DOCKERHUB_USERNAME }}/throttlecrab:latest"
 
       - name: Generate changelog with Claude
         id: claude-changelog
