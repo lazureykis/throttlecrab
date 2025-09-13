@@ -223,7 +223,8 @@ jobs:
             - Exclude version bump commits and CI changes
             - Focus on what users will notice
             - Use bullet points
-            - Maximum 10 lines total
+            - Maximum 8 lines for the changes
+            - End with: "**Full Changelog**: https://github.com/${{ github.repository }}/compare/${{ steps.previous_tag.outputs.previous_tag }}...v${{ steps.version.outputs.version }}"
 
             Look at the git log and create a professional changelog that highlights the most important changes for users of this Rust rate limiting library.
 
