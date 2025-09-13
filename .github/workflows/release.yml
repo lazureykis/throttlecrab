@@ -213,6 +213,7 @@ jobs:
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           mode: agent
+          allowed_tools: "Edit,MultiEdit,Glob,Grep,Read,Write,Bash(git log:*),Bash(git tag:*),Bash(git show:*)"
           direct_prompt: |
             Generate a concise changelog for version ${{ steps.version.outputs.version }} based on the git commits since the previous tag ${{ steps.previous_tag.outputs.previous_tag }}.
 
@@ -243,7 +244,8 @@ jobs:
           EXECUTION_FILE="${{ steps.claude-changelog.outputs.execution_file }}"
           if [ -f "$EXECUTION_FILE" ]; then
             echo "Reading changelog from: $EXECUTION_FILE"
-            CHANGELOG=$(jq -r '.result' "$EXECUTION_FILE")
+            # Extract result from the last object with type "result" in the JSON array
+            CHANGELOG=$(jq -r '.[] | select(.type == "result") | .result' "$EXECUTION_FILE" | tail -n1)
             echo "changelog<<EOF" >> $GITHUB_OUTPUT
             echo "$CHANGELOG" >> $GITHUB_OUTPUT
             echo "EOF" >> $GITHUB_OUTPUT
