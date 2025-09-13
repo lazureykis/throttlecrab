@@ -1,39 +1,28 @@
 # ThrottleCrab Server Dockerfile
-# 
+#
 # Supports multiple protocols:
 # - HTTP (port 8080) - REST API
-# - gRPC (port 50051) - Service mesh integration  
+# - gRPC (port 50051) - Service mesh integration
 # - Redis (port 6379) - Redis-compatible RESP protocol
 #
 # Enable protocols via environment variables:
 # - THROTTLECRAB_HTTP=true
-# - THROTTLECRAB_GRPC=true  
+# - THROTTLECRAB_GRPC=true
 # - THROTTLECRAB_REDIS=true
 
-# Build stage
-FROM rust:alpine AS builder
-
-# Install build dependencies
-RUN apk add --no-cache musl-dev protobuf-dev
-
-WORKDIR /build
-
-# Copy everything
-COPY . .
-
-RUN sed -i 's/"integration-tests",//' Cargo.toml
-
-# Build the binary
-RUN cargo build --release -p throttlecrab-server
-
-# Runtime stage
 FROM alpine:latest
 
 # Install runtime dependencies
 RUN apk add --no-cache ca-certificates
 
-# Copy binary from builder
-COPY --from=builder /build/target/release/throttlecrab-server /usr/local/bin/throttlecrab-server
+# Use build argument to determine architecture
+ARG TARGETARCH
+
+# Copy pre-built binary for the target architecture
+COPY ./binaries/${TARGETARCH}/throttlecrab-server /usr/local/bin/throttlecrab-server
+
+# Make binary executable
+RUN chmod +x /usr/local/bin/throttlecrab-server
 
 # Create non-root user
 RUN adduser -D -u 1000 throttlecrab
