@@ -30,7 +30,7 @@ jobs:
     steps:
       - uses: actions/checkout@v5
         with:
-          token: ${{ secrets.GITHUB_TOKEN }}
+          token: ${{ secrets.PUBLISH_TOKEN }}
 
       - name: Configure Git
         run: |
