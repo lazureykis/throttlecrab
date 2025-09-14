@@ -1,6 +1,7 @@
 # ThrottleCrab 🦀
 
 [![CI](https://github.com/lazureykis/throttlecrab/actions/workflows/ci.yml/badge.svg)](https://github.com/lazureykis/throttlecrab/actions/workflows/ci.yml)
+[![Security Audit](https://github.com/lazureykis/throttlecrab/actions/workflows/security.yml/badge.svg)](https://github.com/lazureykis/throttlecrab/actions/workflows/security.yml)
 [![Crates.io](https://img.shields.io/crates/v/throttlecrab.svg)](https://crates.io/crates/throttlecrab)
 [![Docker](https://img.shields.io/docker/v/lazureykis/throttlecrab?label=docker)](https://hub.docker.com/r/lazureykis/throttlecrab)
 [![Documentation](https://docs.rs/throttlecrab/badge.svg)](https://docs.rs/throttlecrab)
