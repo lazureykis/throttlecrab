@@ -37,8 +37,8 @@ mod actor_tests;
 
 use anyhow::Result;
 use std::sync::Arc;
-use tokio::task::JoinSet;
 use tokio::signal;
+use tokio::task::JoinSet;
 
 use crate::config::Config;
 use crate::metrics::Metrics;
