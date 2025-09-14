@@ -37,6 +37,7 @@ mod actor_tests;
 
 use anyhow::Result;
 use std::sync::Arc;
+use tokio::signal;
 use tokio::task::JoinSet;
 
 use crate::config::Config;
@@ -114,19 +115,57 @@ async fn main() -> Result<()> {
         });
     }
 
-    // Wait for all transport tasks to complete (they run indefinitely)
-    while let Some(result) = transport_tasks.join_next().await {
-        match result {
-            Ok(Ok(())) => {
-                tracing::info!("Transport task completed successfully");
+    // Wait for shutdown signal or transport task completion
+    let shutdown_signal = async {
+        let ctrl_c = signal::ctrl_c();
+
+        #[cfg(unix)]
+        let sigterm = async {
+            signal::unix::signal(signal::unix::SignalKind::terminate())
+                .expect("Failed to install SIGTERM handler")
+                .recv()
+                .await;
+        };
+
+        #[cfg(not(unix))]
+        let sigterm = std::future::pending::<()>();
+
+        tokio::select! {
+            _ = ctrl_c => {
+                tracing::info!("Received SIGINT (Ctrl+C), initiating graceful shutdown...");
             }
-            Ok(Err(e)) => {
-                tracing::error!("Transport task failed: {}", e);
-                return Err(e);
+            _ = sigterm => {
+                tracing::info!("Received SIGTERM, initiating graceful shutdown...");
             }
-            Err(e) => {
-                tracing::error!("Transport task panicked: {}", e);
-                return Err(anyhow::anyhow!("Transport task panicked"));
+        }
+    };
+
+    tokio::select! {
+        _ = shutdown_signal => {
+            tracing::info!("Shutdown signal received, stopping all transports...");
+            transport_tasks.abort_all();
+
+            // Give tasks a moment to clean up
+            tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
+
+            tracing::info!("ThrottleCrab server shutdown complete");
+            return Ok(());
+        }
+        result = transport_tasks.join_next() => {
+            if let Some(result) = result {
+                match result {
+                    Ok(Ok(())) => {
+                        tracing::info!("Transport task completed successfully");
+                    }
+                    Ok(Err(e)) => {
+                        tracing::error!("Transport task failed: {}", e);
+                        return Err(e);
+                    }
+                    Err(e) => {
+                        tracing::error!("Transport task panicked: {}", e);
+                        return Err(anyhow::anyhow!("Transport task panicked"));
+                    }
+                }
             }
         }
     }
