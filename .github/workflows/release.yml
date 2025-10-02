@@ -93,7 +93,7 @@ jobs:
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
         with:
-          components: clippy
+          components: clippy rustfmt
 
       - name: Cache dependencies
         uses: Swatinem/rust-cache@v2
