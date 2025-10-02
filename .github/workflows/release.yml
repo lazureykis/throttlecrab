@@ -17,6 +17,11 @@ on:
         required: false
         default: true
         type: boolean
+      generate_ai_changelog:
+        description: 'Generate changelog using Claude Code'
+        required: false
+        default: true
+        type: boolean
 
 env:
   CARGO_TERM_COLOR: always
@@ -186,6 +191,7 @@ jobs:
 
       - name: Generate changelog with Claude
         id: claude-changelog
+        if: ${{ github.event.inputs.generate_ai_changelog == 'true' }}
         uses: anthropics/claude-code-action@beta
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
@@ -218,7 +224,7 @@ jobs:
 
       - name: Store Claude execution log as artifact
         uses: actions/upload-artifact@v4
-        if: always()
+        if: ${{ always() && github.event.inputs.generate_ai_changelog == 'true' }}
         with:
           name: claude-execution-log-v${{ steps.version.outputs.version }}
           path: ${{ steps.claude-changelog.outputs.execution_file }}
@@ -226,6 +232,7 @@ jobs:
 
       - name: Extract changelog from execution file
         id: extract-changelog
+        if: ${{ github.event.inputs.generate_ai_changelog == 'true' }}
         run: |
           EXECUTION_FILE="${{ steps.claude-changelog.outputs.execution_file }}"
           if [ -f "$EXECUTION_FILE" ]; then
@@ -260,12 +267,39 @@ jobs:
             echo "changelog=Error: Could not find Claude execution results" >> $GITHUB_OUTPUT
           fi
 
+      - name: Generate simple changelog
+        id: simple-changelog
+        if: ${{ github.event.inputs.generate_ai_changelog != 'true' }}
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          CURRENT_VERSION="${{ steps.version.outputs.current_version }}"
+          PREVIOUS_TAG="${{ steps.previous_tag.outputs.previous_tag }}"
+
+          echo "Generating simple changelog for v$VERSION..."
+
+          # Get commit count since previous tag
+          COMMIT_COUNT=$(git log --oneline "$PREVIOUS_TAG"..HEAD | wc -l)
+
+          # Generate basic changelog
+          CHANGELOG="## Changes
+
+• Version bump from $CURRENT_VERSION to $VERSION
+• Includes $COMMIT_COUNT commits since previous release
+
+**Full Changelog**: https://github.com/${{ github.repository }}/compare/v$CURRENT_VERSION...v$VERSION"
+
+          echo "changelog<<EOF" >> $GITHUB_OUTPUT
+          printf '%s\n' "$CHANGELOG" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+          echo "✅ Simple changelog generated"
+
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: v${{ steps.version.outputs.version }}
           name: v${{ steps.version.outputs.version }}
-          body: ${{ steps.extract-changelog.outputs.changelog }}
+          body: ${{ steps.extract-changelog.outputs.changelog || steps.simple-changelog.outputs.changelog }}
           make_latest: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
