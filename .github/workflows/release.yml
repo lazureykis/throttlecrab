@@ -271,25 +271,15 @@ jobs:
         id: simple-changelog
         if: ${{ github.event.inputs.generate_ai_changelog != 'true' }}
         run: |
-          VERSION="${{ steps.version.outputs.version }}"
-          CURRENT_VERSION="${{ steps.version.outputs.current_version }}"
-          PREVIOUS_TAG="${{ steps.previous_tag.outputs.previous_tag }}"
-
-          echo "Generating simple changelog for v$VERSION..."
-
-          # Get commit count since previous tag
-          COMMIT_COUNT=$(git log --oneline "$PREVIOUS_TAG"..HEAD | wc -l)
-
-          # Generate basic changelog
-          CHANGELOG="## Changes
-
-• Version bump from $CURRENT_VERSION to $VERSION
-• Includes $COMMIT_COUNT commits since previous release
-
-**Full Changelog**: https://github.com/${{ github.repository }}/compare/v$CURRENT_VERSION...v$VERSION"
+          chmod +x .github/scripts/generate-simple-changelog.sh
+          CHANGELOG=$(.github/scripts/generate-simple-changelog.sh \
+            "${{ steps.version.outputs.version }}" \
+            "${{ steps.version.outputs.current_version }}" \
+            "${{ steps.previous_tag.outputs.previous_tag }}" \
+            "${{ github.repository }}")
 
           echo "changelog<<EOF" >> $GITHUB_OUTPUT
-          printf '%s\n' "$CHANGELOG" >> $GITHUB_OUTPUT
+          echo "$CHANGELOG" >> $GITHUB_OUTPUT
           echo "EOF" >> $GITHUB_OUTPUT
 
           echo "✅ Simple changelog generated"
