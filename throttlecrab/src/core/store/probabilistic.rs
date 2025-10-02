@@ -113,7 +113,7 @@ impl ProbabilisticStore {
         // Simple pseudo-random using operations count
         // This gives uniform distribution over time while being deterministic
         let hash = self.operations_count.wrapping_mul(2654435761); // Prime multiplier
-        if hash % self.cleanup_probability == 0 {
+        if hash.is_multiple_of(self.cleanup_probability) {
             self.data.retain(|_, (_, expiry)| {
                 if let Some(exp) = expiry {
                     *exp > now
