@@ -1,5 +1,5 @@
 [workspace]
-members = [ "integration-tests","throttlecrab", "throttlecrab-server"]
+members = [ "integration-tests", "throttlecrab", "throttlecrab-server"]
 resolver = "2"
 
 [workspace.package]
