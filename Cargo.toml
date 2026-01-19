@@ -28,4 +28,4 @@ axum = "0.8"
 tower = "0.5"
 criterion = "0.8"
 tokio-test = "0.4"
-reqwest = { version = "0.12", features = ["json"] }
+reqwest = { version = "0.13", features = ["json"] }

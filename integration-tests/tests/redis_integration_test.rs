@@ -28,7 +28,7 @@ async fn test_redis_throttle_command() {
     // Connect to the server
     let client = Client::open("redis://127.0.0.1:6380/").expect("Failed to create client");
     let mut con = client
-        .get_multiplexed_tokio_connection()
+        .get_multiplexed_async_connection()
         .await
         .expect("Failed to connect");
 
@@ -118,7 +118,7 @@ async fn test_redis_rate_limiting() {
     // Connect to the server
     let client = Client::open("redis://127.0.0.1:6381/").expect("Failed to create client");
     let mut con = client
-        .get_multiplexed_tokio_connection()
+        .get_multiplexed_async_connection()
         .await
         .expect("Failed to connect");
 

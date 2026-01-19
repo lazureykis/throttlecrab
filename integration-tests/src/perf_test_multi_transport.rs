@@ -195,7 +195,7 @@ async fn redis_worker(
 
     // Connect to Redis server
     let client = Client::open(format!("redis://127.0.0.1:{port}/"))?;
-    let mut con = client.get_multiplexed_tokio_connection().await?;
+    let mut con = client.get_multiplexed_async_connection().await?;
 
     // Pre-generate request parameters
     let mut requests = Vec::with_capacity(requests_per_thread);

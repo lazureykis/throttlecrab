@@ -59,7 +59,6 @@ reqwest = { workspace = true }
 criterion = { workspace = true }
 parking_lot = "0.12"
 rand = "0.9"
-bincode = "2"
 bytes = { workspace = true }
 fastrand = "2.0"
 
