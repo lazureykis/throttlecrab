@@ -50,8 +50,8 @@ axum = { workspace = true }
 tower = { workspace = true }
 
 [build-dependencies]
-tonic-build = "0.14.1"
-tonic-prost-build = "0.14.1"
+tonic-build = "0.14.5"
+tonic-prost-build = "0.14.5"
 
 [dev-dependencies]
 tokio-test = { workspace = true }
@@ -60,7 +60,7 @@ criterion = { workspace = true }
 parking_lot = "0.12"
 rand = "0.9"
 bytes = { workspace = true }
-fastrand = "2.0"
+fastrand = "2.4"
 
 [[bench]]
 name = "store_performance"
