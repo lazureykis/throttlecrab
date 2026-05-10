@@ -390,11 +390,7 @@ pub async fn run_performance_test(
     let total_latency_us = stats.total_latency_us.load(Ordering::Relaxed);
 
     let rps = total as f64 / duration.as_secs_f64();
-    let avg_latency_us = if total > 0 {
-        total_latency_us / total
-    } else {
-        0
-    };
+    let avg_latency_us = total_latency_us.checked_div(total).unwrap_or(0);
 
     println!("\n=== Benchmark Results ===");
     println!("Duration: {duration:?}");

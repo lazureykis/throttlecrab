@@ -56,7 +56,7 @@ impl TopDeniedKeys {
 
         // Get all entries and sort by count
         let mut entries: Vec<_> = self.counts.drain().collect();
-        entries.sort_by(|a, b| b.1.cmp(&a.1));
+        entries.sort_by_key(|e| std::cmp::Reverse(e.1));
 
         // Keep only top max_size entries
         entries.truncate(self.max_size);
@@ -67,7 +67,7 @@ impl TopDeniedKeys {
         let mut entries: Vec<_> = self.counts.iter().map(|(k, v)| (k.clone(), *v)).collect();
 
         // Sort by count descending
-        entries.sort_by(|a, b| b.1.cmp(&a.1));
+        entries.sort_by_key(|e| std::cmp::Reverse(e.1));
 
         // Take only top N
         entries.truncate(self.max_size);
