@@ -58,7 +58,7 @@ tokio-test = { workspace = true }
 reqwest = { workspace = true }
 criterion = { workspace = true }
 parking_lot = "0.12"
-rand = "0.9"
+rand = "0.10"
 bytes = { workspace = true }
 fastrand = "2.0"
 
