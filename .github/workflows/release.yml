@@ -33,6 +33,7 @@ jobs:
     permissions:
       contents: write
       id-token: write
+      packages: write
     steps:
       - uses: actions/checkout@v6
         with:
@@ -323,11 +324,12 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: Log in to Docker Hub
+      - name: Log in to GitHub Container Registry
         uses: docker/login-action@v3
         with:
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Build and push Docker images
         uses: docker/build-push-action@v6
@@ -337,8 +339,8 @@ jobs:
           platforms: linux/amd64,linux/arm64
           push: true
           tags: |
-            ${{ secrets.DOCKERHUB_USERNAME }}/throttlecrab:${{ steps.version.outputs.version }}
-            ${{ secrets.DOCKERHUB_USERNAME }}/throttlecrab:latest
+            ghcr.io/lazureykis/throttlecrab:${{ steps.version.outputs.version }}
+            ghcr.io/lazureykis/throttlecrab:latest
           labels: |
             org.opencontainers.image.description=ThrottleCrab rate limiting server
             org.opencontainers.image.version=${{ steps.version.outputs.version }}
@@ -346,6 +348,18 @@ jobs:
           provenance: false
           sbom: false
           outputs: type=registry,progress=plain
+
+      - name: Deploy to production k3s
+        env:
+          KUBECONFIG_DATA: ${{ secrets.KUBECONFIG }}
+        run: |
+          curl -sSLo /usr/local/bin/kubectl "https://dl.k8s.io/release/$(curl -sSL https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+          chmod +x /usr/local/bin/kubectl
+          mkdir -p "$HOME/.kube"
+          printf '%s' "$KUBECONFIG_DATA" > "$HOME/.kube/config"
+          chmod 600 "$HOME/.kube/config"
+          kubectl set image deployment/throttlecrab throttlecrab=ghcr.io/lazureykis/throttlecrab:${{ steps.version.outputs.version }} -n production
+          kubectl rollout status deployment/throttlecrab -n production --timeout=5m
 
       - name: Cleanup on failure
         if: failure()
