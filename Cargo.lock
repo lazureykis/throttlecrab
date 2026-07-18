@@ -2322,7 +2322,7 @@ dependencies = [
 
 [[package]]
 name = "throttlecrab"
-version = "0.4.38"
+version = "0.4.39"
 dependencies = [
  "ahash",
  "criterion",
@@ -2353,7 +2353,7 @@ dependencies = [
 
 [[package]]
 name = "throttlecrab-server"
-version = "0.4.38"
+version = "0.4.39"
 dependencies = [
  "anyhow",
  "async-trait",
