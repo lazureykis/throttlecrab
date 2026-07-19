@@ -5,6 +5,35 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+Releases are cut by the `Release` workflow (see [RELEASING.md](RELEASING.md)),
+which generates per-release notes on the
+[GitHub releases page](https://github.com/lazureykis/throttlecrab/releases)
+from the commit log. This file is the curated view: it records changes that
+affect users of the `throttlecrab` and `throttlecrab-server` crates or the
+published Docker image, and omits dependency bumps and CI-only changes.
+
+## [0.4.5] - [0.4.39] - 2025-08 – 2026-07
+
+Backfilled from git history. Most releases in this range were dependency
+updates and release-automation work with no user-facing change; the entries
+below are everything that altered runtime behavior or the published image.
+
+### Changed
+
+- **The server now binds to `0.0.0.0` by default instead of `127.0.0.1`** (0.4.30).
+  This applies to the HTTP, gRPC, and Redis listeners, and means a default
+  configuration is reachable from outside the host. Set `THROTTLECRAB_HTTP_HOST`
+  (or the corresponding per-protocol variable / CLI flag) back to `127.0.0.1` to
+  restore loopback-only binding.
+- The Docker image enables the Redis protocol by default (0.4.24).
+- The Docker image is built `FROM scratch` around a static musl binary (0.4.25).
+- Release images are published to `ghcr.io/lazureykis/throttlecrab` (0.4.38).
+
+### Added
+
+- Graceful shutdown on `SIGTERM`/`SIGINT` so containers stop cleanly rather than
+  being killed after the runtime's grace period (0.4.31).
+
 ## [0.4.4] - 2025-08-23
 
 ### Added

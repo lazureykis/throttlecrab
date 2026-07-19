@@ -7,6 +7,10 @@ version it calculates.
 
 ## How to release
 
+0. If anything in the release changes runtime behavior, the public API, or the
+   Docker image, add an entry to [CHANGELOG.md](CHANGELOG.md) first — the
+   workflow generates GitHub release notes from commits, but not that file.
+   Dependency bumps and CI-only changes don't need one.
 1. Make sure `main` is green and everything you want in the release is merged.
 2. Go to [Actions → Release](https://github.com/lazureykis/throttlecrab/actions/workflows/release.yml)
    and click **Run workflow** (or `gh workflow run release.yml --ref main`).
