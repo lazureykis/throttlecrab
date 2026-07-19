@@ -1,176 +1,78 @@
 # Release Process
 
-This document describes the process for releasing new versions of the throttlecrab crates.
+Releases are fully automated by the `Release` workflow
+(`.github/workflows/release.yml`). Do **not** bump versions, tag, or publish by
+hand — the workflow does all of it, and a manual bump will collide with the
+version it calculates.
 
-## Overview
+## How to release
 
-The project consists of two crates that need to be released in order:
-1. `throttlecrab` - The core rate limiting library
-2. `throttlecrab-server` - The server implementation that depends on `throttlecrab`
+1. Make sure `main` is green and everything you want in the release is merged.
+2. Go to [Actions → Release](https://github.com/lazureykis/throttlecrab/actions/workflows/release.yml)
+   and click **Run workflow** (or `gh workflow run release.yml --ref main`).
+3. Pick the inputs:
+   - `version_bump` — `patch` (default), `minor`, or `major`
+   - `run_tests` — leave `true`; runs `cargo test --all`, clippy, and fmt before publishing
+   - `generate_ai_changelog` — generates the release notes with Claude; falls
+     back to `.github/scripts/generate-simple-changelog.sh` when `false`
 
-## Pre-Release Checklist
+## What the workflow does
 
-Before starting the release process, ensure:
+In order, from the current version in `throttlecrab/Cargo.toml`:
 
-- [ ] All CI checks are passing on `main` branch
-- [ ] All planned features/fixes for the release are merged
-- [ ] Dependencies are up to date (`cargo outdated`)
-- [ ] No security vulnerabilities (`cargo audit`)
-- [ ] Documentation is updated if needed
-- [ ] CHANGELOG.md is updated (if maintained)
+1. Calculates the new version and fails if its tag already exists
+2. Updates the version in `throttlecrab/Cargo.toml`, `throttlecrab-server/Cargo.toml`,
+   and the `throttlecrab` dependency in `throttlecrab-server`, then `cargo update --workspace`
+3. Runs tests, clippy, and `cargo fmt --check` (when `run_tests` is true)
+4. Commits `chore: bump version to X.Y.Z` and pushes it with tag `vX.Y.Z` to `main`
+5. Publishes `throttlecrab` to crates.io, waits for propagation, then publishes `throttlecrab-server`
+6. Creates the GitHub release with the generated changelog
+7. Builds `linux/amd64` + `linux/arm64` binaries, pushes multi-arch images to
+   `ghcr.io/lazureykis/throttlecrab`, and rolls out `deployment/throttlecrab` in
+   the `production` namespace
 
-## Release Steps
+Step 7 touches production. Only run the workflow when a production rollout is
+acceptable.
 
-### 1. Create Release Branch
+## Dependency updates
 
-```bash
-git checkout main
-git pull origin main
-git checkout -b release/vX.Y.Z
-```
+Dependency bumps are ordinary PRs to `main` — not part of the release. Update
+`Cargo.lock` with `cargo update`, or the workspace dependency versions in the
+root `Cargo.toml` for semver-incompatible upgrades, and let CI verify. The next
+release picks them up automatically.
 
-### 2. Update Dependencies
+## Required secrets
 
-Check for outdated dependencies:
-```bash
-cargo outdated
-```
+| Secret                    | Used for                                  |
+| ------------------------- | ----------------------------------------- |
+| `PUBLISH_TOKEN`           | Pushing the version commit and tag to `main` |
+| `CARGO_REGISTRY_TOKEN`    | `cargo publish` for both crates           |
+| `CLAUDE_CODE_OAUTH_TOKEN` | AI changelog generation                   |
+| `KUBECONFIG`              | Production k3s rollout                    |
 
-Update dependencies if needed (use flexible version constraints for libraries):
-- Update workspace dependencies in root `Cargo.toml`
-- Update crate-specific dependencies
+## If a release fails
 
-### 3. Bump Version Numbers
+The workflow's cleanup step deletes the tag it created, but anything already
+completed stays done. Check, in order:
 
-Update version in the following files:
-- `throttlecrab/Cargo.toml`
-- `throttlecrab-server/Cargo.toml` 
-- Update the `throttlecrab` dependency version in `throttlecrab-server/Cargo.toml`
+- Was the version commit pushed to `main`? Revert it if the release didn't finish.
+- Did either crate reach crates.io? Publishes are **irreversible** — you cannot
+  republish the same version. If `throttlecrab` published but `throttlecrab-server`
+  failed, fix the problem and publish the server manually from that tag rather
+  than re-running the whole workflow.
+- Is there a partial GitHub release to clean up?
 
-### 4. Verify Everything Builds
+Then re-run the workflow, bumping to the next version if a crate was already
+published.
 
-```bash
-# Check all crates compile
-cargo check --all
+## Local build prerequisites
 
-# Run all tests
-cargo test --all
+Building `throttlecrab-server` requires `protoc` (Debian/Ubuntu:
+`apt-get install protobuf-compiler`, macOS: `brew install protobuf`). Cargo
+caches build-script failures, so if `protoc` was missing on an earlier build,
+`touch throttlecrab-server/build.rs` to force the build script to re-run.
 
-# Run linter
-cargo clippy --all-targets --all-features -- -D warnings
+## Version numbering
 
-# Format code
-cargo fmt --all
-
-# Run benchmarks (optional)
-cd throttlecrab-server
-./run-criterion-benchmarks.sh
-```
-
-### 5. Commit Version Bump
-
-```bash
-git add -A
-git commit -m "chore: bump version to X.Y.Z
-
-- Update throttlecrab from A.B.C to X.Y.Z
-- Update throttlecrab-server from A.B.C to X.Y.Z
-- Update dependencies (if any)"
-```
-
-### 6. Push and Create PR
-
-```bash
-git push origin release/vX.Y.Z
-```
-
-Create a pull request from `release/vX.Y.Z` to `main` with:
-- Title: "Release vX.Y.Z"
-- Description: List of changes included in the release
-
-### 7. Merge PR
-
-After PR approval and CI passes, merge to main.
-
-### 8. Tag the Release
-
-```bash
-git checkout main
-git pull origin main
-git tag -a vX.Y.Z -m "Release version X.Y.Z"
-git push origin vX.Y.Z
-```
-
-### 9. Publish to crates.io
-
-**IMPORTANT**: Publish crates in order due to dependencies.
-
-First, do a dry run:
-```bash
-cd throttlecrab
-cargo publish --dry-run
-
-cd ../throttlecrab-server
-cargo publish --dry-run
-```
-
-If dry run succeeds, publish for real:
-
-```bash
-# Publish core library first
-cd throttlecrab
-cargo publish
-
-# Wait for throttlecrab to be available on crates.io (usually ~1 minute)
-# You can check at https://crates.io/crates/throttlecrab
-
-# Then publish the server
-cd ../throttlecrab-server
-cargo publish
-```
-
-### 10. Create GitHub Release
-
-1. Go to https://github.com/lazureykis/throttlecrab/releases
-2. Click "Create a new release"
-3. Choose the tag `vX.Y.Z`
-4. Title: "vX.Y.Z"
-5. Description: Include the key changes and improvements
-6. Publish release
-
-## Post-Release
-
-- [ ] Verify crates are available on crates.io
-- [ ] Update any example repositories or documentation
-- [ ] Announce the release if needed
-
-## Version Numbering
-
-Follow [Semantic Versioning](https://semver.org/):
-- MAJOR version (X.0.0) - Incompatible API changes
-- MINOR version (0.Y.0) - Backwards-compatible functionality additions
-- PATCH version (0.0.Z) - Backwards-compatible bug fixes
-
-## Troubleshooting
-
-### Crate Publishing Fails
-
-If `cargo publish` fails:
-- Check you're logged in: `cargo login`
-- Ensure you have publishing rights for the crate
-- Verify all dependencies are published and available
-- Check for any uncommitted changes
-
-### Version Conflicts
-
-If you get version conflicts:
-- Ensure the `throttlecrab` version in `throttlecrab-server/Cargo.toml` matches the newly published version
-- Run `cargo update` to update the lock file
-
-### CI Failures
-
-If CI fails after tagging:
-- Fix the issues on a new branch
-- Cherry-pick fixes to main
-- Delete the tag: `git tag -d vX.Y.Z && git push origin :refs/tags/vX.Y.Z`
-- Start the release process again
+[Semantic Versioning](https://semver.org/): MAJOR for incompatible API changes,
+MINOR for backwards-compatible additions, PATCH for backwards-compatible fixes.
