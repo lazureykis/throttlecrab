@@ -9,16 +9,29 @@ version it calculates.
 
 0. If anything in the release changes runtime behavior, the public API, or the
    Docker image, add an entry to [CHANGELOG.md](CHANGELOG.md) first — the
-   workflow generates GitHub release notes from commits, but not that file.
-   Dependency bumps and CI-only changes don't need one.
+   workflow does not write that file. Dependency bumps and CI-only changes
+   don't need one.
 1. Make sure `main` is green and everything you want in the release is merged.
 2. Go to [Actions → Release](https://github.com/lazureykis/throttlecrab/actions/workflows/release.yml)
-   and click **Run workflow** (or `gh workflow run release.yml --ref main`).
+   and click **Run workflow** (or `gh workflow run release.yml --ref main …`).
 3. Pick the inputs:
    - `version_bump` — `patch` (default), `minor`, or `major`
    - `run_tests` — leave `true`; runs `cargo test --all`, clippy, and fmt before publishing
-   - `generate_ai_changelog` — generates the release notes with Claude; falls
-     back to `.github/scripts/generate-simple-changelog.sh` when `false`
+   - `release_notes` — **required.** The GitHub release body, in markdown. The
+     run fails on the first step if it's blank, before anything is bumped or
+     published.
+
+Release notes are written by hand — nothing generates them. The input is a
+single-line field, so `\n` in it becomes a real line break:
+
+```bash
+gh workflow run release.yml --ref main \
+  -f version_bump=patch \
+  -f release_notes='## Changes\n\n• Fixed X\n• Added Y'
+```
+
+The `**Full Changelog**` compare link is appended automatically; don't include
+it yourself.
 
 ## What the workflow does
 
@@ -30,7 +43,7 @@ In order, from the current version in `throttlecrab/Cargo.toml`:
 3. Runs tests, clippy, and `cargo fmt --check` (when `run_tests` is true)
 4. Commits `chore: bump version to X.Y.Z` and pushes it with tag `vX.Y.Z` to `main`
 5. Publishes `throttlecrab` to crates.io, waits for propagation, then publishes `throttlecrab-server`
-6. Creates the GitHub release with the generated changelog
+6. Creates the GitHub release from `release_notes` plus the compare link
 7. Builds `linux/amd64` + `linux/arm64` binaries, pushes multi-arch images to
    `ghcr.io/lazureykis/throttlecrab`, and rolls out `deployment/throttlecrab` in
    the `production` namespace
@@ -51,7 +64,6 @@ release picks them up automatically.
 | ------------------------- | ----------------------------------------- |
 | `PUBLISH_TOKEN`           | Pushing the version commit and tag to `main` |
 | `CARGO_REGISTRY_TOKEN`    | `cargo publish` for both crates           |
-| `CLAUDE_CODE_OAUTH_TOKEN` | AI changelog generation                   |
 | `KUBECONFIG`              | Production k3s rollout                    |
 
 ## If a release fails
