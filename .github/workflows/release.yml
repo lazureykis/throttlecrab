@@ -17,11 +17,10 @@ on:
         required: false
         default: true
         type: boolean
-      generate_ai_changelog:
-        description: 'Generate changelog using Claude Code'
-        required: false
-        default: true
-        type: boolean
+      release_notes:
+        description: 'Release notes (markdown, use \n for line breaks). The compare link is appended automatically.'
+        required: true
+        type: string
 
 env:
   CARGO_TERM_COLOR: always
@@ -35,6 +34,16 @@ jobs:
       id-token: write
       packages: write
     steps:
+      - name: Validate release notes
+        env:
+          RELEASE_NOTES: ${{ github.event.inputs.release_notes }}
+        run: |
+          if [ -z "$(printf '%s' "$RELEASE_NOTES" | tr -d '[:space:]')" ]; then
+            echo "❌ release_notes is empty. Describe what is in this release before dispatching."
+            exit 1
+          fi
+          echo "✅ Release notes provided"
+
       - uses: actions/checkout@v6
         with:
           token: ${{ secrets.PUBLISH_TOKEN }}
@@ -84,6 +93,23 @@ jobs:
           echo "version=$NEW_VERSION" >> $GITHUB_OUTPUT
           echo "current_version=$CURRENT_VERSION" >> $GITHUB_OUTPUT
           echo "✅ Version calculated and validated: $NEW_VERSION"
+
+      - name: Compose release notes
+        id: notes
+        env:
+          RELEASE_NOTES: ${{ github.event.inputs.release_notes }}
+          COMPARE_URL: https://github.com/${{ github.repository }}/compare/v${{ steps.version.outputs.current_version }}...v${{ steps.version.outputs.version }}
+        run: |
+          {
+            echo "body<<RELEASE_NOTES_EOF"
+            printf '%b\n\n' "$RELEASE_NOTES"
+            echo "**Full Changelog**: $COMPARE_URL"
+            echo "RELEASE_NOTES_EOF"
+          } >> "$GITHUB_OUTPUT"
+
+          echo "Release body:"
+          printf '%b\n\n' "$RELEASE_NOTES"
+          echo "**Full Changelog**: $COMPARE_URL"
 
       - name: Install protoc
         run: |
@@ -139,20 +165,6 @@ jobs:
           echo "🎨 Checking formatting..."
           cargo fmt --all -- --check
 
-      - name: Get previous tag for changelog
-        id: previous_tag
-        run: |
-          # Get the latest tag before we create the new one
-          PREVIOUS_TAG=$(git tag -l --sort=-version:refname | head -1)
-
-          if [ -z "$PREVIOUS_TAG" ]; then
-            echo "No previous tag found, will use first commit"
-            PREVIOUS_TAG=$(git rev-list --max-parents=0 HEAD)
-          fi
-
-          echo "previous_tag=$PREVIOUS_TAG" >> $GITHUB_OUTPUT
-          echo "✅ Previous tag/commit for changelog: $PREVIOUS_TAG"
-
       - name: Commit version changes
         run: |
           VERSION="${{ steps.version.outputs.version }}"
@@ -190,109 +202,12 @@ jobs:
         env:
           CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
 
-      - name: Generate changelog with Claude
-        id: claude-changelog
-        if: ${{ github.event.inputs.generate_ai_changelog == 'true' }}
-        uses: anthropics/claude-code-action@beta
-        with:
-          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
-          # Pinned explicitly: the action's built-in default is a retired model.
-          model: "claude-opus-4-8"
-          mode: agent
-          allowed_tools: "Edit,MultiEdit,Glob,Grep,Read,Write,Bash(git log:*),Bash(git tag:*),Bash(git show:*)"
-          direct_prompt: |
-            Generate a changelog for version ${{ steps.version.outputs.version }} based on the git commits since the previous tag ${{ steps.previous_tag.outputs.previous_tag }}.
-
-            CRITICAL: Return ONLY the changelog markdown. No analysis, no explanation, no introduction text.
-
-            Your entire response must be EXACTLY this format:
-
-            ## Changes
-
-            ### Category Name
-            • Brief description of change
-            • Another change description
-
-            **Full Changelog**: https://github.com/${{ github.repository }}/compare/v${{ steps.version.outputs.current_version }}...v${{ steps.version.outputs.version }}
-
-            Rules:
-            - Start immediately with "## Changes"
-            - Use bullet points (•)
-            - Exclude version bumps and CI-only changes
-            - Maximum 6 lines of changes
-            - NO text before "## Changes"
-            - NO explanations after the Full Changelog link
-
-            If there are no meaningful changes, use: "## Changes\n\n• Maintenance release\n\n**Full Changelog**: https://github.com/${{ github.repository }}/compare/v${{ steps.version.outputs.current_version }}...v${{ steps.version.outputs.version }}"
-
-      - name: Store Claude execution log as artifact
-        uses: actions/upload-artifact@v7
-        if: ${{ always() && github.event.inputs.generate_ai_changelog == 'true' }}
-        with:
-          name: claude-execution-log-v${{ steps.version.outputs.version }}
-          path: ${{ steps.claude-changelog.outputs.execution_file }}
-          retention-days: 30
-
-      - name: Extract changelog from execution file
-        id: extract-changelog
-        if: ${{ github.event.inputs.generate_ai_changelog == 'true' }}
-        run: |
-          EXECUTION_FILE="${{ steps.claude-changelog.outputs.execution_file }}"
-          if [ -f "$EXECUTION_FILE" ]; then
-            echo "Reading changelog from: $EXECUTION_FILE"
-            # Extract result from the last object with type "result" in the JSON array
-            CHANGELOG=$(jq -r '.[] | select(.type == "result") | .result' "$EXECUTION_FILE" 2>/dev/null)
-
-            # Fallback: if jq fails (malformed JSON), try grep extraction
-            if [ -z "$CHANGELOG" ] || [ "$CHANGELOG" = "null" ]; then
-              echo "jq extraction failed, trying grep fallback..."
-              CHANGELOG=$(grep -o '"result": "[^"]*"' "$EXECUTION_FILE" | tail -n1 | sed 's/"result": "//' | sed 's/"$//' | sed 's/\\n/\n/g')
-            fi
-
-            # Convert \n escape sequences to actual newlines
-            CHANGELOG=$(echo "$CHANGELOG" | sed 's/\\n/\n/g')
-
-            # Clean up any unwanted text - extract from "## Changes" onwards
-            if echo "$CHANGELOG" | grep -q "## Changes"; then
-              CHANGELOG=$(echo "$CHANGELOG" | sed -n '/## Changes/,$p')
-            fi
-
-            # Debug: show what we extracted
-            echo "Extracted changelog:"
-            echo "$CHANGELOG"
-            echo "--- End of changelog ---"
-
-            echo "changelog<<EOF" >> $GITHUB_OUTPUT
-            printf '%s\n' "$CHANGELOG" >> $GITHUB_OUTPUT
-            echo "EOF" >> $GITHUB_OUTPUT
-          else
-            echo "Execution file not found: $EXECUTION_FILE"
-            echo "changelog=Error: Could not find Claude execution results" >> $GITHUB_OUTPUT
-          fi
-
-      - name: Generate simple changelog
-        id: simple-changelog
-        if: ${{ github.event.inputs.generate_ai_changelog != 'true' }}
-        run: |
-          chmod +x .github/scripts/generate-simple-changelog.sh
-          CHANGELOG=$(.github/scripts/generate-simple-changelog.sh \
-            "${{ steps.version.outputs.version }}" \
-            "${{ steps.version.outputs.current_version }}" \
-            "${{ steps.previous_tag.outputs.previous_tag }}" \
-            "${{ github.repository }}")
-
-          echo "changelog<<EOF" >> $GITHUB_OUTPUT
-          echo "$CHANGELOG" >> $GITHUB_OUTPUT
-          echo "EOF" >> $GITHUB_OUTPUT
-
-          echo "✅ Simple changelog generated"
-
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v3
         with:
           tag_name: v${{ steps.version.outputs.version }}
           name: v${{ steps.version.outputs.version }}
-          body: ${{ steps.extract-changelog.outputs.changelog || steps.simple-changelog.outputs.changelog }}
+          body: ${{ steps.notes.outputs.body }}
           make_latest: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -401,7 +316,7 @@ jobs:
           echo "✅ Tag v$VERSION created and pushed"
           echo "✅ throttlecrab v$VERSION published to crates.io"
           echo "✅ throttlecrab-server v$VERSION published to crates.io"
-          echo "✅ GitHub release v$VERSION created with changelog"
+          echo "✅ GitHub release v$VERSION created with the supplied release notes"
           echo "✅ Docker images v$VERSION built and pushed to Docker Hub"
           echo ""
           echo "🔗 **Links:**"
